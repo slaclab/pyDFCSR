@@ -1,0 +1,58 @@
+input_beam:
+  style: distgen     # from_file or distgen
+  distgen_input_file: input/gaussian.yaml
+
+input_lattice:
+  lattice_input_file: input/lattice.yaml
+
+particle_deposition:
+  method: histogram  #histogram or clond-in-cell
+  xbins: 100         # number of grids in x for particle deposition
+  zbins: 100         # number of grids in y for particle deposition
+  xlim: 5            # range in x in the unit of sigma_x
+  zlim: 5            # range in z in the unit of sigma_z
+  filter:
+    type:  Savitzky-Golay
+    order: 2
+    window_size: 5
+  velocity_threhold : 5
+
+distribution_interpolation:
+  order: 1
+  xbins: 500
+  zbins: 500
+  xlim: 10
+  ylim: 10
+  re_interpolate_threhold: 2
+
+CSR_integration:
+  n_formation_length: 4
+  zlim_end: 10                    # integration ranges of 3 regions in z
+  zlim_mid1: 100
+  zlim_mid2: 200
+  zbins_1: 500
+  zbins_2: 500
+  zbins_3: 500
+  xlim: 10
+  xbins: 1000
+
+CSR_computation:
+  apply_CSR: 1                   # flag apply CSR to particles
+  transverse_on: 1               # flag include transverse wake
+  nmesh_x: 20                    # The mesh on which CSR wake is computed
+  nmesh_z: 30
+  xlim: 5
+  zlim: 5
+  interp_order: 1                 # order of interpolation when applying CSR wake to each particles
+
+
+
+
+
+
+
+
+
+
+
+
