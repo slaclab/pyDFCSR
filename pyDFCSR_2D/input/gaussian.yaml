@@ -39,3 +39,10 @@ z_dist:
     units: mm
     value: 2.0
   type: gaussian
+
+transforms:
+  s:
+    shear_coefficient:
+      units: 'gigaelectron_volt/speed_of_light/millimeter'
+      value: 0.5
+    type: shear z:pz
