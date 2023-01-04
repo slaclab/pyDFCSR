@@ -35,11 +35,15 @@ CSR_integration:
 CSR_computation:
   apply_CSR: 1                   # flag apply CSR to particles
   transverse_on: 1               # flag include transverse wake
-  nmesh_x: 20                    # The mesh on which CSR wake is computed
-  nmesh_z: 30
+  xbins: 20                    # The mesh on which CSR wake is computed
+  zbins: 30
   xlim: 5
   zlim: 5
-  interp_order: 1                 # order of interpolation when applying CSR wake to each particle
+  write_beam: True
+  write_wakes: True
+  workdir: './output'
+
+
 
 
 

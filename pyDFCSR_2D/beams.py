@@ -1,6 +1,8 @@
 import numpy as np
 import sys
 from distgen import Generator
+from physical_constants import *
+from scipy.interpolate import RegularGridInterpolator
 
 class Beam():
     """
@@ -20,7 +22,9 @@ class Beam():
             #Todo：check how to deal with unit
             assert self.particles.shape[1] == 6, f'Error: input beam must have 6 dimension, but get {self.particles.shape[1]} instead'
             self._charge = input_beam['charge']
-            self._energy = input_beam['energy']
+            self.energy = input_beam['energy']
+
+
         else:
             filename = input_beam['distgen_input_file']
             gen = Generator(filename)
@@ -29,12 +33,14 @@ class Beam():
             gamma = pg.gamma
             delta = (gamma - np.mean(gamma))/np.mean(gamma)
             self.particles = np.vstack((pg.x, pg.xp, pg.y, pg.yp, pg.z, delta)).T
-            #Todo: update beam mean energy after each step
-            self.mean_gamma = np.mean(gamma)
-            self.get_xz_chirp()
             #Todo： check how to get charge and energy from particles group and how to deal with unit
             self._charge = pg['q']
             self._energy = pg['energy']
+
+        self.mean_gamma = self.energy / MC2
+        self.beta = np.sqrt(1 - (1/self.gamma)**2)
+        self.get_xz_chirp()
+
 
         self._n_particle = self.particles.shape[0]
         self._particles_keys = ['x', 'px', 'y', 'py', 'z', 'delta']
@@ -66,8 +72,9 @@ class Beam():
             assert req in input_beam, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
 
     def get_xz_chirp(self):
-        p = np.polyfit(self.particles[:, 0], self.particles[:, 4], deg=1)
+        p = np.polyfit(self.z, self.x, deg=1)
         self.xz_chirp = p[0]
+        self.xz_fit = p
 
     @property
     def x_mean(self):
@@ -90,6 +97,19 @@ class Beam():
     @property
     def sigma_z(self):
         return np.std(self.particles[:,4])
+
+    @property
+    def mean_z(self):
+        return np.mean(self.particles[:,4])
+
+    @property
+    def sigma_x(self):
+        return np.std(self.particles[:, 0])
+
+    @property
+    def charge(self):
+        return self._charge
+
 
     @property
     def step(self):
@@ -120,15 +140,33 @@ class Beam():
     def z(self):
         return self.particles[:,4]
 
-
+    def x_transform(self):
+        """
+        :return: x coordinates after removing the x-z chirp
+        """
+        return self.beam.x - np.polyval(self.beam.xz_fit, self.beam.z)
 
     def update_status(self):
         #Todo: check if there are others to updates
         self.mean_gamma += self.mean_gamma*np.mean(self.particles[:,5])
+        self.energy = self.mean_gamma*MC2
+        self.beta = np.sqrt(1 - (1 / self.mean_gamma) ** 2)
         self.get_xz_chirp()
 
-    def apply_wakes(self, dE_E, x_kick):
-        #Todo: apply longitudinal and transverse CSR wakes
+    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size):
+        # Todo: add options for transverse or longitudinal kick only
+        dE_E1 = step_size*dE_dct*1e6/self.energy # self.energy in eV
+        interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0)
+        dE_Es = interp(np.array([self.x_transform, self.z]).T)
+        self.particles[:,5] += dE_Es
+
+        fx = x_kick*1e6
+        dxp = step_size*fx/self.energy
+        interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0)
+        dxps = interp(np.array([self.x_transform, self.z]).T)
+        self.particles[:,1] += dxps
+
+
         self.update_status()
         pass
 

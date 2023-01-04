@@ -12,7 +12,7 @@ def get_referece_traj(lattice_config, Nsample = 100, Ndim = 2):
       coords:  interpolant of coordinate of the trajectory, array (Nsample, Ndim). coord[:,0] = x, coord[:,1] = y
       tau_vec, n_vec: interpolant of tangential and normal vectors along the trajectory, array (Nsamp, Ndim).
                         tau_vec[:, 0] x component. tau_vec[:, 1] y component
-      rho: bending radius of the trajectory, array (Nsample,)
+      rho: bending radius (1/R) of the trajectory, array (Nsample,)
       distance: (Nelement,): distance[i] is the distance from the lattice entrance to the end of ith element
     """
     Nelement = len(lattice_config)
@@ -114,7 +114,7 @@ class Lattice():
         self.get_steps()
         self.get_ref_traj()
         self.build_interpolant()
-        self.current_element = 0           # pointer of the element where the beam is now in.
+        self.current_element = None           # pointer of the element where the beam is now in.
 
     def check_input(self, input):
         # Todo: check input for lattice
@@ -131,6 +131,7 @@ class Lattice():
         self.F_n_vec_y = RegularGridInterpolator(points=(self.s,), values=self.n_vec[:, 1], method='cubic')
         self.F_tau_vec_x = RegularGridInterpolator(points=(self.s,), values=self.tau_vec[:, 0], method='cubic')
         self.F_tau_vec_y = RegularGridInterpolator(points=(self.s,), values=self.tau_vec[:, 0], method='cubic')
+        self.F_rho = RegularGridInterpolator(points = (self.s,), values = self.rho, method = 'nearest')
 
     def get_steps(self):
         self._total_steps = 0
@@ -147,6 +148,8 @@ class Lattice():
             self._positions_record[current_steps:current_steps + steps] = temp
             current_steps += steps
             current_distance += L
+
+
 
 
 
@@ -169,3 +172,7 @@ class Lattice():
     @property
     def lattice_length(self):
         return self._lattice_length
+
+    def update(self, ele_name):
+        self.current_element = ele_name
+

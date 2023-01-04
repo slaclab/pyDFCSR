@@ -3,8 +3,8 @@ import math
 import numpy as np
 from collections import deque
 from SGolay_filter import *
-from interpolation import *
-from scipy.interpolate import interp2d
+from params import *
+from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 @jit
 def histogram_cic_1d(q1, w, nbins, bins_start, bins_end):
     """
@@ -242,8 +242,11 @@ class DF_tracker:
             x_grid_interp = self.x_grid_interp
         if not z_grid_interp:
             z_grid_interp = self.z_grid_interp
-        f = interp2d(x_grids, z_grids, DF, kind='cubic', fill_value=0)
-        return f(x_grid_interp, z_grid_interp)
+
+        X, Z = np.meshgrid(x_grid_interp, z_grid_interp, indexing = 'ij')
+        #Todo: check this 2D interpolation
+        interp = RegularGridInterpolator((x_grids, z_grids), DF, method='cubic', fill_value=0.0)
+        return interp((X,Z))
 
 
     def append_interpolant(self, formation_length, n_formation_length, interpolation: Interpolation):
@@ -307,6 +310,25 @@ class DF_tracker:
                 self.vx_x_interp.append(current_vx_x_interp)
 
             print('Re-interpolation finished!')
+
+
+    def build_interpolant(self):
+        """
+        build interpolant for CSR intergration with the 3D matrix self.*_interp
+        :return:
+        """
+        #Todo: check fill value
+        #Todo: Important! consider faster 3D interpolation https://github.com/jglaser/interp3d, https://ndsplines.readthedocs.io/en/latest/compare.html
+        self.F_density = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+                                                 self.density_interp, fill_value= 0.0)
+        self.F_density_x = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+                                                 self.density_x_interp, fill_value= 0.0)
+        self.F_density_z = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+                                                   self.density_z_interp, fill_value= 0.0)
+        self.F_vx = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+                                                   self.vx_interp, fill_value= 0.0)
+        self.F_vx_x= RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+                                                   self.vx_x_interp, fill_value= 0.0)
 
 
 
