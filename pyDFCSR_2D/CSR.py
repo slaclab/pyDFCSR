@@ -11,8 +11,12 @@ from deposit import *
 from params import *
 from physical_constants import *
 from r_gen6 import *
+from twiss_R import *
 import h5py
-
+import os
+import time
+from line_profiler_pycharm import profile
+from tools import isotime
 
 class CSR2D:
     """
@@ -21,7 +25,7 @@ class CSR2D:
 
     def __init__(self, input_file=None):
 
-
+        self.timestamp = isotime()
         if input_file:
             self.parse_input(input_file)
             self.input_file = input_file
@@ -66,7 +70,49 @@ class CSR2D:
                                            n_formation_length=self.integration_params.n_formation_length,
                                            interpolation=self.interpolation_params)
         #Todo: add more flexible unit conversion, for both charge and energy
-        self.CSR_scaling = 8.98755e-6 * self.beam.charge # charge must in nC (8.98755e-6 MeV/m for 1nC/m^2)
+        self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
+        self.init_statistics()
+    def init_statistics(self):
+        Nstep = self.lattice.total_steps
+        self.gemitX = np.zeros(Nstep + 1)
+        self.gemitX[0] = self.beam.norm_emitX
+
+
+        self.slope = np.zeros((Nstep + 1, 2))
+        self.slope[0,:] = self.beam.slope
+
+        self.Cx = np.zeros(Nstep + 1)
+        self.Cx[0] = self.beam.mean_x
+        self.Cxp = np.zeros(Nstep + 1)
+        self.Cxp[0] = self.beam.mean_xp
+        self.etaX = np.zeros(Nstep + 1)
+        self.etaXp = np.zeros(Nstep + 1)
+        self.betaX = np.zeros(Nstep + 1)
+        self.betaX[0] = self.beam.betaX
+        self.alphaX = np.zeros(Nstep + 1)
+        self.alphaX[0] = self.beam.alphaX
+        self.betaX_beam = np.zeros(Nstep + 1)
+        self.betaX_beam[0] = self.beam.betaX
+        self.alphaX_beam = np.zeros(Nstep + 1)
+        self.alphaX_beam[0] = self.beam.alphaX
+        emitX_t, norm_emitX_t, beta_t, alpha_t = self.beam.stats_minus_dispersion()
+        self.gemitX_minus_dispersion = np.zeros(Nstep + 1)
+        self.gemitX_minus_dispersion[0] = norm_emitX_t
+        self.betaX_minus_dispersion = np.zeros(Nstep + 1)
+        self.betaX_minus_dispersion[0] = beta_t
+        self.alphaX_minus_dispersion = np.zeros(Nstep + 1)
+        self.alphaX_minus_dispersion[0] = alpha_t
+
+        self.sigX = np.zeros(Nstep + 1)
+        self.sigX[0] = self.beam.sigma_x
+        self.sigZ = np.zeros(Nstep + 1)
+        self.sigZ[0] = self.beam.sigma_z
+        self.sigE = np.zeros(Nstep + 1)
+        self.sigE[0] = self.beam.sigma_delta
+
+        self.R56 = np.zeros(Nstep + 1)
+        self.R51 = np.zeros(Nstep + 1)
+        self.R52 = np.zeros(Nstep + 1)
 
     def check_input_consistency(self, input):
         # Todo: need modification if config.yaml format changed
@@ -84,9 +130,14 @@ class CSR2D:
     def get_formation_length(self, R, sigma_z, type='inbend'):
         # Todo: add entrance and exit
         if type == 'inbend':
-            self.formation_length = (24 * R ** 2 * sigma_z) ** (1 / 3)
+            self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
 
+    @profile
     def run(self):
+        Rtot6 = np.eye(6)
+        step_count = 1
+        betaX0 = self.beam.betaX
+        alphaX0 = self.beam.alphaX
         for ele in self.lattice.lattice_config:
             self.lattice.update(ele)
             # Todo: add sextupole, maybe Bmad Tracking?
@@ -106,52 +157,87 @@ class CSR2D:
                 k1 = self.lattice.lattice_config[ele]['strength']
             # -----------------------tracking---------------------------------
             for step in range(steps):
+
+                if type == 'drift' and step == 4:
+                    print(ele)
+                    print("current step ", step)
+
                 # get R6
                 if type == 'dipole':
                     if step == 0:
-                        dR6 = r_gen6(L=DL, angle=angle, E1=E1)
+                        dR6 = r_gen6(L=DL, angle=dang, E1=E1)
                     elif step == steps:
-                        dR6 = r_gen6(L=DL, angle=angle, E1=0, E2=E2)
+                        dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=E2)
                     else:
-                        dR6 = r_gen6(L=DL, angle=angle, E1=0, E2=0)
+                        dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=0)
                 elif type == 'drift':
-                    dR6 = r_gen6(L=DL)
+                    dR6 = r_gen6(L=DL, angle  = 0)
                 elif type == 'quad':
                     dR6 = r_gen6(L=DL, k1=k1)
 
                 # Propagate beam for one step
                 self.beam.track(dR6, DL)
-                # get the density functions
-                self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
-                # append the density functions to the log
-                self.DF_tracker.append_DF()
-                # append 3D matrix for interpolation with the new DFs by interpolation
-                self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
-                self.DF_tracker.append_interpolant(formation_length=self.formation_length,
-                                                   n_formation_length=self.integration.n_formation_length,
-                                                   interpolation=self.interpolation_params)
-                # build interpolant based on the 3D matrix
-                self.DF_tracker.build_interpolant()
 
-                print('Calculating CSR at s=', str(self.beam.position))
+                if self.CSR_params.compute_CSR:
+                    # get the density functions
+                    self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
+                    # append the density functions to the log
+                    self.DF_tracker.append_DF()
+                    # append 3D matrix for interpolation with the new DFs by interpolation
+                    self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
+                    self.DF_tracker.append_interpolant(formation_length=self.formation_length,
+                                                       n_formation_length=self.integration_params.n_formation_length,
+                                                       interpolation=self.interpolation_params)
+                    # build interpolant based on the 3D matrix
+                    self.DF_tracker.build_interpolant()
 
-                # calculate CSR mesh given beam shape
-                self.get_CSR_mesh()
-                # Calculate CSR on the mesh
-                self.calculate_2D_CSR()
-                # Apply CSR kick to the beam
-                if self.CSR_params.apply_CSR:
-                    self.beam.apply_wakes(self.dE_dct, self.x_kick,
-                                          self.CSR_xrange_transformed, self.CSR_zrange, DL)
+                    print('Calculating CSR at s=', str(self.beam.position))
 
-                if self.CSR_params.write_beam:
-                    self.write_beam()
+                    # calculate CSR mesh given beam shape
+                    self.get_CSR_mesh()
+                    # Calculate CSR on the mesh
+                    self.calculate_2D_CSR()
+                    # Apply CSR kick to the beam
+                    if self.CSR_params.apply_CSR:
+                        self.beam.apply_wakes(self.dE_dct, self.x_kick,
+                                              self.CSR_xrange_transformed, self.CSR_zrange, DL)
 
-                if self.CSR_params.write_wakes:
-                    self.write_wakes()
+                    if self.CSR_params.write_beam:
+                        self.write_beam()
+
+                    if self.CSR_params.write_wakes:
+                        self.write_wakes()
 
 
 
+
+                # recording statistics at each step
+                Rtot6 = np.matmul(dR6, Rtot6)
+                self.etaX[step_count] = Rtot6[0][5]
+                self.etaXp[step_count] = Rtot6[1][5]
+                self.R56[step_count] = Rtot6[4][5]
+                self.R51[step_count] = Rtot6[4][0]
+                self.R52[step_count] = Rtot6[4][1]
+                self.betaX[step_count], self.alphaX[step_count], _ = twiss_R(R = Rtot6[0:2, 0:2], alpha0 = alphaX0, beta0 = betaX0)
+                self.betaX_beam[step_count] = self.beam.betaX
+                self.alphaX_beam[step_count] = self.beam.alphaX
+                self.gemitX[step_count] = self.beam.norm_emitX
+                self.Cx[step_count]  = self.beam.mean_x
+                self.Cxp[step_count] = self.beam.mean_xp
+                self.sigX[step_count] = self.beam.sigma_x
+                self.sigZ[step_count] = self.beam.sigma_z
+                self.sigE[step_count] = self.beam.sigma_delta
+                self.slope[step_count, :] = self.beam.slope
+
+                emitX_t, norm_emitX_t, beta_t, alpha_t = self.beam.stats_minus_dispersion(Rtot= Rtot6)
+                self.gemitX_minus_dispersion[step_count] = norm_emitX_t
+                self.betaX_minus_dispersion[step_count] = beta_t
+                self.alphaX_minus_dispersion[step_count] = alpha_t
+
+                step_count += 1
+
+
+        self.write_statistics()
 
 
     def get_CSR_mesh(self):
@@ -162,6 +248,7 @@ class CSR2D:
         """
 
         x_transform = self.beam.x_transform
+        p = self.beam.slope
 
         sig_x = np.std(x_transform)
         mean_x = np.mean(x_transform)
@@ -173,7 +260,7 @@ class CSR2D:
         zbins = self.CSR_params.zbins
 
         zrange = np.linspace(mean_z - zlim * sig_z, mean_z + zlim * sig_z, zbins)
-        xrange = np.linsapce(mean_x - xlim * sig_x, mean_x + xlim * sig_x, xbins)
+        xrange = np.linspace(mean_x - xlim * sig_x, mean_x + xlim * sig_x, xbins)
 
         # Todo: check the order
         xmesh_transform, zmesh = np.meshgrid(xrange, zrange, indexing='ij')
@@ -187,40 +274,43 @@ class CSR2D:
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
-
+    @profile
     def calculate_2D_CSR(self):
         #Todo: Parallel
         N = self.CSR_params.xbins*self.CSR_params.zbins
         self.dE_dct = np.zeros((N,))
         self.x_kick = np.zeros((N,))
 
+        start_time = time.time()
         for i in range(N):
+
+            if i == 210:
+                print(i)
+
             if i%int(N//10) == 0:
-                print('Complete', str(np.round(i/N*00)), '%')
+                print('Complete', str(np.round(i/N*100,2)), '%')
 
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
 
-            self.dE_dct[i], self.x_kick[i] = self.get_CSR_integrand(s,x)
+            self.dE_dct[i], self.x_kick[i] = self.get_CSR_integrand(s,x,self.beam.sigma_x, self.beam.sigma_z)
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
+        print("--- %s seconds ---" % (time.time() - start_time))
 
-
-
-
-
-
-    def get_CSR_integrand(self,s ,x):
+    @profile
+    def get_CSR_integrand(self,s ,x, sigma_x, sigma_z):
         t = self.beam.position
         #-------------------------------------------------------------------------
         #Todo: kind of hard coding. Change in the future
         start_point = self.DF_tracker.start_time
-        end_point = s + self.integration_params.zlim_end*self.beam.sigma_z
-        mid_point1 = s - self.integration_params.zlim_mid1*self.beam.sigma_x
-        mid_point2 = s - self.integration_params.zlim_mid2*self.beam.sigma_x
-        xlim_L = x - self.integration_params.xlim*self.beam.sigma_x
-        xlim_R = x + self.integration_params.xlim*self.beam.sigma_x
+        end_point = s + self.integration_params.zlim_end*sigma_z
+        #Todo: wrong results when sigma_z is big. mid_point can smaller than start point
+        mid_point1 = s - self.integration_params.zlim_mid1*sigma_x
+        mid_point2 = s - self.integration_params.zlim_mid2*sigma_x
+        xlim_L = x - self.integration_params.xlim*sigma_x
+        xlim_R = x + self.integration_params.xlim*sigma_x
 
         zbins_1 = self.integration_params.zbins_1
         zbins_2 = self.integration_params.zbins_2
@@ -237,43 +327,56 @@ class CSR2D:
 
         vx = self.DF_tracker.F_vx([t, x, s - t])
 
-        X0_s = self.lattice.F_x_ref([s])
-        #Todo: check it
-        X0_sp = self.lattice.F_x_ref(sp.ravel())
-        Y0_s = self.lattice.F_y_ref([s])
-        Y0_sp = self.lattice.F_y_ref(sp.ravel())
-        n_vec_s_x = self.lattice.F_n_vec_x([s])
-        n_vec_sp_x = self.lattice.F_n_vec_x(sp.ravel())
-        n_vec_s_y = self.lattice.F_n_vec_y([s])
-        n_vec_sp_y = self.lattice.F_n_vec_y(sp.ravel())
-        tau_vec_s_x = self.lattice.F_tau_vec_x([s])
-        tau_vec_sp_x = self.lattice.F_tau_vec_x(sp.ravel())
-        tau_vec_s_y = self.lattice.F_tau_vec_y([s])
-        tau_vec_sp_y = self.lattice.F_tau_vec_y(sp.ravel())
+        X0_s = self.lattice.F_x_ref([s])[0]
 
-        r_minus_rp_x = X0_s - X0_sp + x * n_vec_s_x - xp * n_vec_sp_x
-        r_minus_rp_y = Y0_s - Y0_sp + x * n_vec_s_y - xp * n_vec_sp_y
+        sp_flat = sp.ravel()
+        xp_flat = xp.ravel()
+
+        #Todo: check it
+        X0_sp = self.lattice.F_x_ref(sp_flat)
+        Y0_s = self.lattice.F_y_ref([s])[0]
+        Y0_sp = self.lattice.F_y_ref(sp_flat)
+        n_vec_s_x = self.lattice.F_n_vec_x([s])[0]
+        n_vec_sp_x = self.lattice.F_n_vec_x(sp_flat)
+        n_vec_s_y = self.lattice.F_n_vec_y([s])[0]
+        n_vec_sp_y = self.lattice.F_n_vec_y(sp_flat)
+        tau_vec_s_x = self.lattice.F_tau_vec_x([s])[0]
+        tau_vec_sp_x = self.lattice.F_tau_vec_x(sp_flat)
+        tau_vec_s_y = self.lattice.F_tau_vec_y([s])[0]
+        tau_vec_sp_y = self.lattice.F_tau_vec_y(sp_flat)
+
+        r_minus_rp_x = X0_s - X0_sp + x * n_vec_s_x - xp_flat * n_vec_sp_x
+        r_minus_rp_y = Y0_s - Y0_sp + x * n_vec_s_y - xp_flat * n_vec_sp_y
         r_minus_rp = np.sqrt(r_minus_rp_x**2 + r_minus_rp_y**2)
 
         #Todo: different from matlab version. May doublecheck
-        rho_sp = self.lattice.F_rho(sp.ravel())
+        #rho_sp = self.lattice.F_rho(sp_flat)
+        rho_sp = np.zeros(sp_flat.shape)
+        for count in range(self.lattice.N_element):
+            if count == 0:
+                rho_sp[sp_flat < self.lattice.distance[count]] = self.lattice.rho[count]
+            else:
+                rho_sp[(sp_flat < self.lattice.distance[count]) & (sp_flat >= self.lattice.distance[count - 1])] = self.lattice.rho[count]
 
         t_ret = t - r_minus_rp
 
-        density_ret = self.DF_tracker.F_density(np.array([t_ret, xp.ravel(), sp.ravel()]).T)
-        density_x_ret = self.DF_tracker.F_density_x(np.array([t_ret, xp.ravel(), sp.ravel()]).T)
-        density_z_ret = self.DF_tracker.F_density_z(np.array([t_ret, xp.ravel(), sp.ravel()]).T)
-        vx_ret = self.DF_tracker.F_vx(np.array([t_ret, xp.ravel(), sp.ravel()]).T)
-        vx_x_ret = self.DF_tracker.F_vx_x(np.array([t_ret, xp.ravel(), sp.ravel()]).T)
+        density_ret = self.DF_tracker.F_density(np.array([t_ret, xp_flat, sp_flat - t_ret]).T)
+        density_x_ret = self.DF_tracker.F_density_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        density_z_ret = self.DF_tracker.F_density_z(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        vx_ret = self.DF_tracker.F_vx(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        vx_x_ret = self.DF_tracker.F_vx_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
 
-        ## Todo: More accurate vs
+        ## Todo: More accurate vx, maybe add vs
         vs = 1
         vs_ret = 1
         vs_s_ret = 0
         vx_t = 0
         vs_t = 0
+        vx = 0
+        vx_x_ret = 0
+        vx_ret = 0
 
-        scale_term =  1 + xp.ravel()*rho_sp
+        scale_term =  1 + xp_flat*rho_sp
 
 
         velocity_x = vs * tau_vec_s_x + vx * n_vec_s_x
@@ -345,51 +448,100 @@ class CSR2D:
         return dE_dct, x_kick
 
     def write_beam(self):
+        path = full_path(self.CSR_params.workdir)
+        #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + '_particles.h5'
+        filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
+        if self.beam.step == 1:
+            if os.path.isfile(filename):
+                os.remove(filename)
+                print("Existing file " + filename + " deleted.")
 
-        filename = self.CSR_params.workdir + '\\particles.h5'
-        hf = h5py.File(filename, 'a')
+        with h5py.File(filename, 'a') as hf:
 
-        step = self.beam.step
-        groupname = 'step_' + str(step)
-        g = hf.create_group(groupname)
-        g.attrs['step'] = step
-        g.attrs['position']  = self.beam.position
-        g.attrs['mean_gamma'] = self.beam.mean_gamma
-        g.attrs['beam_energy'] = self.beam.energy
-        g.attrs['element'] = self.lattice.current_element
-        g.attrs['charge'] = self.beam.charge
-        g2 = g.create_group('particles')
-        g2.create_dataset('x', data = self.beam.particles[:, 0])
-        g2.create_dataset('xp', data = self.beam.particles[:, 1])
-        g2.create_dataset('y', data = self.beam.particles[:, 2])
-        g2.create_dataset('yp', data=self.beam.particles[:, 3])
-        g2.create_dataset('z', data=self.beam.particles[:,4])
-        g2.create_dataset('delta', data=self.beam.particles[:, 5])
+            step = self.beam.step
+            groupname = 'step_' + str(step)
+            g = hf.create_group(groupname)
+            g.attrs['step'] = step
+            g.attrs['position']  = self.beam.position
+            g.attrs['mean_gamma'] = self.beam.init_gamma
+            g.attrs['beam_energy'] = self.beam.init_energy
+            g.attrs['element'] = self.lattice.current_element
+            g.attrs['charge'] = self.beam.charge
+            g2 = g.create_group('particles')
+            g2.create_dataset('x', data = self.beam.particles[:, 0])
+            g2.create_dataset('xp', data = self.beam.particles[:, 1])
+            g2.create_dataset('y', data = self.beam.particles[:, 2])
+            g2.create_dataset('yp', data=self.beam.particles[:, 3])
+            g2.create_dataset('z', data=self.beam.particles[:,4])
+            g2.create_dataset('delta', data=self.beam.particles[:, 5])
 
     def write_wakes(self):
+        path = full_path(self.CSR_params.workdir)
+        #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
+        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
 
-        filename = self.CSR_params.workdir + '\\wakes.h5'
-        hf = h5py.File(filename, 'a')
+        if self.beam.step == 1:
+            if os.path.isfile(filename):
+                os.remove(filename)
+                print("Existing file " + filename + " deleted.")
 
-        step = self.beam.step
-        groupname = 'step_' + str(step)
-        g = hf.create_group(groupname)
-        g.attrs['step'] = step
-        g.attrs['position']  = self.beam.position
-        g.attrs['mean_gamma'] = self.beam.mean_gamma
-        g.attrs['beam_energy'] = self.beam.energy
-        g.attrs['element'] = self.lattice.current_element
-        g.attrs['charge'] = self.beam.charge
-        g1 = g.create_group('longitudinal')
-        g1.attrs['unit'] = 'MeV/m'
-        g1.create_dataset('x_grids', data = self.CSR_xmesh)
-        g1.create_dataset('z_grids', data = self.CSR_zmesh)
-        g1.create_dataset('dE_dct', data = self.dE_dct)
-        g2  = g.create_group('transverse')
-        g2.attrs['unit'] = 'MeV/m'
-        g2.create_dataset('x_grids', data = self.CSR_xmesh)
-        g2.create_dataset('z_grids', data = self.CSR_zmesh)
-        g2.greate_dataset('xkicks', data = self.x_kick)
+
+        with h5py.File(filename, 'a') as hf:
+            step = self.beam.step
+            groupname = 'step_' + str(step)
+            g = hf.create_group(groupname)
+            g.attrs['step'] = step
+            g.attrs['position']  = self.beam.position
+            g.attrs['mean_gamma'] = self.beam.init_gamma
+            g.attrs['beam_energy'] = self.beam.init_energy
+            g.attrs['element'] = self.lattice.current_element
+            g.attrs['charge'] = self.beam.charge
+            g1 = g.create_group('longitudinal')
+            g1.attrs['unit'] = 'MeV/m'
+            g1.create_dataset('x_grids', data = self.CSR_xmesh.reshape(self.dE_dct.shape))
+            g1.create_dataset('z_grids', data = self.CSR_zmesh.reshape(self.dE_dct.shape))
+            g1.create_dataset('dE_dct', data = self.dE_dct)
+            g2  = g.create_group('transverse')
+            g2.attrs['unit'] = 'MeV/m'
+            g2.create_dataset('x_grids', data = self.CSR_xmesh.reshape(self.dE_dct.shape))
+            g2.create_dataset('z_grids', data = self.CSR_zmesh.reshape(self.dE_dct.shape))
+            g2.create_dataset('xkicks', data = self.x_kick)
+
+
+    def write_statistics(self):
+
+        path = full_path(self.CSR_params.workdir)
+        #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
+        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
+        if os.path.isfile(filename):
+            os.remove(filename)
+            print("Existing file " + filename + " deleted.")
+
+
+        with h5py.File(filename, 'w') as hf:
+            hf.create_dataset(name = 'step_positions', data = self.lattice.steps_record, shape = self.lattice.steps_record.shape)
+            #hf.create_dataset(name = 'slope', data = self.slope)
+            hf.create_dataset(name = 'gemitX', data = self.gemitX)
+            hf.create_dataset(name = 'Cx', data = self.Cx)
+            hf.create_dataset(name = 'Cxp', data = self.Cxp)
+            hf.create_dataset(name = 'etaX', data = self.etaX)
+            hf.create_dataset(name = 'etaXp', data = self.etaXp)
+            hf.create_dataset(name = 'betaX', data = self.betaX)
+            hf.create_dataset(name = 'alphaX', data = self.alphaX)
+            hf.create_dataset(name ='betaX_beam', data = self.betaX_beam)
+            hf.create_dataset(name ='alphaX_beam', data = self.alphaX_beam)
+            hf.create_dataset(name ='sigX', data = self.sigX)
+            hf.create_dataset(name ='sigZ', data = self.sigZ)
+            hf.create_dataset(name ='sigE', data = self.sigE)
+            hf.create_dataset(name ='R56', data = self.R56)
+            hf.create_dataset(name ='R51', data = self.R51)
+            hf.create_dataset(name ='R52', data = self.R52)
+            hf.create_dataset(name = 'gemitX_minus_dispersion', data = self.gemitX_minus_dispersion)
+            hf.create_dataset(name = 'betaX_minus_dispersion', data = self.betaX_minus_dispersion)
+            hf.create_dataset(name = 'alphaX_minus_dispersion', data = self.alphaX_minus_dispersion)
+
+
+
 
 
 

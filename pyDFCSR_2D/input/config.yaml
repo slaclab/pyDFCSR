@@ -26,21 +26,23 @@ CSR_integration:
   zlim_end: 10                    # integration ranges of 3 regions in z
   zlim_mid1: 100
   zlim_mid2: 200
-  zbins_1: 500
-  zbins_2: 500
-  zbins_3: 500
+  zbins_1: 100
+  zbins_2: 100
+  zbins_3: 100
   xlim: 10
-  xbins: 1000
+  xbins: 500
 
 CSR_computation:
-  apply_CSR: 1                   # flag apply CSR to particles
+  compute_CSR: 1                 # if zero, only track the beam
+  apply_CSR: 0                   # flag apply CSR to particles
   transverse_on: 1               # flag include transverse wake
   xbins: 20                    # The mesh on which CSR wake is computed
-  zbins: 30
-  xlim: 5
-  zlim: 5
+  zbins: 20
+  xlim: 3
+  zlim: 3
   write_beam: True
   write_wakes: True
+  write_name: 'test'
   workdir: './output'
 
 

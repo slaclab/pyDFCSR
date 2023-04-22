@@ -100,7 +100,8 @@ class DF_tracker:
         self.vx_x = None
         self.x_grids = None
         self.z_grids = None
-        self.t = t
+        self.start_time = 0.0
+        self.t = 0.0
 
         #params for DF log
         self.slope_log = deque([])
@@ -158,7 +159,7 @@ class DF_tracker:
                               nbins_1=self.xbins, bins_start_1=xmean - self.xlim * sigma_x,
                               bins_end_1=xmean + self.xlim * sigma_x,
                               nbins_2=self.zbins, bins_start_2=zmean - self.zlim * sigma_z,
-                              bins_end_2=zmean - self.zlim * sigma_z)
+                              bins_end_2=zmean + self.zlim * sigma_z)
         threshold = np.max(density) / self.velocity_threhold
         vx[density > threshold] /= density[density > threshold]
         vx[density < threshold] = 0
@@ -234,30 +235,31 @@ class DF_tracker:
 
 
     def DF_interp(self, DF, x_grid_interp = None, z_grid_interp = None, x_grids = None, z_grids = None):
-        if not x_grids:
+        if x_grids is None:
             x_grids = self.x_grids
-        if not z_grids:
+        if z_grids is None:
             z_grids = self.z_grids
-        if not x_grid_interp:
+        if x_grid_interp is None:
             x_grid_interp = self.x_grid_interp
-        if not z_grid_interp:
+        if z_grid_interp is None:
             z_grid_interp = self.z_grid_interp
 
         X, Z = np.meshgrid(x_grid_interp, z_grid_interp, indexing = 'ij')
         #Todo: check this 2D interpolation
-        interp = RegularGridInterpolator((x_grids, z_grids), DF, method='cubic', fill_value=0.0)
+        interp = RegularGridInterpolator((x_grids, z_grids), DF, method='linear', fill_value=0.0, bounds_error=False)
         return interp((X,Z))
 
 
-    def append_interpolant(self, formation_length, n_formation_length, interpolation: Interpolation):
+    def append_interpolant(self, formation_length, n_formation_length, interpolation):
         start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
         self.pop_left_DF(new_start_time=start_point)
         xlim_interp = interpolation.xlim
         zlim_interp = interpolation.zlim
         xbins = interpolation.xbins
         zbins = interpolation.zbins
-        if self.sigma_x_interp and self.log_sigma_z_interp:
-            if interpolation.re_interpolate_threshold > self.sigma_x/self.sigma_x_interp > 1/interpolation.re_interpolate_threshold and interpolation.re_interpolate_threshold > self.sigma_z/self.sigma_z_interp > 1 / interpolation.re_interpolate_threshold:
+        if self.sigma_x_interp and self.sigma_z_interp:
+            if interpolation.re_interpolate_threshold > self.sigma_x/self.sigma_x_interp > 1/interpolation.re_interpolate_threshold and \
+                    interpolation.re_interpolate_threshold > self.sigma_z/self.sigma_z_interp > 1 / interpolation.re_interpolate_threshold:
                 # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
                 self.time_interp.append(self.t)
 
@@ -278,8 +280,8 @@ class DF_tracker:
         else:
             #Todo: hard code from matlab. Consider change in the future
             print('start reinterpolation. number of slice', str(len(self.time_log)))
-            if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
-                xlim_interp = 5
+            #if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
+            #    xlim_interp = 5
 
 
             self.sigma_x_interp = self.sigma_x
@@ -294,7 +296,7 @@ class DF_tracker:
             self.density_z_interp = deque([])
             self.vx_interp = deque([])
             self.vx_x_interp = deque([])
-            self.time_interp = self.time_log
+            self.time_interp = self.time_log.copy()
 
             for x_grids, z_grids, density, vx, density_x, density_z, vx_x in self.DF_log:
                 current_density_interp = self.DF_interp(DF=density, x_grids = x_grids, z_grids = z_grids)
@@ -320,15 +322,15 @@ class DF_tracker:
         #Todo: check fill value
         #Todo: Important! consider faster 3D interpolation https://github.com/jglaser/interp3d, https://ndsplines.readthedocs.io/en/latest/compare.html
         self.F_density = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                 self.density_interp, fill_value= 0.0)
+                                                 self.density_interp, fill_value= 0.0,bounds_error=False)
         self.F_density_x = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                 self.density_x_interp, fill_value= 0.0)
+                                                 self.density_x_interp, fill_value= 0.0,bounds_error=False)
         self.F_density_z = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                   self.density_z_interp, fill_value= 0.0)
+                                                   self.density_z_interp, fill_value= 0.0,bounds_error=False)
         self.F_vx = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                   self.vx_interp, fill_value= 0.0)
+                                                   self.vx_interp, fill_value= 0.0,bounds_error=False)
         self.F_vx_x= RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                   self.vx_x_interp, fill_value= 0.0)
+                                                   self.vx_x_interp, fill_value= 0.0,bounds_error=False)
 
 
 
