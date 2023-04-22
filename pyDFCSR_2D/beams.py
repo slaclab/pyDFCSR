@@ -164,8 +164,6 @@ class Beam():
 
 
     def track(self, r6, step_size):
-        #Todo: forward or back propagate a step, remember to update every thing
-        #Todo: check np.matmul, high priority
         self.particles = np.matmul(r6, self.particles.T)
         self.particles = self.particles.T
         self.position += step_size
