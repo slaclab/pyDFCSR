@@ -147,6 +147,17 @@ class DF_tracker:
         xmean = np.mean(x)
         zmean = np.mean(z)
         npart = len(x)
+
+        #########test#######################
+        #Todo: coordinates transform for highly chirped case
+        slice_ind = np.argwhere(np.abs(z) < 0.1*sigma_z)
+        slice_sigX = np.std(x[slice_ind])
+        frac = sigma_x/slice_sigX
+        if frac > 5:
+            self.xbins = 500
+            self.zbins = 500
+            print('frac', frac)
+
         x_grids = np.linspace(xmean - self.xlim * sigma_x, xmean + self.xlim * sigma_x, self.xbins)
         z_grids = np.linspace(zmean - self.zlim * sigma_z, zmean + self.zlim * sigma_z, self.zbins)
         density = histogram_cic_2d(q1=x, q2=z, w=np.ones(x.shape),
@@ -162,10 +173,21 @@ class DF_tracker:
                               bins_end_2=zmean + self.zlim * sigma_z)
         threshold = np.max(density) / self.velocity_threhold
         vx[density > threshold] /= density[density > threshold]
+
+        # Add filter to density and vx
+        vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)
+
         vx[density < threshold] = 0
+
+        # Add filter to density and vx
+        density = sgolay2d(density, self.filter_window, self.filter_order, derivative=None)
 
         dsum = np.trapz(np.trapz(density, x_grids, axis=0), z_grids)
         density /= dsum
+
+
+
+
 
         # Todo: how to do it if apply coordiante tranformation?
 
@@ -257,25 +279,23 @@ class DF_tracker:
         zlim_interp = interpolation.zlim
         xbins = interpolation.xbins
         zbins = interpolation.zbins
-        if self.sigma_x_interp and self.sigma_z_interp:
-            if interpolation.re_interpolate_threshold > self.sigma_x/self.sigma_x_interp > 1/interpolation.re_interpolate_threshold and \
+        if self.sigma_x_interp and self.sigma_z_interp and \
+                interpolation.re_interpolate_threshold > self.sigma_x/self.sigma_x_interp > 1/interpolation.re_interpolate_threshold and \
                     interpolation.re_interpolate_threshold > self.sigma_z/self.sigma_z_interp > 1 / interpolation.re_interpolate_threshold:
-                # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
-                self.time_interp.append(self.t)
-
-                self.x_grid_interp = np.linspace(-xlim_interp*self.sigma_x_interp, xlim_interp*self.sigma_x_interp, xbins)
-                self.z_grid_interp = np.linspace(-zlim_interp*self.sigma_z_interp, zlim_interp*self.sigma_z_interp, zbins)
-                current_density_interp = self.DF_interp(DF = self.density)
-                current_density_x_interp = self.DF_interp(DF = self.density_x)
-                current_density_z_interp = self.DF_interp(DF = self.density_z)
-                current_vx_interp = self.DF_interp(DF = self.vx)
-                current_vx_x_interp = self.DF_interp(DF = self.vx_x)
-
-                self.density_interp.append(current_density_interp)
-                self.density_x_interp.append(current_density_x_interp)
-                self.density_z_interp.append(current_density_z_interp)
-                self.vx_interp.append(current_vx_interp)
-                self.vx_x_interp.append(current_vx_x_interp)
+            # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
+            self.time_interp.append(self.t)
+            self.x_grid_interp = np.linspace(-xlim_interp*self.sigma_x_interp, xlim_interp*self.sigma_x_interp, xbins)
+            self.z_grid_interp = np.linspace(-zlim_interp*self.sigma_z_interp, zlim_interp*self.sigma_z_interp, zbins)
+            current_density_interp = self.DF_interp(DF = self.density)
+            current_density_x_interp = self.DF_interp(DF = self.density_x)
+            current_density_z_interp = self.DF_interp(DF = self.density_z)
+            current_vx_interp = self.DF_interp(DF = self.vx)
+            current_vx_x_interp = self.DF_interp(DF = self.vx_x)
+            self.density_interp.append(current_density_interp)
+            self.density_x_interp.append(current_density_x_interp)
+            self.density_z_interp.append(current_density_z_interp)
+            self.vx_interp.append(current_vx_interp)
+            self.vx_x_interp.append(current_vx_x_interp)
 
         else:
             #Todo: hard code from matlab. Consider change in the future
@@ -320,19 +340,32 @@ class DF_tracker:
         :return:
         """
         #Todo: check fill value
-        #Todo: Important! consider faster 3D interpolation https://github.com/jglaser/interp3d, https://ndsplines.readthedocs.io/en/latest/compare.html
-        self.F_density = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                 self.density_interp, fill_value= 0.0,bounds_error=False)
-        self.F_density_x = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                 self.density_x_interp, fill_value= 0.0,bounds_error=False)
-        self.F_density_z = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                   self.density_z_interp, fill_value= 0.0,bounds_error=False)
-        self.F_vx = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                   self.vx_interp, fill_value= 0.0,bounds_error=False)
-        self.F_vx_x= RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
-                                                   self.vx_x_interp, fill_value= 0.0,bounds_error=False)
-
-
+        #Todo: Important! consider faster 3D interpolation (Cython and parellel with prange, GIL release) https://github.com/jglaser/interp3d, https://ndsplines.readthedocs.io/en/latest/compare.html
+        #Todo: Probably accelerate trapz with jit (parallel) https://berkeley-stat159-f17.github.io/stat159-f17/lectures/09-intro-numpy/trapezoid..html
+        #Todo: Parallel cic with jit?
+        #Todo: Also think about accelerate all numpy with numba.https://towardsdatascience.com/supercharging-numpy-with-numba-77ed5b169240
+        #Todo: Also consider GPU acceleration of trapz and scipy regulargridinterpolant with Cupy
+        #self.F_density = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+        #                                         self.density_interp, fill_value= 0.0,bounds_error=False)
+        #self.F_density_x = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+        #                                         self.density_x_interp, fill_value= 0.0,bounds_error=False)
+        #self.F_density_z = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+        #                                           self.density_z_interp, fill_value= 0.0,bounds_error=False)
+        #self.F_vx = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+        #                                           self.vx_interp, fill_value= 0.0,bounds_error=False)
+        #self.F_vx_x= RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
+        #                                           self.vx_x_interp, fill_value= 0.0,bounds_error=False)
+        self.min_x, self.max_x = self.time_interp[0], self.time_interp[-1]
+        self.min_y, self.max_y = self.x_grid_interp[0], self.x_grid_interp[-1]
+        self.min_z, self.max_z = self.z_grid_interp[0], self.z_grid_interp[-1]
+        self.delta_x = (self.max_x - self.min_x) / (len(self.time_interp) - 1)
+        self.delta_y = (self.max_y - self.min_y) / (self.x_grid_interp.shape[0] - 1)
+        self.delta_z =  (self.max_z - self.min_z) / (self.z_grid_interp.shape[0] - 1)
+        self.data_density_interp = np.array(self.density_interp)
+        self.data_density_z_interp = np.array(self.density_z_interp)
+        self.data_density_x_interp = np.array(self.density_x_interp)
+        self.data_vx_interp = np.array(self.vx_interp)
+        self.data_vx_x_interp = np.array(self.vx_x_interp)
 
 
 
