@@ -15,9 +15,11 @@ from twiss_R import *
 import h5py
 import os
 import time
-from line_profiler_pycharm import profile
+#from line_profiler_pycharm import profile
 from tools import isotime
-
+from interp3D import interpolate3D
+from interp1D import interpolate1D
+from numba import jit
 class CSR2D:
     """
     The main class to calculate 2D CSR
@@ -74,48 +76,48 @@ class CSR2D:
         self.init_statistics()
     def init_statistics(self):
         Nstep = self.lattice.total_steps
-        self.gemitX = np.zeros(Nstep + 1)
+        self.gemitX = np.zeros(Nstep)
         self.gemitX[0] = self.beam.norm_emitX
 
 
-        self.slope = np.zeros((Nstep + 1, 2))
+        self.slope = np.zeros((Nstep, 2))
         self.slope[0,:] = self.beam.slope
 
-        self.Cx = np.zeros(Nstep + 1)
+        self.Cx = np.zeros(Nstep)
         self.Cx[0] = self.beam.mean_x
-        self.Cxp = np.zeros(Nstep + 1)
+        self.Cxp = np.zeros(Nstep)
         self.Cxp[0] = self.beam.mean_xp
-        self.etaX = np.zeros(Nstep + 1)
-        self.etaXp = np.zeros(Nstep + 1)
-        self.betaX = np.zeros(Nstep + 1)
+        self.etaX = np.zeros(Nstep)
+        self.etaXp = np.zeros(Nstep)
+        self.betaX = np.zeros(Nstep)
         self.betaX[0] = self.beam.betaX
-        self.alphaX = np.zeros(Nstep + 1)
+        self.alphaX = np.zeros(Nstep)
         self.alphaX[0] = self.beam.alphaX
-        self.betaX_beam = np.zeros(Nstep + 1)
+        self.betaX_beam = np.zeros(Nstep)
         self.betaX_beam[0] = self.beam.betaX
-        self.alphaX_beam = np.zeros(Nstep + 1)
+        self.alphaX_beam = np.zeros(Nstep)
         self.alphaX_beam[0] = self.beam.alphaX
         emitX_t, norm_emitX_t, beta_t, alpha_t = self.beam.stats_minus_dispersion()
-        self.gemitX_minus_dispersion = np.zeros(Nstep + 1)
+        self.gemitX_minus_dispersion = np.zeros(Nstep)
         self.gemitX_minus_dispersion[0] = norm_emitX_t
-        self.betaX_minus_dispersion = np.zeros(Nstep + 1)
+        self.betaX_minus_dispersion = np.zeros(Nstep)
         self.betaX_minus_dispersion[0] = beta_t
-        self.alphaX_minus_dispersion = np.zeros(Nstep + 1)
+        self.alphaX_minus_dispersion = np.zeros(Nstep)
         self.alphaX_minus_dispersion[0] = alpha_t
 
-        self.sigX = np.zeros(Nstep + 1)
+        self.sigX = np.zeros(Nstep)
         self.sigX[0] = self.beam.sigma_x
-        self.sigZ = np.zeros(Nstep + 1)
+        self.sigZ = np.zeros(Nstep)
         self.sigZ[0] = self.beam.sigma_z
-        self.sigE = np.zeros(Nstep + 1)
+        self.sigE = np.zeros(Nstep)
         self.sigE[0] = self.beam.sigma_delta
 
-        self.R56 = np.zeros(Nstep + 1)
-        self.R51 = np.zeros(Nstep + 1)
-        self.R52 = np.zeros(Nstep + 1)
+        self.R56 = np.zeros(Nstep)
+        self.R51 = np.zeros(Nstep)
+        self.R52 = np.zeros(Nstep)
 
     def check_input_consistency(self, input):
-        # Todo: need modification if config.yaml format changed
+        # Todo: need modification if dipole_config.yaml format changed
         self.required_inputs = ['input_beam', 'input_lattice']
 
         allowed_params = self.required_inputs + ['particle_deposition', 'distribution_interpolation', 'CSR_integration',
@@ -132,33 +134,35 @@ class CSR2D:
         if type == 'inbend':
             self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
 
-    @profile
+    #@profile
     def run(self):
         Rtot6 = np.eye(6)
         step_count = 1
         betaX0 = self.beam.betaX
         alphaX0 = self.beam.alphaX
-        for ele in self.lattice.lattice_config:
+        DL = self.lattice.step_size
+        ele_count = 0
+        for ele in list(self.lattice.lattice_config.keys())[1:]:
             self.lattice.update(ele)
             # Todo: add sextupole, maybe Bmad Tracking?
             # -----------------------load current lattice params-----------------#
-            steps = self.lattice.lattice_config[ele]['steps']
+            #steps = self.lattice.lattice_config[ele]['steps']
             L = self.lattice.lattice_config[ele]['L']
             type = self.lattice.lattice_config[ele]['type']
-            DL = L / steps
+            steps = self.lattice.steps_per_element[ele_count]
             R = float('inf')
             if type == 'dipole':
                 angle = self.lattice.lattice_config[ele]['angle']
                 R = L / angle
                 E1 = self.lattice.lattice_config[ele]['E1']
                 E2 = self.lattice.lattice_config[ele]['E2']
-                dang = angle / steps
+                dang = angle*DL/L
             if type == 'quad':
                 k1 = self.lattice.lattice_config[ele]['strength']
             # -----------------------tracking---------------------------------
             for step in range(steps):
 
-                if type == 'drift' and step == 4:
+                if type == 'dipole' and step == 6:
                     print(ele)
                     print("current step ", step)
 
@@ -166,7 +170,8 @@ class CSR2D:
                 if type == 'dipole':
                     if step == 0:
                         dR6 = r_gen6(L=DL, angle=dang, E1=E1)
-                    elif step == steps:
+                    #Todo: How to deal with the exiting edge
+                    elif step == steps - 1:
                         dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=E2)
                     else:
                         dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=0)
@@ -193,20 +198,21 @@ class CSR2D:
 
                     print('Calculating CSR at s=', str(self.beam.position))
 
-                    # calculate CSR mesh given beam shape
-                    self.get_CSR_mesh()
-                    # Calculate CSR on the mesh
-                    self.calculate_2D_CSR()
-                    # Apply CSR kick to the beam
-                    if self.CSR_params.apply_CSR:
-                        self.beam.apply_wakes(self.dE_dct, self.x_kick,
+                    if step % self.lattice.nsep[ele_count] == 0:
+                        # calculate CSR mesh given beam shape
+                        self.get_CSR_mesh()
+                        # Calculate CSR on the mesh
+                        self.calculate_2D_CSR()
+                        # Apply CSR kick to the beam
+                        if self.CSR_params.apply_CSR:
+                            self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, DL)
 
-                    if self.CSR_params.write_beam:
-                        self.write_beam()
+                        if self.CSR_params.write_beam:
+                            self.write_beam()
 
-                    if self.CSR_params.write_wakes:
-                        self.write_wakes()
+                        if self.CSR_params.write_wakes:
+                            self.write_wakes()
 
 
 
@@ -235,6 +241,7 @@ class CSR2D:
                 self.alphaX_minus_dispersion[step_count] = alpha_t
 
                 step_count += 1
+            ele_count += 1
 
 
         self.write_statistics()
@@ -274,7 +281,7 @@ class CSR2D:
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
-    @profile
+    #@profile
     def calculate_2D_CSR(self):
         #Todo: Parallel
         N = self.CSR_params.xbins*self.CSR_params.zbins
@@ -299,7 +306,7 @@ class CSR2D:
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         print("--- %s seconds ---" % (time.time() - start_time))
 
-    @profile
+    #@profile
     def get_CSR_integrand(self,s ,x, sigma_x, sigma_z):
         t = self.beam.position
         #-------------------------------------------------------------------------
@@ -325,34 +332,64 @@ class CSR2D:
         [xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
         #----------------------------------------------------------------------------------
 
-        vx = self.DF_tracker.F_vx([t, x, s - t])
-
-        X0_s = self.lattice.F_x_ref([s])[0]
+        #vx = self.DF_tracker.F_vx([t, x, s - t])
+        vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
+                             data=self.DF_tracker.data_vx_interp,
+                             min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                             min_z=self.DF_tracker.min_z,
+                             delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                             delta_z=self.DF_tracker.delta_z)[0]
 
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
-        #Todo: check it
-        X0_sp = self.lattice.F_x_ref(sp_flat)
-        Y0_s = self.lattice.F_y_ref([s])[0]
-        Y0_sp = self.lattice.F_y_ref(sp_flat)
-        n_vec_s_x = self.lattice.F_n_vec_x([s])[0]
-        n_vec_sp_x = self.lattice.F_n_vec_x(sp_flat)
-        n_vec_s_y = self.lattice.F_n_vec_y([s])[0]
-        n_vec_sp_y = self.lattice.F_n_vec_y(sp_flat)
-        tau_vec_s_x = self.lattice.F_tau_vec_x([s])[0]
-        tau_vec_sp_x = self.lattice.F_tau_vec_x(sp_flat)
-        tau_vec_s_y = self.lattice.F_tau_vec_y([s])[0]
-        tau_vec_sp_y = self.lattice.F_tau_vec_y(sp_flat)
+        #X0_s = self.lattice.F_x_ref([s])[0]
+        #X0_sp = self.lattice.F_x_ref(sp_flat)
+        #Y0_s = self.lattice.F_y_ref([s])[0]
+        #Y0_sp = self.lattice.F_y_ref(sp_flat)
+        #n_vec_s_x = self.lattice.F_n_vec_x([s])[0]
+        #n_vec_sp_x = self.lattice.F_n_vec_x(sp_flat)
+        #n_vec_s_y = self.lattice.F_n_vec_y([s])[0]
+        #n_vec_sp_y = self.lattice.F_n_vec_y(sp_flat)
+        #tau_vec_s_x = self.lattice.F_tau_vec_x([s])[0]
+        #tau_vec_sp_x = self.lattice.F_tau_vec_x(sp_flat)
+        #tau_vec_s_y = self.lattice.F_tau_vec_y([s])[0]
+        #tau_vec_sp_y = self.lattice.F_tau_vec_y(sp_flat)
+
+        X0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
+                             delta_x = self.lattice.delta_x)[0]
+        X0_sp = interpolate1D(xval = sp_flat, data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
+                              delta_x = self.lattice.delta_x)
+        Y0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 1], min_x = self.lattice.min_x,
+                             delta_x = self.lattice.delta_x)[0]
+        Y0_sp = interpolate1D(xval = sp_flat, data = self.lattice.coords[:, 1], min_x = self.lattice.min_x,
+                              delta_x = self.lattice.delta_x)
+        n_vec_s_x = interpolate1D(xval = np.array([s]), data = self.lattice.n_vec[:, 0], min_x = self.lattice.min_x,
+                                  delta_x = self.lattice.delta_x)[0]
+        n_vec_sp_x =interpolate1D(xval = sp_flat, data = self.lattice.n_vec[:, 0], min_x = self.lattice.min_x,
+                                  delta_x = self.lattice.delta_x)
+        n_vec_s_y = interpolate1D(xval=np.array([s]), data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
+                                  delta_x=self.lattice.delta_x)[0]
+        n_vec_sp_y = interpolate1D(xval=sp_flat, data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
+                                   delta_x=self.lattice.delta_x)
+        tau_vec_s_x = interpolate1D(xval=np.array([s]), data=self.lattice.tau_vec[:, 0], min_x=self.lattice.min_x,
+                                  delta_x=self.lattice.delta_x)[0]
+        tau_vec_sp_x = interpolate1D(xval=sp_flat, data=self.lattice.tau_vec[:, 0], min_x=self.lattice.min_x,
+                                   delta_x=self.lattice.delta_x)
+        tau_vec_s_y = interpolate1D(xval=np.array([s]), data=self.lattice.tau_vec[:, 1], min_x=self.lattice.min_x,
+                                  delta_x=self.lattice.delta_x)[0]
+        tau_vec_sp_y = interpolate1D(xval=sp_flat, data=self.lattice.tau_vec[:, 1], min_x=self.lattice.min_x,
+                                   delta_x=self.lattice.delta_x)
+
 
         r_minus_rp_x = X0_s - X0_sp + x * n_vec_s_x - xp_flat * n_vec_sp_x
         r_minus_rp_y = Y0_s - Y0_sp + x * n_vec_s_y - xp_flat * n_vec_sp_y
         r_minus_rp = np.sqrt(r_minus_rp_x**2 + r_minus_rp_y**2)
 
-        #Todo: different from matlab version. May doublecheck
+
         #rho_sp = self.lattice.F_rho(sp_flat)
         rho_sp = np.zeros(sp_flat.shape)
-        for count in range(self.lattice.N_element):
+        for count in range(self.lattice.Nelement):
             if count == 0:
                 rho_sp[sp_flat < self.lattice.distance[count]] = self.lattice.rho[count]
             else:
@@ -360,11 +397,43 @@ class CSR2D:
 
         t_ret = t - r_minus_rp
 
-        density_ret = self.DF_tracker.F_density(np.array([t_ret, xp_flat, sp_flat - t_ret]).T)
-        density_x_ret = self.DF_tracker.F_density_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        density_z_ret = self.DF_tracker.F_density_z(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        vx_ret = self.DF_tracker.F_vx(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        vx_x_ret = self.DF_tracker.F_vx_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        #density_ret = self.DF_tracker.F_density(np.array([t_ret, xp_flat, sp_flat - t_ret]).T)
+        #density_x_ret = self.DF_tracker.F_density_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        #density_z_ret = self.DF_tracker.F_density_z(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        #vx_ret = self.DF_tracker.F_vx(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        #vx_x_ret = self.DF_tracker.F_vx_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+
+        density_ret = interpolate3D(xval = t_ret, yval = xp_flat, zval = sp_flat - t_ret,
+                                  data = self.DF_tracker.data_density_interp,
+                                  min_x = self.DF_tracker.min_x, min_y = self.DF_tracker.min_y,  min_z = self.DF_tracker.min_z,
+                                  delta_x = self.DF_tracker.delta_x, delta_y = self.DF_tracker.delta_y, delta_z = self.DF_tracker.delta_z)
+
+        density_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                  data=self.DF_tracker.data_density_x_interp,
+                                  min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y, min_z=self.DF_tracker.min_z,
+                                  delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                  delta_z=self.DF_tracker.delta_z)
+
+        density_z_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                    data=self.DF_tracker.data_density_z_interp,
+                                    min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                                    min_z=self.DF_tracker.min_z,
+                                    delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                    delta_z=self.DF_tracker.delta_z)
+
+        vx_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                    data=self.DF_tracker.data_vx_interp,
+                                    min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                                    min_z=self.DF_tracker.min_z,
+                                    delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                    delta_z=self.DF_tracker.delta_z)
+
+        vx_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                             data=self.DF_tracker.data_vx_x_interp,
+                             min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                             min_z=self.DF_tracker.min_z,
+                             delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                             delta_z=self.DF_tracker.delta_z)
 
         ## Todo: More accurate vx, maybe add vs
         vs = 1
@@ -406,7 +475,7 @@ class CSR2D:
         #self.CSR_integrand = CSR_numerator1/CSR_denominator + (CSR_numerator3 + CSR_numerator3)/CSR_denominator
 
 
-        #Todo: Check the formula. Also check the scale term
+
         CSR_numerator1 = scale_term * (((n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y) +
                                         (vx - vx_ret) * (tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y)) * density_x_ret -
                                        vx_ret * (n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y)/scale_term * density_z_ret)
@@ -520,7 +589,7 @@ class CSR2D:
 
         with h5py.File(filename, 'w') as hf:
             hf.create_dataset(name = 'step_positions', data = self.lattice.steps_record, shape = self.lattice.steps_record.shape)
-            #hf.create_dataset(name = 'slope', data = self.slope)
+            hf.create_dataset(name = 'slope', data = self.slope)
             hf.create_dataset(name = 'gemitX', data = self.gemitX)
             hf.create_dataset(name = 'Cx', data = self.Cx)
             hf.create_dataset(name = 'Cxp', data = self.Cxp)
@@ -539,6 +608,9 @@ class CSR2D:
             hf.create_dataset(name = 'gemitX_minus_dispersion', data = self.gemitX_minus_dispersion)
             hf.create_dataset(name = 'betaX_minus_dispersion', data = self.betaX_minus_dispersion)
             hf.create_dataset(name = 'alphaX_minus_dispersion', data = self.alphaX_minus_dispersion)
+            hf.create_dataset(name='coords', data=self.lattice.coords)
+            hf.create_dataset(name='n_vec', data=self.lattice.n_vec)
+            hf.create_dataset(name='tau_vec', data=self.lattice.tau_vec)
 
 
 
