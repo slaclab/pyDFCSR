@@ -43,6 +43,7 @@ z_dist:
 transforms:
   s:
     shear_coefficient:
-      units: 'gigaelectron_volt/speed_of_light/millimeter'
-      value: 0.0
+      units: 'gigaelectron_volt/speed_of_light/meter'
+      value: 50.0
     type: shear z:pz
+

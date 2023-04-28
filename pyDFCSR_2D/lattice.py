@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from yaml_parser import *
-def get_referece_traj(lattice_config, Nsample = 100, Ndim = 2):
+def get_referece_traj(lattice_config, Nsample = 1000, Ndim = 2):
     """
     A function to get the reference trajectory of partices with given lattice configuration
     :param lattice_config: dictionary
@@ -15,41 +15,50 @@ def get_referece_traj(lattice_config, Nsample = 100, Ndim = 2):
       rho: bending radius (1/R) of the trajectory, array (Nsample,)
       distance: (Nelement,): distance[i] is the distance from the lattice entrance to the end of ith element
     """
-    Nelement = len(lattice_config)
+    Nelement = len(lattice_config) - 1
     distance = np.zeros(Nelement)        # distance[i] is the distance between the entrance and the end of ith element
     rho = np.zeros(Nelement)
-    s = np.zeros(Nelement*Nsample + 1)
+    nsep = np.zeros(Nelement)
+    #s = np.zeros(Nelement*Nsample + 1)
     count = 0
-    for key in lattice_config.keys():
+    for key in list(lattice_config.keys())[1:]:
         current_element = lattice_config[key]
         L = current_element['L']
+        nsep[count] = current_element['nsep']
         if current_element['type'] == 'dipole':
             angle = current_element['angle']
             rho[count] = angle/L
 
         if count == 0:
             distance[count] = L
-            s[count*Nsample: (count + 1)*Nsample + 1] = np.linspace(0, L, Nsample + 1)
+            #s[count*Nsample: (count + 1)*Nsample + 1] = np.linspace(0, L, Nsample + 1)
         else:
             distance[count] = L + distance[count - 1]
             # this is to make sure that the edge of each elements is sampled in s
-            s[count*Nsample + 1: (count + 1)*Nsample + 1] = np.linspace(distance[count - 1], distance[count], Nsample + 1)[1:]
+            #s[count*Nsample + 1: (count + 1)*Nsample + 1] = np.linspace(distance[count - 1], distance[count], Nsample + 1)[1:]
         count += 1
     #s[-1] = distance[-1]
 
-
-    #L_lattice = distance[-1]     # total length of the lattice
-    #s = np.linspace(0, L_lattice, Nsample)                     # coordinates along s to calculate the reference traj
+    #Todo: I change the definition of s to be equidistant. However, it cannot garanteed that the edge of each element is included.
+    L_lattice = distance[-1]     # total length of the lattice
+    s = np.linspace(0, L_lattice, Nsample)                     # coordinates along s to calculate the reference traj
     interval = np.mean(np.diff(s))
-    coords = np.zeros((Nelement*Nsample + 1, Ndim))
-    tau_vec = np.zeros((Nelement*Nsample + 1, Ndim))
-    n_vec = np.zeros((Nelement*Nsample + 1, Ndim))
+    coords = np.zeros((Nsample, Ndim))
+    tau_vec = np.zeros((Nsample, Ndim))
+    n_vec = np.zeros((Nsample, Ndim))
+
     #rho = np.zeros(Nelement*Nsample + 1)
 
     element_infer = 0      # pointer to which element we are in
     count = 1
     theta_0 = 0  # te angle between the traj tangential and x axis
-    keys = list(lattice_config.keys())
+    tau_vec[0, 0] = np.cos(theta_0)
+    tau_vec[0, 1] = np.sin(theta_0)
+
+    # Todo: High Priority! check the sign of n_vec
+    n_vec[0, 0] = np.sin(theta_0)
+    n_vec[0, 1] = -1 * np.cos(theta_0)
+    keys = list(lattice_config.keys())[1:]
     for st in s[1:]:
         if st > distance[element_infer]:
             element_infer += 1
@@ -89,7 +98,7 @@ def get_referece_traj(lattice_config, Nsample = 100, Ndim = 2):
         tau_vec[count, 0] = np.cos(theta_0)
         tau_vec[count, 1] = np.sin(theta_0)
 
-        # Todo: check the sign of n_vec
+        # Todo: High Priority! check the sign of n_vec
         n_vec[count, 0] = np.sin(theta_0)
         n_vec[count, 1] = -1*np.cos(theta_0)
 
@@ -98,7 +107,7 @@ def get_referece_traj(lattice_config, Nsample = 100, Ndim = 2):
 
 
 
-    return s, rho, distance, coords, n_vec, tau_vec
+    return s, rho, distance, nsep, coords, n_vec, tau_vec
 
 class Lattice():
     """
@@ -114,53 +123,71 @@ class Lattice():
         lattice_config = parse_yaml(self.lattice_input_file)
         self.check_input(lattice_config)
         self.lattice_config = lattice_config
-        self._Nelement = len(lattice_config)
-        self.get_steps()
+        self._Nelement = len(lattice_config) - 1
         self.get_ref_traj()
+        self.get_steps()
+
         self.build_interpolant()
         self.current_element = None           # pointer of the element where the beam is now in.
 
     def check_input(self, input):
         # Todo: check input for lattice
-        pass
-    def get_ref_traj(self, Nsample = 100):
-        self.s, self.rho, self.distance, self.coords, self.n_vec, self.tau_vec = get_referece_traj(lattice_config = self.lattice_config, Nsample = Nsample)
+        assert 'step_size' in input, f'Required input parameter step_size to {self.__class__.__name__}.__init__(**kwargs) was not found.'
+    def get_ref_traj(self, Nsample = 2000):
+        self.s, self.rho, self.distance, self.nsep, self.coords, self.n_vec, self.tau_vec = get_referece_traj(lattice_config = self.lattice_config, Nsample = Nsample)
 
         self._lattice_length = self.distance[-1]
 
-    def build_interpolant(self, Nsample = 200):
-        self.F_x_ref = RegularGridInterpolator(points=(self.s,), values=self.coords[:, 0], method='linear',bounds_error = False)
-        self.F_y_ref = RegularGridInterpolator(points=(self.s,), values=self.coords[:, 1], method='linear',bounds_error = False)
-        self.F_n_vec_x = RegularGridInterpolator(points=(self.s,), values=self.n_vec[:, 0], method='linear',bounds_error = False)
-        self.F_n_vec_y = RegularGridInterpolator(points=(self.s,), values=self.n_vec[:, 1], method='linear',bounds_error = False)
-        self.F_tau_vec_x = RegularGridInterpolator(points=(self.s,), values=self.tau_vec[:, 0], method='linear',bounds_error = False)
-        self.F_tau_vec_y = RegularGridInterpolator(points=(self.s,), values=self.tau_vec[:, 1], method='linear',bounds_error = False)
+    def build_interpolant(self):
+        self.min_x, self.max_x = self.s[0], self.s[-1]
+        self.delta_x = (self.max_x - self.min_x) / (self.s.shape[0] - 1)
+        #self.F_x_ref = RegularGridInterpolator(points=(self.s,), values=self.coords[:, 0], method='linear',bounds_error = False)
+        #self.F_y_ref = RegularGridInterpolator(points=(self.s,), values=self.coords[:, 1], method='linear',bounds_error = False)
+        #self.F_n_vec_x = RegularGridInterpolator(points=(self.s,), values=self.n_vec[:, 0], method='linear',bounds_error = False)
+        #self.F_n_vec_y = RegularGridInterpolator(points=(self.s,), values=self.n_vec[:, 1], method='linear',bounds_error = False)
+        #self.F_tau_vec_x = RegularGridInterpolator(points=(self.s,), values=self.tau_vec[:, 0], method='linear',bounds_error = False)
+        #self.F_tau_vec_y = RegularGridInterpolator(points=(self.s,), values=self.tau_vec[:, 1], method='linear',bounds_error = False)
         #self.F_rho = RegularGridInterpolator(points = (self.s,), values = self.rho, method = 'nearest',bounds_error = False)
 
     def get_steps(self):
-        self._total_steps = 0
-        for key in self.lattice_config:
-            self._total_steps += self.lattice_config[key]['steps']
+        self.step_size = self.lattice_config['step_size']
+        self._positions_record = np.arange(0, self.lattice_length, self.step_size)
+        self._total_steps = len(self._positions_record)
+        self._CSR_steps_index = np.array([])                   # the index of total_steps where the CSR will be computed
+        self.steps_per_element = np.zeros((self.Nelement,), dtype = int)
+        count = 0
+        prev_ind = 0
+        for d in self.distance:
+            ind = np.searchsorted(self._positions_record, d, side = 'right')    #a[ind-1]<= d<a[ind], a is positions_record
+            nsep_t = self.nsep[count]
+            new_index = np.arange(prev_ind, ind, nsep_t)
+            self._CSR_steps_index = np.append(self._CSR_steps_index, new_index)
+            if count == 0:
+                self.steps_per_element[count] = ind - prev_ind - 1 # s = 0
+            else:
+                self.steps_per_element[count] = ind - prev_ind
+            count += 1
+            prev_ind = ind
 
-        self._positions_record = np.zeros((self._total_steps + 1,))
-        current_distance = 0
-        current_steps = 0
-        for key in self.lattice_config:
-            L = self.lattice_config[key]['L']
-            steps = self.lattice_config[key]['steps']
-            temp = np.linspace(current_distance, current_distance + L, steps + 1)
-            self._positions_record[current_steps + 1:current_steps + steps + 1] = temp[1:]
-            current_steps += steps
-            current_distance += L
+        self._CSR_steps_count = len(self._CSR_steps_index)
 
-    @property
-    def N_element(self):
-        return self._Nelement
+
 
     @property
     def lattice_length(self):
         return self._lattice_length
 
+    @property
+    def CSR_steps_index(self):
+        return self._CSR_steps_index
+
+    @property
+    def total_steps(self):
+        return self.total_steps
+
+    @property
+    def CSR_steps_count(self):
+        return self._CSR_steps_index
 
 
 
