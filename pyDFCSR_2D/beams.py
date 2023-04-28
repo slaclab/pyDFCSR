@@ -147,7 +147,7 @@ class Beam():
 
     def stats_minus_dispersion(self, Rtot = np.eye(6)):
         """
-        :param iRtot: reverse transfer matrix
+        :param Rtot: reverse transfer matrix
         :return:x-emittance, beta and alpha minus dispersion effect
         """
         iRtot = np.linalg.inv(Rtot)
