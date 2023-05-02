@@ -162,9 +162,9 @@ class CSR2D:
             # -----------------------tracking---------------------------------
             for step in range(steps):
 
-                if type == 'dipole' and step == 6:
-                    print(ele)
-                    print("current step ", step)
+                #if type == 'dipole' and step == 6:
+                #    print(ele)
+                #    print("current step ", step)
 
                 # get R6
                 if type == 'dipole':
@@ -291,11 +291,11 @@ class CSR2D:
         start_time = time.time()
         for i in range(N):
 
-            if i == 210:
-                print(i)
+            #if i == 210:
+            #    print(i)
 
-            if i%int(N//10) == 0:
-                print('Complete', str(np.round(i/N*100,2)), '%')
+            #if i%int(N//10) == 0:
+            #    print('Complete', str(np.round(i/N*100,2)), '%')
 
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
@@ -524,7 +524,7 @@ class CSR2D:
             if os.path.isfile(filename):
                 os.remove(filename)
                 print("Existing file " + filename + " deleted.")
-
+        print("Beams written to ", filename)
         with h5py.File(filename, 'a') as hf:
 
             step = self.beam.step
@@ -548,7 +548,7 @@ class CSR2D:
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
         filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
-
+        print("Wakes written to ", filename)
         if self.beam.step == 1:
             if os.path.isfile(filename):
                 os.remove(filename)
@@ -585,7 +585,7 @@ class CSR2D:
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")
-
+        print("Statistics written to ", filename)
 
         with h5py.File(filename, 'w') as hf:
             hf.create_dataset(name = 'step_positions', data = self.lattice.steps_record, shape = self.lattice.steps_record.shape)
