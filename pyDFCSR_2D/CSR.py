@@ -206,7 +206,7 @@ class CSR2D:
                         # Apply CSR kick to the beam
                         if self.CSR_params.apply_CSR:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
-                                              self.CSR_xrange_transformed, self.CSR_zrange, DL)
+                                              self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count])
 
                         if self.CSR_params.write_beam:
                             self.write_beam()
@@ -547,7 +547,7 @@ class CSR2D:
     def write_wakes(self):
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
-        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
+        filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
         print("Wakes written to ", filename)
         if self.beam.step == 1:
             if os.path.isfile(filename):

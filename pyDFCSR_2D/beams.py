@@ -199,15 +199,15 @@ class Beam():
         dE_Es = interp(np.array([self.x_transform, self.z]).T)
         self.particles[:,5] += dE_Es
 
-        fx = x_kick*1e6
-        dxp = step_size*fx/self.init_energy
+
+        dxp = step_size*x_kick*1e6/self.init_energy
         interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0,bounds_error=False)
         dxps = interp(np.array([self.x_transform, self.z]).T)
         self.particles[:,1] += dxps
 
 
         #self.update_status()
-        pass
+
 
     def frog_leap(self):
         #Todo: track half step, apply kicks, track another half step
