@@ -441,9 +441,9 @@ class CSR2D:
         vs_s_ret = 0
         vx_t = 0
         vs_t = 0
-        vx = 0
-        vx_x_ret = 0
-        vx_ret = 0
+        #vx = 0
+        #vx_x_ret = 0
+        #vx_ret = 0
 
         scale_term =  1 + xp_flat*rho_sp
 
@@ -581,7 +581,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
-        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
+        filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")

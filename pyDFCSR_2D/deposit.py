@@ -175,7 +175,7 @@ class DF_tracker:
         vx[density > threshold] /= density[density > threshold]
 
         # Add filter to density and vx
-        vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)
+        #vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)  # adding this seems to be wrong
 
         vx[density < threshold] = 0
 
