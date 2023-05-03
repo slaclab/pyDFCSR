@@ -11,7 +11,7 @@ spec = [
     ('data', double[:]),          # an array field
 ]
 
-@jit(nopython = True, nogil = True, cache = True, parallel = True)
+@jit(nopython = True,  cache = True)
 def interpolate1D(xval, data, min_x, delta_x):
     result = np.zeros(xval.shape)
     x_size = data.shape[0]

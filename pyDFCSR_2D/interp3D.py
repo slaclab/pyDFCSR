@@ -16,7 +16,7 @@ spec = [
     ('data', double[:, :, :]),          # an array field
 ]
 
-@jit(nopython = True, nogil = True, cache = True, parallel = True)
+@jit(nopython = True,  cache = True)
 def interpolate3D(xval, yval, zval, data, min_x, min_y, min_z,  delta_x, delta_y, delta_z):
     result = np.zeros(len(xval))
     x_size, y_size, z_size = data.shape[0], data.shape[1], data.shape[2]

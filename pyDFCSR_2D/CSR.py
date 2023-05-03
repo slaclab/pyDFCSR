@@ -20,12 +20,15 @@ from tools import isotime
 from interp3D import interpolate3D
 from interp1D import interpolate1D
 from numba import jit
+from mpi4py import MPI
+
+
 class CSR2D:
     """
     The main class to calculate 2D CSR
     """
 
-    def __init__(self, input_file=None):
+    def __init__(self, input_file=None, parallel = False):
 
         self.timestamp = isotime()
         if input_file:
@@ -33,6 +36,9 @@ class CSR2D:
             self.input_file = input_file
         self.formation_length = None
         self.initialization()  # process the initial beam
+
+        if parallel:
+            self.init_MPI()
 
     def parse_input(self, input_file):
         input = parse_yaml(input_file)
@@ -115,6 +121,18 @@ class CSR2D:
         self.R56 = np.zeros(Nstep)
         self.R51 = np.zeros(Nstep)
         self.R52 = np.zeros(Nstep)
+
+    def init_MPI(self):
+        self.parallel = True
+        comm = MPI.COMM_WORLD
+        self.rank = comm.Get_rank()
+        mpi_size = comm.Get_size()
+
+        work_size = self.CSR_params.xbins * self.CSR_params.zbins
+        ave, res = divmod(work_size, mpi_size)
+        self.count = [ave + 1 if p < res else ave for p in range(mpi_size)]
+        displ = [sum(self.count[:p]) for p in range(mpi_size)]
+        self.displ = np.array(displ)
 
     def check_input_consistency(self, input):
         # Todo: need modification if dipole_config.yaml format changed
@@ -202,7 +220,10 @@ class CSR2D:
                         # calculate CSR mesh given beam shape
                         self.get_CSR_mesh()
                         # Calculate CSR on the mesh
-                        self.calculate_2D_CSR()
+                        if self.parallel:
+                            self.calculate_2D_CSR_parallel()
+                        else:
+                            self.calculate_2D_CSR()
                         # Apply CSR kick to the beam
                         if self.CSR_params.apply_CSR:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
@@ -283,7 +304,7 @@ class CSR2D:
         self.CSR_xrange_transformed = xrange
     #@profile
     def calculate_2D_CSR(self):
-        #Todo: Parallel
+
         N = self.CSR_params.xbins*self.CSR_params.zbins
         self.dE_dct = np.zeros((N,))
         self.x_kick = np.zeros((N,))
@@ -306,6 +327,40 @@ class CSR2D:
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         print("--- %s seconds ---" % (time.time() - start_time))
 
+    def calculate_2D_CSR_parallel(self):
+        work_size= self.CSR_params.xbins * self.CSR_params.zbins
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        start = int(self.displ[rank])
+        local_size = int(self.count[rank])
+        print("worker {} starting to calculate {} points".format(rank, local_size))
+
+        self.dE_dct = np.zeros((work_size,))
+        self.x_kick = np.zeros((work_size,))
+
+        dE_dct_local = np.zeros((local_size,))
+        x_kick_local = np.zeros(local_size, )
+
+        start_time = time.time()
+        for i in range(local_size):
+            k  = start + i
+            # if i == 210:
+            #    print(i)
+
+            # if i%int(N//10) == 0:
+            #    print('Complete', str(np.round(i/N*100,2)), '%')
+
+            s = self.beam.position + self.CSR_zmesh[k]
+            x = self.CSR_xmesh[k]
+
+            dE_dct_local[i], x_kick_local[i] = self.get_CSR_integrand(s, x, self.beam.sigma_x, self.beam.sigma_z)
+
+        comm.Allgatherv(dE_dct_local, [self.dE_dct, self.count, self.displ, MPI.DOUBLE])
+        comm.Allgatherv(x_kick_local, [self.x_kick, self.count, self.displ, MPI.DOUBLE])
+
+        self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
+        self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
+        print("worker {} takes {} seconds to finish the job".format(rank, time.time() - start_time))
     #@profile
     def get_CSR_integrand(self,s ,x, sigma_x, sigma_z):
         t = self.beam.position
@@ -517,6 +572,9 @@ class CSR2D:
         return dE_dct, x_kick
 
     def write_beam(self):
+        if self.parallel and self.rank != 0:
+            return
+
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + '_particles.h5'
         filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
@@ -545,6 +603,10 @@ class CSR2D:
             g2.create_dataset('delta', data=self.beam.particles[:, 5])
 
     def write_wakes(self):
+
+        if self.parallel and self.rank != 0:
+            return
+
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
         filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
@@ -578,6 +640,9 @@ class CSR2D:
 
 
     def write_statistics(self):
+
+        if self.parallel and self.rank != 0:
+            return
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
