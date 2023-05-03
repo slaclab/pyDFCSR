@@ -6,8 +6,7 @@ from scipy.interpolate import RegularGridInterpolator
 
 class Beam():
     """
-    Beam class to initialize and install particle information
-    maybe forward track?
+    Beam class to initialize, track and apply wakes
     """
     def __init__(self, input_beam):
 
@@ -16,10 +15,8 @@ class Beam():
         self.style = input_beam['style']
 
         if self.style == 'from_file':
-            #Todo: make a safe parser to load ascii
             filename = input_beam['beamfile']
             self.particles = np.loadtxt(filename)
-            #Todo：check how to deal with unit
             assert self.particles.shape[1] == 6, f'Error: input beam must have 6 dimension, but get {self.particles.shape[1]} instead'
             self._charge = input_beam['charge']
             self._init_energy = input_beam['energy']
