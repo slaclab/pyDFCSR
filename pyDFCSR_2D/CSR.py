@@ -179,7 +179,7 @@ class CSR2D:
                 k1 = self.lattice.lattice_config[ele]['strength']
             # -----------------------tracking---------------------------------
             for step in range(steps):
-
+                time0  = time.time()
                 #if type == 'dipole' and step == 6:
                 #    print(ele)
                 #    print("current step ", step)
@@ -213,8 +213,9 @@ class CSR2D:
                                                        interpolation=self.interpolation_params)
                     # build interpolant based on the 3D matrix
                     self.DF_tracker.build_interpolant()
-
-                    print('Calculating CSR at s=', str(self.beam.position))
+                    
+                    if not self.parallel or self.rank == 0:
+                        print('Calculating CSR at s=', str(self.beam.position))
 
                     if step % self.lattice.nsep[ele_count] == 0:
                         # calculate CSR mesh given beam shape
@@ -262,8 +263,12 @@ class CSR2D:
                 self.alphaX_minus_dispersion[step_count] = alpha_t
 
                 step_count += 1
+                
+                if not self.parallel or self.rank == 0:
+                    print("Finish step {} in {} seconds".format(step_count, time.time() - time0))
+                
             ele_count += 1
-
+            
 
         self.write_statistics()
 
@@ -302,7 +307,8 @@ class CSR2D:
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
-    #@profile
+    
+    #@profile 
     def calculate_2D_CSR(self):
 
         N = self.CSR_params.xbins*self.CSR_params.zbins
@@ -333,7 +339,6 @@ class CSR2D:
         rank = comm.Get_rank()
         start = int(self.displ[rank])
         local_size = int(self.count[rank])
-        print("worker {} starting to calculate {} points".format(rank, local_size))
 
         self.dE_dct = np.zeros((work_size,))
         self.x_kick = np.zeros((work_size,))
@@ -360,7 +365,7 @@ class CSR2D:
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
-        print("worker {} takes {} seconds to finish the job".format(rank, time.time() - start_time))
+        
     #@profile
     def get_CSR_integrand(self,s ,x, sigma_x, sigma_z):
         t = self.beam.position
@@ -577,7 +582,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + '_particles.h5'
-        filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
+        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
         if self.beam.step == 1:
             if os.path.isfile(filename):
                 os.remove(filename)
@@ -609,7 +614,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
-        filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
+        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
         print("Wakes written to ", filename)
         if self.beam.step == 1:
             if os.path.isfile(filename):
@@ -646,7 +651,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
-        filename = f'{path}\\{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
+        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")

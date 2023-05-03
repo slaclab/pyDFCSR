@@ -156,7 +156,7 @@ class DF_tracker:
         if frac > 5:
             self.xbins = 500
             self.zbins = 500
-            print('frac', frac)
+            #print('frac', frac)
 
         x_grids = np.linspace(xmean - self.xlim * sigma_x, xmean + self.xlim * sigma_x, self.xbins)
         z_grids = np.linspace(zmean - self.zlim * sigma_z, zmean + self.zlim * sigma_z, self.zbins)
@@ -299,7 +299,7 @@ class DF_tracker:
 
         else:
             #Todo: hard code from matlab. Consider change in the future
-            print('start reinterpolation. number of slice', str(len(self.time_log)))
+            #print('start reinterpolation. number of slice', str(len(self.time_log)))
             #if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
             #    xlim_interp = 5
 
@@ -331,7 +331,7 @@ class DF_tracker:
                 self.vx_interp.append(current_vx_interp)
                 self.vx_x_interp.append(current_vx_x_interp)
 
-            print('Re-interpolation finished!')
+            #print('Re-interpolation finished!')
 
 
     def build_interpolant(self):
