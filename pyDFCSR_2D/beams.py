@@ -22,7 +22,7 @@ class Beam():
             #Todo：check how to deal with unit
             assert self.particles.shape[1] == 6, f'Error: input beam must have 6 dimension, but get {self.particles.shape[1]} instead'
             self._charge = input_beam['charge']
-            self._energy = input_beam['energy']
+            self._init_energy = input_beam['energy']
 
 
         else:
