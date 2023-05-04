@@ -16,4 +16,4 @@
 #mpirun -n 128 python -u /sdf/group/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/debug_file.py
 
 
-mpirun -n 128 python  -m pyDFCSR_mpi_run ./input/dipole_config.yaml
+mpirun -n 128 python  -m pyDFCSR_mpi_run ./input/chicane_config.yaml
