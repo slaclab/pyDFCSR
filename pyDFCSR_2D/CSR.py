@@ -39,6 +39,8 @@ class CSR2D:
 
         if parallel:
             self.init_MPI()
+        else:
+            self.parallel = False
 
     def parse_input(self, input_file):
         input = parse_yaml(input_file)
@@ -255,7 +257,8 @@ class CSR2D:
                 self.sigX[step_count] = self.beam.sigma_x
                 self.sigZ[step_count] = self.beam.sigma_z
                 self.sigE[step_count] = self.beam.sigma_delta
-                self.slope[step_count, :] = self.beam.slope
+                self.beam_slope = self.beam.slope
+                self.slope[step_count, :] = self.beam_slope
 
                 emitX_t, norm_emitX_t, beta_t, alpha_t = self.beam.stats_minus_dispersion(Rtot= Rtot6)
                 self.gemitX_minus_dispersion[step_count] = norm_emitX_t

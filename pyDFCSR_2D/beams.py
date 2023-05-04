@@ -30,7 +30,6 @@ class Beam():
             gamma = pg.gamma
             delta = (gamma - np.mean(gamma))/np.mean(gamma)
             self.particles = np.vstack((pg.x, pg.xp, pg.y, pg.yp, pg.z, delta)).T
-            #Todo： check how to get charge and energy from particles group and how to deal with unit
             self._charge = pg['charge']
             self._init_energy = np.mean(pg['energy'])
             # unchanged, initial energy and gamma
