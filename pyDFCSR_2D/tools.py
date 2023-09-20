@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import cm
 import datetime
+import numpy as np
+from scipy.interpolate import griddata
+
 def full_path(path):
     """
     From C. Mayes
@@ -41,6 +44,16 @@ def plot_surface(x, y, z):
 
     # Add a color bar which maps values to colors.
     fig.colorbar(surf, shrink=0.5, aspect=5)
+    plt.show()
+
+def plot_2D_contour(x, y, z):
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    surf = ax.imshow(z, extent=(min(x)*1e6, max(x)*1e6, min(y)*1e6, max(y)*1e6), origin='lower',  cmap='PiYg')
+
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+    plt.xlabel('y ($\mu m$)')
+    plt.ylabel('x ($\mu m$)')
     plt.show()
 
 def find_nearest_ind(array, value):

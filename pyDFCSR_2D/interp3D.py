@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit
+from numba import jit, vectorize, float64
 from numba.experimental import jitclass
 from numba import int32, float32, double
 from numba import njit, prange
@@ -81,5 +81,22 @@ class TrilinearInterpolator:
 
     def interp(self, xval, yval, zval):
         return interpolate3D(xval, yval, zval, self.data,
+                           self.min_x, self.min_y, self.min_z,
+                           self.delta_x, self.delta_y, self.delta_z)
+
+
+
+class TrilinearInterpolator_vec:
+    def __init__(self, data, x, y, z):
+        self.data = data
+        self.min_x, self.max_x = x[0], x[-1]
+        self.min_y, self.max_y = y[0], y[-1]
+        self.min_z, self.max_z = z[0], z[-1]
+        self.delta_x = (self.max_x - self.min_x) / (x.shape[0] - 1)
+        self.delta_y = (self.max_y - self.min_y) / (y.shape[0] - 1)
+        self.delta_z = (self.max_z - self.min_z) / (z.shape[0] - 1)
+
+    def interp(self, xval, yval, zval):
+        return interpolate3D_vec(xval, yval, zval, self.data,
                            self.min_x, self.min_y, self.min_z,
                            self.delta_x, self.delta_y, self.delta_z)

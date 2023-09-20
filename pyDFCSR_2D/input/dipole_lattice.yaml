@@ -1,8 +1,8 @@
 #Todo：enforce the same time steps in all elements
-step_size:  0.1  # unit step size for tracking and CSR computing (meter)
+step_size:  0.05  # unit step size for tracking and CSR computing (meter)
 element_1:     # can be arbitrary name
   type: drift
-  L: 0.5
+  L: 0.1
   nsep: 1
 
 element_2:
@@ -11,6 +11,12 @@ element_2:
   angle: 1.0
   E1: 0
   E2: 0
+  nsep: 1
+
+
+element_3:     # can be arbitrary name
+  type: drift
+  L: 0.5
   nsep: 1
 
 #element_3:

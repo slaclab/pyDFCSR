@@ -155,7 +155,7 @@ class CSR2D:
             self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
 
     #@profile
-    def run(self):
+    def run(self, stop_time = None):
         Rtot6 = np.eye(6)
         step_count = 1
         betaX0 = self.beam.betaX
@@ -203,22 +203,22 @@ class CSR2D:
                 # Propagate beam for one step
                 self.beam.track(dR6, DL)
 
+
+                # get the density functions
+                self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
+                # append the density functions to the log
+                self.DF_tracker.append_DF()
+                # append 3D matrix for interpolation with the new DFs by interpolation
+                self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
+                self.DF_tracker.append_interpolant(formation_length=self.formation_length,
+                                                   n_formation_length=self.integration_params.n_formation_length,
+                                                   interpolation=self.interpolation_params)
+                # build interpolant based on the 3D matrix
+                self.DF_tracker.build_interpolant()
+
                 if self.CSR_params.compute_CSR:
-                    # get the density functions
-                    self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
-                    # append the density functions to the log
-                    self.DF_tracker.append_DF()
-                    # append 3D matrix for interpolation with the new DFs by interpolation
-                    self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
-                    self.DF_tracker.append_interpolant(formation_length=self.formation_length,
-                                                       n_formation_length=self.integration_params.n_formation_length,
-                                                       interpolation=self.interpolation_params)
-                    # build interpolant based on the 3D matrix
-                    self.DF_tracker.build_interpolant()
-                    
                     if not self.parallel or self.rank == 0:
                         print('Calculating CSR at s=', str(self.beam.position))
-
                     if step % self.lattice.nsep[ele_count] == 0:
                         # calculate CSR mesh given beam shape
                         self.get_CSR_mesh()
@@ -231,10 +231,8 @@ class CSR2D:
                         if self.CSR_params.apply_CSR:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count])
-
                         if self.CSR_params.write_beam:
                             self.write_beam()
-
                         if self.CSR_params.write_wakes:
                             self.write_wakes()
 
@@ -269,7 +267,10 @@ class CSR2D:
                 
                 if not self.parallel or self.rank == 0:
                     print("Finish step {} in {} seconds".format(step_count, time.time() - time0))
-                
+
+                if stop_time and self.beam.position > stop_time:
+                    return
+
             ele_count += 1
             
 
@@ -330,7 +331,7 @@ class CSR2D:
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
 
-            self.dE_dct[i], self.x_kick[i] = self.get_CSR_integrand(s,x,self.beam.sigma_x, self.beam.sigma_z)
+            self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x,self.beam.sigma_x, self.beam.sigma_z)
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
@@ -361,26 +362,131 @@ class CSR2D:
             s = self.beam.position + self.CSR_zmesh[k]
             x = self.CSR_xmesh[k]
 
-            dE_dct_local[i], x_kick_local[i] = self.get_CSR_integrand(s, x, self.beam.sigma_x, self.beam.sigma_z)
+            dE_dct_local[i], x_kick_local[i] = self.get_CSR_wake(s, x, self.beam.sigma_x, self.beam.sigma_z)
 
         comm.Allgatherv(dE_dct_local, [self.dE_dct, self.count, self.displ, MPI.DOUBLE])
         comm.Allgatherv(x_kick_local, [self.x_kick, self.count, self.displ, MPI.DOUBLE])
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
-        
-    #@profile
-    def get_CSR_integrand(self,s ,x, sigma_x, sigma_z):
+
+
+
+    def get_localization(self, x, s, t, sp):
+
+        X0_s = interpolate1D(xval=np.array([s]), data=self.lattice.coords[:, 0], min_x=self.lattice.min_x,
+                             delta_x=self.lattice.delta_x)[0]
+        X0_sp = interpolate1D(xval=sp, data=self.lattice.coords[:, 0], min_x=self.lattice.min_x,
+                              delta_x=self.lattice.delta_x)
+        Y0_s = interpolate1D(xval=np.array([s]), data=self.lattice.coords[:, 1], min_x=self.lattice.min_x,
+                             delta_x=self.lattice.delta_x)[0]
+        Y0_sp = interpolate1D(xval=sp, data=self.lattice.coords[:, 1], min_x=self.lattice.min_x,
+                              delta_x=self.lattice.delta_x)
+        n_vec_s_x = interpolate1D(xval=np.array([s]), data=self.lattice.n_vec[:, 0], min_x=self.lattice.min_x,
+                                  delta_x=self.lattice.delta_x)[0]
+        n_vec_sp_x = interpolate1D(xval=sp, data=self.lattice.n_vec[:, 0], min_x=self.lattice.min_x,
+                                   delta_x=self.lattice.delta_x)
+        n_vec_s_y = interpolate1D(xval=np.array([s]), data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
+                                  delta_x=self.lattice.delta_x)[0]
+        n_vec_sp_y = interpolate1D(xval=sp, data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
+                                   delta_x=self.lattice.delta_x)
+
+        q_x = x*n_vec_s_x + X0_s - X0_sp
+        q_y = x*n_vec_s_y + Y0_s - Y0_sp
+        q2 = q_x*q_x + q_y*q_y
+
+        n_sp_q = n_vec_sp_x* q_x + n_vec_sp_y* q_y
+
+        k = self.beam.slope[0]
+
+        term1 = (n_sp_q * k**2 + (t - sp)*k)/(k**2 - 1)
+
+        term2 = k**2/(k**2 - 1)*np.sqrt((k**2 - 1)*((t - sp)**2 - q2) + (n_sp_q * k + t - sp)**2)
+
+        xp1 = term1 + term2
+        xp2 = term1 - term2
+
+        xp1 = (k * (t - sp - (- X0_s**2 * n_vec_sp_y**2 * k**2 + X0_s**2 +
+                              2* X0_s * X0_sp * n_vec_sp_y**2 * k**2 -
+                              2* X0_s * X0_sp + 2 * X0_s * Y0_s * n_vec_sp_x * n_vec_sp_y * k**2 -
+                              2* X0_s * Y0_sp * n_vec_sp_x * n_vec_sp_y * k**2 -
+                              2. * X0_s * n_vec_s_x * n_vec_sp_y **2 * k** 2 * x +
+                              2. * X0_s * n_vec_s_x * x + 2. * X0_s * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k**2 * x -
+                              2. * X0_s * n_vec_sp_x * k * sp + 2 * X0_s * n_vec_sp_x * k * t -
+                              X0_sp**2 * n_vec_sp_y ** 2 * k**2 +
+                              X0_sp**2 - 2* X0_sp* Y0_s * n_vec_sp_x * n_vec_sp_y * k**2 +
+                              2 * X0_sp * Y0_sp * n_vec_sp_x * n_vec_sp_y * k**2 + 2 * X0_sp * n_vec_s_x * n_vec_sp_y**2 * k**2 * x -
+                              2. * X0_sp * n_vec_s_x * x - 2. * X0_sp * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k**2 * x +
+                              2. * X0_sp * n_vec_sp_x * k * sp - 2. * X0_sp * n_vec_sp_x * k * t -
+                              Y0_s** 2 * n_vec_sp_x**2 * k**2 + Y0_s**2 + 2. * Y0_s * Y0_sp * n_vec_sp_x **2 * k**2
+                              - 2. * Y0_s * Y0_sp + 2. * Y0_s * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k**2 * x -
+                              2 * Y0_s * n_vec_s_y * n_vec_sp_x**2 * k**2 * x + 2. * Y0_s * n_vec_s_y * x
+                              - 2. * Y0_s * n_vec_sp_y * k * sp + 2 * Y0_s * n_vec_sp_y * k * t -
+                              Y0_sp**2 * n_vec_sp_x**2 * k**2 + Y0_sp ** 2 -
+                              2. * Y0_sp * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k**2 * x +
+                              2. * Y0_sp * n_vec_s_y * n_vec_sp_x**2 * k**2 * x -
+                              2. * Y0_sp * n_vec_s_y * x + 2. * Y0_sp * n_vec_sp_y* k * sp -
+                              2. * Y0_sp * n_vec_sp_y * k * t - n_vec_s_x**2 * n_vec_sp_y **2 * k**2 * x**2 +
+                              n_vec_s_x**2 * x **2 + 2. * n_vec_s_x * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k**2 * x **2 -
+                              2. * n_vec_s_x * n_vec_sp_x * k * sp * x + 2. * n_vec_s_x * n_vec_sp_x * k * t* x -
+                              n_vec_s_y**2 * n_vec_sp_x **2 * k**2 * x** 2 + n_vec_s_y**2 * x**2 -
+                              2. * n_vec_s_y * n_vec_sp_y * k * sp * x + 2 * n_vec_s_y * n_vec_sp_y * k * t * x +
+                              n_vec_sp_x**2 * k**2 * sp**2 - 2. * n_vec_sp_x**2 * k**2 * sp * t +
+                              n_vec_sp_x **2 * k**2 * t**2 + n_vec_sp_y**2 * k**2 * sp**2 - 2. * n_vec_sp_y**2 * k**2 * sp * t +
+                              n_vec_sp_y** 2 * k**2 * t**2)** (1 / 2) +
+                              X0_s * n_vec_sp_x * k - X0_sp * n_vec_sp_x * k +
+                              Y0_s * n_vec_sp_y * k - Y0_sp * n_vec_sp_y * k +
+                              n_vec_s_x * n_vec_sp_x * k * x + n_vec_s_y * n_vec_sp_y * k * x)) / (
+                         n_vec_sp_x**2 * k**2 + n_vec_sp_y**2 * k**2 - 1)
+
+        xp2= (k * (t - sp + (- X0_s ** 2 * n_vec_sp_y ** 2 * k ** 2 + X0_s ** 2 +
+                              2 * X0_s * X0_sp * n_vec_sp_y ** 2 * k ** 2 -
+                              2 * X0_s * X0_sp + 2 * X0_s * Y0_s * n_vec_sp_x * n_vec_sp_y * k ** 2 -
+                              2 * X0_s * Y0_sp * n_vec_sp_x * n_vec_sp_y * k ** 2 -
+                              2. * X0_s * n_vec_s_x * n_vec_sp_y ** 2 * k ** 2 * x +
+                              2. * X0_s * n_vec_s_x * x + 2. * X0_s * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k ** 2 * x -
+                              2. * X0_s * n_vec_sp_x * k * sp + 2 * X0_s * n_vec_sp_x * k * t -
+                              X0_sp ** 2 * n_vec_sp_y ** 2 * k ** 2 +
+                              X0_sp ** 2 - 2 * X0_sp * Y0_s * n_vec_sp_x * n_vec_sp_y * k ** 2 +
+                              2 * X0_sp * Y0_sp * n_vec_sp_x * n_vec_sp_y * k ** 2 + 2 * X0_sp * n_vec_s_x * n_vec_sp_y ** 2 * k ** 2 * x -
+                              2. * X0_sp * n_vec_s_x * x - 2. * X0_sp * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k ** 2 * x +
+                              2. * X0_sp * n_vec_sp_x * k * sp - 2. * X0_sp * n_vec_sp_x * k * t -
+                              Y0_s ** 2 * n_vec_sp_x ** 2 * k ** 2 + Y0_s ** 2 + 2. * Y0_s * Y0_sp * n_vec_sp_x ** 2 * k ** 2
+                              - 2. * Y0_s * Y0_sp + 2. * Y0_s * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k ** 2 * x -
+                              2 * Y0_s * n_vec_s_y * n_vec_sp_x ** 2 * k ** 2 * x + 2. * Y0_s * n_vec_s_y * x
+                              - 2. * Y0_s * n_vec_sp_y * k * sp + 2 * Y0_s * n_vec_sp_y * k * t -
+                              Y0_sp ** 2 * n_vec_sp_x ** 2 * k ** 2 + Y0_sp ** 2 -
+                              2. * Y0_sp * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k ** 2 * x +
+                              2. * Y0_sp * n_vec_s_y * n_vec_sp_x ** 2 * k ** 2 * x -
+                              2. * Y0_sp * n_vec_s_y * x + 2. * Y0_sp * n_vec_sp_y * k * sp -
+                              2. * Y0_sp * n_vec_sp_y * k * t - n_vec_s_x ** 2 * n_vec_sp_y ** 2 * k ** 2 * x ** 2 +
+                              n_vec_s_x ** 2 * x ** 2 + 2. * n_vec_s_x * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k ** 2 * x ** 2 -
+                              2. * n_vec_s_x * n_vec_sp_x * k * sp * x + 2. * n_vec_s_x * n_vec_sp_x * k * t * x -
+                              n_vec_s_y ** 2 * n_vec_sp_x ** 2 * k ** 2 * x ** 2 + n_vec_s_y ** 2 * x ** 2 -
+                              2. * n_vec_s_y * n_vec_sp_y * k * sp * x + 2 * n_vec_s_y * n_vec_sp_y * k * t * x +
+                              n_vec_sp_x ** 2 * k ** 2 * sp ** 2 - 2. * n_vec_sp_x ** 2 * k ** 2 * sp * t +
+                              n_vec_sp_x ** 2 * k ** 2 * t ** 2 + n_vec_sp_y ** 2 * k ** 2 * sp ** 2 - 2. * n_vec_sp_y ** 2 * k ** 2 * sp * t +
+                              n_vec_sp_y ** 2 * k ** 2 * t ** 2) ** (1 / 2) +
+                    X0_s * n_vec_sp_x * k - X0_sp * n_vec_sp_x * k +
+                    Y0_s * n_vec_sp_y * k - Y0_sp * n_vec_sp_y * k +
+                    n_vec_s_x * n_vec_sp_x * k * x + n_vec_s_y * n_vec_sp_y * k * x)) / (
+                      n_vec_sp_x ** 2 * k ** 2 + n_vec_sp_y ** 2 * k ** 2 - 1)
+
+        return xp1, xp2
+
+
+
+    def get_CSR_wake(self, s, x, sigma_x, sigma_z):
         t = self.beam.position
-        #-------------------------------------------------------------------------
-        #Todo: kind of hard coding. Change in the future
+        # -------------------------------------------------------------------------
+        # Todo: kind of hard coding. Change in the future
         start_point = self.DF_tracker.start_time
-        end_point = s + self.integration_params.zlim_end*sigma_z
-        #Todo: wrong results when sigma_z is big. mid_point can smaller than start point
-        mid_point1 = s - self.integration_params.zlim_mid1*sigma_x
-        mid_point2 = s - self.integration_params.zlim_mid2*sigma_x
-        xlim_L = x - self.integration_params.xlim*sigma_x
-        xlim_R = x + self.integration_params.xlim*sigma_x
+        end_point = s + self.integration_params.zlim_end * sigma_z
+        # Todo: wrong results when sigma_z is big. mid_point can smaller than start point
+        mid_point1 = s - self.integration_params.zlim_mid1 * sigma_x
+        mid_point2 = s - self.integration_params.zlim_mid2 * sigma_x
+        xlim_L = x - self.integration_params.xlim * sigma_x
+        xlim_R = x + self.integration_params.xlim * sigma_x
 
         zbins_1 = self.integration_params.zbins_1
         zbins_2 = self.integration_params.zbins_2
@@ -393,7 +499,15 @@ class CSR2D:
         x_range_t = np.linspace(xlim_L, xlim_R, self.integration_params.xbins)
 
         [xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
-        #----------------------------------------------------------------------------------
+
+        CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s, x, t, sp, xp)
+
+        dE_dct = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=x_range_t, axis=0), x=s_range_t)
+        x_kick = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=x_range_t, axis=0), x=s_range_t)
+
+        return dE_dct, x_kick
+    #@profile
+    def get_CSR_integrand(self,s ,x, t, sp, xp):
 
         #vx = self.DF_tracker.F_vx([t, x, s - t])
         vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
@@ -406,18 +520,6 @@ class CSR2D:
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
-        #X0_s = self.lattice.F_x_ref([s])[0]
-        #X0_sp = self.lattice.F_x_ref(sp_flat)
-        #Y0_s = self.lattice.F_y_ref([s])[0]
-        #Y0_sp = self.lattice.F_y_ref(sp_flat)
-        #n_vec_s_x = self.lattice.F_n_vec_x([s])[0]
-        #n_vec_sp_x = self.lattice.F_n_vec_x(sp_flat)
-        #n_vec_s_y = self.lattice.F_n_vec_y([s])[0]
-        #n_vec_sp_y = self.lattice.F_n_vec_y(sp_flat)
-        #tau_vec_s_x = self.lattice.F_tau_vec_x([s])[0]
-        #tau_vec_sp_x = self.lattice.F_tau_vec_x(sp_flat)
-        #tau_vec_s_y = self.lattice.F_tau_vec_y([s])[0]
-        #tau_vec_sp_y = self.lattice.F_tau_vec_y(sp_flat)
 
         X0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
                              delta_x = self.lattice.delta_x)[0]
@@ -574,10 +676,9 @@ class CSR2D:
         CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
         CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
 
-        dE_dct = -self.CSR_scaling * np.trapz(y = np.trapz(y = CSR_integrand_z, x = x_range_t, axis = 0), x = s_range_t)
-        x_kick = self.CSR_scaling * np.trapz(y = np.trapz(y = CSR_integrand_x, x = x_range_t, axis = 0), x = s_range_t)
 
-        return dE_dct, x_kick
+
+        return CSR_integrand_z, CSR_integrand_x
 
     def write_beam(self):
         if self.parallel and self.rank != 0:
