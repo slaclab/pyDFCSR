@@ -23,8 +23,7 @@ def interpolate3D(xval, yval, zval, data, min_x, min_y, min_z,  delta_x, delta_y
     xval = (xval - min_x) / delta_x
     yval = (yval - min_y) / delta_y
     zval = (zval - min_z) / delta_z
-    v_c = data
-    for i in prange(len(xval)):
+    for i in range(len(xval)):
         x = xval[i]
         y = yval[i]
         z = zval[i]
@@ -52,10 +51,10 @@ def interpolate3D(xval, yval, zval, data, min_x, min_y, min_z,  delta_x, delta_y
         zd = z - z0
 
         if x0 >= 0 and y0 >= 0 and z0 >= 0 and x1 < x_size and y1 < y_size and z1 < z_size:
-            c00 = v_c[x0, y0, z0] * (1 - xd) + v_c[x1, y0, z0] * xd
-            c01 = v_c[x0, y0, z1] * (1 - xd) + v_c[x1, y0, z1] * xd
-            c10 = v_c[x0, y1, z0] * (1 - xd) + v_c[x1, y1, z0] * xd
-            c11 = v_c[x0, y1, z1] * (1 - xd) + v_c[x1, y1, z1] * xd
+            c00 = data[x0, y0, z0] * (1 - xd) + data[x1, y0, z0] * xd
+            c01 = data[x0, y0, z1] * (1 - xd) + data[x1, y0, z1] * xd
+            c10 = data[x0, y1, z0] * (1 - xd) + data[x1, y1, z0] * xd
+            c11 = data[x0, y1, z1] * (1 - xd) + data[x1, y1, z1] * xd
 
             c0 = c00 * (1 - yd) + c10 * yd
             c1 = c01 * (1 - yd) + c11 * yd

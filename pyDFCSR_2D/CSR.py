@@ -390,23 +390,23 @@ class CSR2D:
                                   delta_x=self.lattice.delta_x)[0]
         n_vec_sp_y = interpolate1D(xval=sp, data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
                                    delta_x=self.lattice.delta_x)
+        k = interpolate1D(xval=sp, data = self.slope[:,0],min_x=self.lattice.steps_record[0],
+                                   delta_x=self.lattice.step_size )
 
-        q_x = x*n_vec_s_x + X0_s - X0_sp
-        q_y = x*n_vec_s_y + Y0_s - Y0_sp
-        q2 = q_x*q_x + q_y*q_y
+        #q_x = x*n_vec_s_x + X0_s - X0_sp
+        #q_y = x*n_vec_s_y + Y0_s - Y0_sp
+        #q2 = q_x*q_x + q_y*q_y
 
-        n_sp_q = n_vec_sp_x* q_x + n_vec_sp_y* q_y
+        #n_sp_q = n_vec_sp_x* q_x + n_vec_sp_y* q_y
 
-        k = self.beam.slope[0]
+        #term1 = (n_sp_q * k**2 + (t - sp)*k)/(k**2 - 1)
 
-        term1 = (n_sp_q * k**2 + (t - sp)*k)/(k**2 - 1)
+        #term2 = k**2/(k**2 - 1)*np.sqrt((k**2 - 1)*((t - sp)**2 - q2) + (n_sp_q * k + t - sp)**2)
 
-        term2 = k**2/(k**2 - 1)*np.sqrt((k**2 - 1)*((t - sp)**2 - q2) + (n_sp_q * k + t - sp)**2)
+        #xp1 = term1 + term2
+        #xp2 = term1 - term2
 
-        xp1 = term1 + term2
-        xp2 = term1 - term2
-
-        xp1 = (k * (t - sp - (- X0_s**2 * n_vec_sp_y**2 * k**2 + X0_s**2 +
+        term = (- X0_s**2 * n_vec_sp_y**2 * k**2 + X0_s**2 +
                               2* X0_s * X0_sp * n_vec_sp_y**2 * k**2 -
                               2* X0_s * X0_sp + 2 * X0_s * Y0_s * n_vec_sp_x * n_vec_sp_y * k**2 -
                               2* X0_s * Y0_sp * n_vec_sp_x * n_vec_sp_y * k**2 -
@@ -433,44 +433,20 @@ class CSR2D:
                               2. * n_vec_s_y * n_vec_sp_y * k * sp * x + 2 * n_vec_s_y * n_vec_sp_y * k * t * x +
                               n_vec_sp_x**2 * k**2 * sp**2 - 2. * n_vec_sp_x**2 * k**2 * sp * t +
                               n_vec_sp_x **2 * k**2 * t**2 + n_vec_sp_y**2 * k**2 * sp**2 - 2. * n_vec_sp_y**2 * k**2 * sp * t +
-                              n_vec_sp_y** 2 * k**2 * t**2)** (1 / 2) +
+                              n_vec_sp_y** 2 * k**2 * t**2)** (1 / 2)
+
+        xp1 = (k * (t - sp - term +
                               X0_s * n_vec_sp_x * k - X0_sp * n_vec_sp_x * k +
                               Y0_s * n_vec_sp_y * k - Y0_sp * n_vec_sp_y * k +
                               n_vec_s_x * n_vec_sp_x * k * x + n_vec_s_y * n_vec_sp_y * k * x)) / (
                          n_vec_sp_x**2 * k**2 + n_vec_sp_y**2 * k**2 - 1)
 
-        xp2= (k * (t - sp + (- X0_s ** 2 * n_vec_sp_y ** 2 * k ** 2 + X0_s ** 2 +
-                              2 * X0_s * X0_sp * n_vec_sp_y ** 2 * k ** 2 -
-                              2 * X0_s * X0_sp + 2 * X0_s * Y0_s * n_vec_sp_x * n_vec_sp_y * k ** 2 -
-                              2 * X0_s * Y0_sp * n_vec_sp_x * n_vec_sp_y * k ** 2 -
-                              2. * X0_s * n_vec_s_x * n_vec_sp_y ** 2 * k ** 2 * x +
-                              2. * X0_s * n_vec_s_x * x + 2. * X0_s * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k ** 2 * x -
-                              2. * X0_s * n_vec_sp_x * k * sp + 2 * X0_s * n_vec_sp_x * k * t -
-                              X0_sp ** 2 * n_vec_sp_y ** 2 * k ** 2 +
-                              X0_sp ** 2 - 2 * X0_sp * Y0_s * n_vec_sp_x * n_vec_sp_y * k ** 2 +
-                              2 * X0_sp * Y0_sp * n_vec_sp_x * n_vec_sp_y * k ** 2 + 2 * X0_sp * n_vec_s_x * n_vec_sp_y ** 2 * k ** 2 * x -
-                              2. * X0_sp * n_vec_s_x * x - 2. * X0_sp * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k ** 2 * x +
-                              2. * X0_sp * n_vec_sp_x * k * sp - 2. * X0_sp * n_vec_sp_x * k * t -
-                              Y0_s ** 2 * n_vec_sp_x ** 2 * k ** 2 + Y0_s ** 2 + 2. * Y0_s * Y0_sp * n_vec_sp_x ** 2 * k ** 2
-                              - 2. * Y0_s * Y0_sp + 2. * Y0_s * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k ** 2 * x -
-                              2 * Y0_s * n_vec_s_y * n_vec_sp_x ** 2 * k ** 2 * x + 2. * Y0_s * n_vec_s_y * x
-                              - 2. * Y0_s * n_vec_sp_y * k * sp + 2 * Y0_s * n_vec_sp_y * k * t -
-                              Y0_sp ** 2 * n_vec_sp_x ** 2 * k ** 2 + Y0_sp ** 2 -
-                              2. * Y0_sp * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k ** 2 * x +
-                              2. * Y0_sp * n_vec_s_y * n_vec_sp_x ** 2 * k ** 2 * x -
-                              2. * Y0_sp * n_vec_s_y * x + 2. * Y0_sp * n_vec_sp_y * k * sp -
-                              2. * Y0_sp * n_vec_sp_y * k * t - n_vec_s_x ** 2 * n_vec_sp_y ** 2 * k ** 2 * x ** 2 +
-                              n_vec_s_x ** 2 * x ** 2 + 2. * n_vec_s_x * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k ** 2 * x ** 2 -
-                              2. * n_vec_s_x * n_vec_sp_x * k * sp * x + 2. * n_vec_s_x * n_vec_sp_x * k * t * x -
-                              n_vec_s_y ** 2 * n_vec_sp_x ** 2 * k ** 2 * x ** 2 + n_vec_s_y ** 2 * x ** 2 -
-                              2. * n_vec_s_y * n_vec_sp_y * k * sp * x + 2 * n_vec_s_y * n_vec_sp_y * k * t * x +
-                              n_vec_sp_x ** 2 * k ** 2 * sp ** 2 - 2. * n_vec_sp_x ** 2 * k ** 2 * sp * t +
-                              n_vec_sp_x ** 2 * k ** 2 * t ** 2 + n_vec_sp_y ** 2 * k ** 2 * sp ** 2 - 2. * n_vec_sp_y ** 2 * k ** 2 * sp * t +
-                              n_vec_sp_y ** 2 * k ** 2 * t ** 2) ** (1 / 2) +
+        xp2= (k * (t - sp + term +
                     X0_s * n_vec_sp_x * k - X0_sp * n_vec_sp_x * k +
                     Y0_s * n_vec_sp_y * k - Y0_sp * n_vec_sp_y * k +
                     n_vec_s_x * n_vec_sp_x * k * x + n_vec_s_y * n_vec_sp_y * k * x)) / (
                       n_vec_sp_x ** 2 * k ** 2 + n_vec_sp_y ** 2 * k ** 2 - 1)
+
 
         return xp1, xp2
 

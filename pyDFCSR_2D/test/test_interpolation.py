@@ -11,7 +11,7 @@ z = np.linspace(7, 9, 33)
 xg, yg ,zg = np.meshgrid(x, y, z, indexing='ij')
 data = f(xg, yg, zg)
 
-m = 1000000
+m = 40000
 xval = np.linspace(1, 4,m)
 yval = np.linspace(4, 7, m)
 zval = np.linspace(7, 9, m)
@@ -24,14 +24,14 @@ def test1(n = 100):
 
 
 
-def test2(n = 100):
+def test2(n = 400):
     t2 = TrilinearInterpolator(data, x, y, z)
     for _ in range(n):
         result2 = t2.interp(xval, yval, zval)
 
 
 import time
-n = 600
+n = 400
 #t0 = time.time()
 #test1(n)
 #print('test1', time.time() - t0)
@@ -44,3 +44,7 @@ t0 = time.time()
 test2(n)
 print('test2', time.time() - t0)
 
+
+t0 = time.time()
+test2(n)
+print('test2', time.time() - t0)

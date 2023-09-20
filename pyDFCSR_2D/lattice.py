@@ -181,13 +181,8 @@ class Lattice():
     def CSR_steps_index(self):
         return self._CSR_steps_index
 
-    @property
-    def total_steps(self):
-        return self.total_steps
 
-    @property
-    def CSR_steps_count(self):
-        return self._CSR_steps_index
+
 
 
 
