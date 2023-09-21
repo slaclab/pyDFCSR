@@ -172,7 +172,6 @@ class Lattice():
         self._CSR_steps_count = len(self._CSR_steps_index)
 
 
-
     @property
     def lattice_length(self):
         return self._lattice_length

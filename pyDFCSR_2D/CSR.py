@@ -124,6 +124,11 @@ class CSR2D:
         self.R51 = np.zeros(Nstep)
         self.R52 = np.zeros(Nstep)
 
+        self.inbend = False
+        self.afterbend = False
+        self.R_rec = None
+        self.phi_rec = None
+
     def init_MPI(self):
         self.parallel = True
         comm = MPI.COMM_WORLD
@@ -149,10 +154,11 @@ class CSR2D:
         for req in self.required_inputs:
             assert req in input, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
 
-    def get_formation_length(self, R, sigma_z, type='inbend'):
-        # Todo: add entrance and exit
-        if type == 'inbend':
+    def get_formation_length(self, R, sigma_z, phi = 0.0, inbend=True):
+        if inbend:
             self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
+        else:
+            self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
     #@profile
     def run(self, stop_time = None):
@@ -179,6 +185,29 @@ class CSR2D:
                 dang = angle*DL/L
             if type == 'quad':
                 k1 = self.lattice.lattice_config[ele]['strength']
+
+
+            if type == 'dipole':
+                self.inbend = True
+
+                self.afterbend = True
+                self.R_rec = R
+                self.phi_rec = angle
+
+                self.get_formation_length(R=R, sigma_z=5*self.beam.sigma_z, inbend = True)
+
+
+            else:
+                if self.afterbend:
+                    self.get_formation_length(R=self.R_rec, sigma_z=5*self.beam.sigma_z, phi = self.phi_rec, inbend=False)
+                else:  # if it is the first drift in the lattice
+                    self.formation_length = L
+
+
+
+
+
+
             # -----------------------tracking---------------------------------
             for step in range(steps):
                 time0  = time.time()
@@ -209,7 +238,7 @@ class CSR2D:
                 # append the density functions to the log
                 self.DF_tracker.append_DF()
                 # append 3D matrix for interpolation with the new DFs by interpolation
-                self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
+                #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                 self.DF_tracker.append_interpolant(formation_length=self.formation_length,
                                                    n_formation_length=self.integration_params.n_formation_length,
                                                    interpolation=self.interpolation_params)
