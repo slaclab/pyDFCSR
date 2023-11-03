@@ -199,7 +199,9 @@ class CSR2D:
 
             else:
                 if self.afterbend:
-                    self.get_formation_length(R=self.R_rec, sigma_z=5*self.beam.sigma_z, phi = self.phi_rec, inbend=False)
+                    #Todo: Verify the formation length in the drift
+                    #self.get_formation_length(R=self.R_rec, sigma_z=5*self.beam.sigma_z, phi = self.phi_rec, inbend=False)
+                    self.get_formation_length(R=R, sigma_z=5 * self.beam.sigma_z, inbend=True)
                 else:  # if it is the first drift in the lattice
                     self.formation_length = L
 
@@ -360,7 +362,7 @@ class CSR2D:
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
 
-            self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x,self.beam.sigma_x, self.beam.sigma_z)
+            self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x)
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
@@ -481,36 +483,76 @@ class CSR2D:
 
 
 
-    def get_CSR_wake(self, s, x, sigma_x, sigma_z):
+    def get_CSR_wake(self, s, x):
         t = self.beam.position
         # -------------------------------------------------------------------------
         # Todo: kind of hard coding. Change in the future
-        start_point = self.DF_tracker.start_time
-        end_point = s + self.integration_params.zlim_end * sigma_z
+        #start_point = self.DF_tracker.start_time
+        #end_point = s + self.integration_params.zlim_end * sigma_z
         # Todo: wrong results when sigma_z is big. mid_point can smaller than start point
-        mid_point1 = s - self.integration_params.zlim_mid1 * sigma_x
-        mid_point2 = s - self.integration_params.zlim_mid2 * sigma_x
-        xlim_L = x - self.integration_params.xlim * sigma_x
-        xlim_R = x + self.integration_params.xlim * sigma_x
+        #mid_point1 = s - self.integration_params.zlim_mid1 * sigma_x
+        #mid_point2 = s - self.integration_params.zlim_mid2 * sigma_x
+        #xlim_L = x - self.integration_params.xlim * sigma_x
+        #xlim_R = x + self.integration_params.xlim * sigma_x
 
-        zbins_1 = self.integration_params.zbins_1
-        zbins_2 = self.integration_params.zbins_2
-        zbins_3 = self.integration_params.zbins_3
-        s_range_t1 = np.linspace(start_point, mid_point2, zbins_1)
-        s_range_t2 = np.linspace(mid_point2, mid_point1, zbins_2)
-        s_range_t3 = np.linspace(mid_point1, end_point, zbins_3)
-        s_range_t = np.concatenate((s_range_t1, s_range_t2[1:], s_range_t3[1:]))
+        #zbins_1 = self.integration_params.zbins_1
+        #zbins_2 = self.integration_params.zbins_2
+        #zbins_3 = self.integration_params.zbins_3
+        #s_range_t1 = np.linspace(start_point, mid_point2, zbins_1)
+        #s_range_t2 = np.linspace(mid_point2, mid_point1, zbins_2)
+        #s_range_t3 = np.linspace(mid_point1, end_point, zbins_3)
+        #s_range_t = np.concatenate((s_range_t1, s_range_t2[1:], s_range_t3[1:]))
 
-        x_range_t = np.linspace(xlim_L, xlim_R, self.integration_params.xbins)
+        #x_range_t = np.linspace(xlim_L, xlim_R, self.integration_params.xbins)
 
-        [xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
+        #[xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
 
-        CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s, x, t, sp, xp)
 
-        dE_dct = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=x_range_t, axis=0), x=s_range_t)
-        x_kick = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=x_range_t, axis=0), x=s_range_t)
+        sp = np.linspace(np.max((s - 100 * self.beam.sigma_z, 0)), s + 100 * self.beam.sigma_z, 100000)
+        xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
+        ind = (np.abs(xp1) < 5 * self.beam.sigma_x) & (np.abs(xp2) < 5 * self.beam.sigma_x)
 
-        return dE_dct, x_kick
+        if sum(ind) == len(xp1):  # The two region are parallel and not tilted
+            xmin = x - 5 * self.beam.sigma_x
+            xmax = x + 5 * self.beam.sigma_x
+            smin = s - 5 * self.beam.sigma_z
+            smax = s + 5 * self.beam.sigma_z
+
+        else:
+            xp1_valid = xp1[ind]
+            xp2_valid = xp2[ind]
+            sp_valid = sp[ind]
+            smin = np.min(sp_valid)
+            smax = np.max(sp_valid)
+            xmin = np.min((np.min(xp1_valid), np.min(xp2_valid)))
+            xmax = np.max((np.max(xp1_valid), np.max(xp2_valid)))
+
+        sp = np.linspace(smin, smax, self.integration_params.zbins)
+        xp = np.linspace(xmin, xmax, self.integration_params.xbins)
+        [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
+
+        CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
+
+        dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
+        x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=xp, axis=0), x=sp)
+
+        sp = np.linspace(np.max((smin - self.formation_length, 0)), smin, self.integration_params.zbins)
+        xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
+
+        xL = np.min(xp1) - 3 * self.beam.sigma_x
+        xR = np.max(xp1) + 3 * self.beam.sigma_x
+
+        xp = np.linspace(xL, xR, self.integration_params.xbins)
+        [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
+
+        CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
+
+
+        dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
+        x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=xp, axis=0), x=sp)
+
+        return dE_dct1 + dE_dct2, x_kick1 + x_kick2
+        #return xp, sp, CSR_integrand_z, CSR_integrand_x
     #@profile
     def get_CSR_integrand(self,s ,x, t, sp, xp):
 
