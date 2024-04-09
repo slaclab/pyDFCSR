@@ -6,8 +6,8 @@ input_lattice:
   lattice_input_file: input/dipole_lattice.yaml
 
 particle_deposition:
-  xbins: 100         # number of grids in x for particle deposition
-  zbins: 100         # number of grids in y for particle deposition
+  xbins: 200         # number of grids in x for particle deposition
+  zbins: 200         # number of grids in y for particle deposition
   xlim: 5            # range in x in the unit of sigma_x
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
@@ -15,8 +15,8 @@ particle_deposition:
   velocity_threhold : 5
 
 distribution_interpolation:
-  xbins: 500
-  zbins: 500
+  xbins: 200
+  zbins: 200
   xlim: 10
   ylim: 10
   re_interpolate_threhold: 2
@@ -30,8 +30,8 @@ CSR_computation:
   compute_CSR: 1                 # if zero, only track the beam
   apply_CSR: 1                   # flag apply CSR to particles
   transverse_on: 1               # flag include transverse wake
-  xbins: 20                    # The mesh on which CSR wake is computed
-  zbins: 20
+  xbins: 10                    # The mesh on which CSR wake is computed
+  zbins: 30
   xlim: 3
   zlim: 3
   write_beam: True

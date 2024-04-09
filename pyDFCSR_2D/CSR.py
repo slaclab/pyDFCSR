@@ -15,7 +15,7 @@ from twiss_R import *
 import h5py
 import os
 import time
-#from line_profiler_pycharm import profile
+from line_profiler_pycharm import profile
 from tools import isotime
 from interp3D import interpolate3D
 from interp1D import interpolate1D
@@ -160,7 +160,7 @@ class CSR2D:
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
-    #@profile
+    @profile
     def run(self, stop_time = None):
         Rtot6 = np.eye(6)
         step_count = 1
@@ -343,7 +343,7 @@ class CSR2D:
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
     
-    #@profile 
+    @profile
     def calculate_2D_CSR(self):
 
         N = self.CSR_params.xbins*self.CSR_params.zbins
@@ -402,7 +402,7 @@ class CSR2D:
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
 
 
-
+    @profile
     def get_localization(self, x, s, t, sp):
 
         X0_s = interpolate1D(xval=np.array([s]), data=self.lattice.coords[:, 0], min_x=self.lattice.min_x,
@@ -481,8 +481,7 @@ class CSR2D:
 
         return xp1, xp2
 
-
-
+    @profile
     def get_CSR_wake(self, s, x):
         t = self.beam.position
         # -------------------------------------------------------------------------
@@ -508,7 +507,7 @@ class CSR2D:
         #[xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
 
 
-        sp = np.linspace(np.max((s - 100 * self.beam.sigma_z, 0)), s + 100 * self.beam.sigma_z, 100000)
+        sp = np.linspace(np.max((s - 100 * self.beam.sigma_z, 0)), s + 100 * self.beam.sigma_z, 1000)
         xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
         ind = (np.abs(xp1) < 5 * self.beam.sigma_x) & (np.abs(xp2) < 5 * self.beam.sigma_x)
 
@@ -553,7 +552,7 @@ class CSR2D:
 
         return dE_dct1 + dE_dct2, x_kick1 + x_kick2
         #return xp, sp, CSR_integrand_z, CSR_integrand_x
-    #@profile
+    @profile
     def get_CSR_integrand(self,s ,x, t, sp, xp):
 
         #vx = self.DF_tracker.F_vx([t, x, s - t])
@@ -666,8 +665,8 @@ class CSR2D:
         velocity_ret_x = vs_ret * tau_vec_sp_x + vx_ret * n_vec_sp_x
         velocity_ret_y = vs_ret * tau_vec_sp_y + vx_ret * n_vec_sp_y
 
-        velocity_partial_t_x = vs_t * tau_vec_sp_x + vx_t * n_vec_sp_x
-        velocity_partial_t_y = vs_t * tau_vec_sp_y + vx_t * n_vec_sp_y
+        #velocity_partial_t_x = vs_t * tau_vec_sp_x + vx_t * n_vec_sp_x
+        #velocity_partial_t_y = vs_t * tau_vec_sp_y + vx_t * n_vec_sp_y
 
         nabla_density_ret_x = density_x_ret  * n_vec_sp_x + density_z_ret / scale_term * tau_vec_sp_x
         nabla_density_ret_y = density_x_ret * n_vec_sp_y + density_z_ret / scale_term * tau_vec_sp_y
@@ -676,30 +675,31 @@ class CSR2D:
 
         # Todo: Consider using general form
         ## general form
-        #part1 = velocity_x * velocity_ret_x + velocity_y * velocity_ret_y
-        #CSR_numerator1 = scale_term * ((velocity_x - part1 * velocity_ret_x) * nabla_density_ret_x  + \
-        #                  (velocity_y - part1 * velocity_ret_y)*nabla_density_ret_y)
-        #CSR_numerator2 = -scale_term * part1 * density_ret * div_velocity
+        part1 = velocity_x * velocity_ret_x + velocity_y * velocity_ret_y
+        CSR_numerator1 = scale_term * ((velocity_x - part1 * velocity_ret_x) * nabla_density_ret_x  + \
+                          (velocity_y - part1 * velocity_ret_y)*nabla_density_ret_y)
+        CSR_numerator2 = -scale_term * part1 * density_ret * div_velocity
         #CSR_numerator3 = scale_term * density_ret * (velocity_partial_t_x * velocity_x + velocity_partial_t_y * velocity_y)
 
         #CSR_denominator = r_minus_rp
 
-        #self.CSR_integrand = CSR_numerator1/CSR_denominator + (CSR_numerator3 + CSR_numerator3)/CSR_denominator
+        #self.CSR_integrand = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
+        CSR_integrand_z = CSR_numerator1 /r_minus_rp + (CSR_numerator2) / r_minus_rp
 
 
 
-        CSR_numerator1 = scale_term * (((n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y) +
-                                        (vx - vx_ret) * (tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y)) * density_x_ret -
-                                       vx_ret * (n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y)/scale_term * density_z_ret)
+        #CSR_numerator1 = scale_term * (((n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y) +
+        #                                (vx - vx_ret) * (tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y)) * density_x_ret -
+        #                               vx_ret * (n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y)/scale_term * density_z_ret)
 
-        CSR_numerator2 = -((tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y) +
-                           (vx - vx_ret) * (n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y)) * density_ret * vx_x_ret
+        #CSR_numerator2 = -((tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y) +
+        #                   (vx - vx_ret) * (n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y)) * density_ret * vx_x_ret
 
-        CSR_numerator3 = scale_term * density_ret * (velocity_partial_t_x * velocity_x + velocity_partial_t_y * velocity_y)
+        #CSR_numerator3 = scale_term * density_ret * (velocity_partial_t_x * velocity_x + velocity_partial_t_y * velocity_y)
 
-        CSR_denominator = r_minus_rp
+        #CSR_denominator = r_minus_rp
 
-        CSR_integrand_z = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
+        #CSR_integrand_z = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
 
         n_minus_np_x = n_vec_s_x - n_vec_sp_x
         n_minus_np_y = n_vec_s_y - n_vec_sp_y
