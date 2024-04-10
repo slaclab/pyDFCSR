@@ -140,6 +140,9 @@ class Beam():
     def alphaX(self):
         return -self.x_xp/self.emitX
 
+    def update_status(self):
+        self._sigma_x = self.sigma_x
+        self._sigma_z = self.sigma_z
 
     def stats_minus_dispersion(self, Rtot = np.eye(6)):
         """
@@ -164,6 +167,7 @@ class Beam():
         self.particles = self.particles.T
         self.position += step_size
         self.step += 1
+        self.update_status()
 
     @property
     def x(self):

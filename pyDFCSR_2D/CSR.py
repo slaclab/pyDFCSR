@@ -482,8 +482,10 @@ class CSR2D:
         return xp1, xp2
 
     @profile
-    def get_CSR_wake(self, s, x):
+    def get_CSR_wake(self, s, x, debug = False):
         t = self.beam.position
+        sigma_z = self.beam._sigma_z
+        sigma_x = self.beam._sigma_x
         # -------------------------------------------------------------------------
         # Todo: kind of hard coding. Change in the future
         #start_point = self.DF_tracker.start_time
@@ -507,15 +509,15 @@ class CSR2D:
         #[xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
 
 
-        sp = np.linspace(np.max((s - 100 * self.beam.sigma_z, 0)), s + 100 * self.beam.sigma_z, 1000)
+        sp = np.linspace(np.max((s - 100 * sigma_z, 0)), s + 100 * sigma_z, 1000)
         xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
-        ind = (np.abs(xp1) < 5 * self.beam.sigma_x) & (np.abs(xp2) < 5 * self.beam.sigma_x)
+        ind = (np.abs(xp1) < 5 * sigma_x) & (np.abs(xp2) < 5 * sigma_x)
 
         if sum(ind) == len(xp1):  # The two region are parallel and not tilted
-            xmin = x - 5 * self.beam.sigma_x
-            xmax = x + 5 * self.beam.sigma_x
-            smin = s - 5 * self.beam.sigma_z
-            smax = s + 5 * self.beam.sigma_z
+            xmin = x - 5 * sigma_x
+            xmax = x + 5 * sigma_x
+            smin = s - 5 * sigma_z
+            smax = s + 5 * sigma_z
 
         else:
             xp1_valid = xp1[ind]
@@ -530,6 +532,7 @@ class CSR2D:
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
 
+
         CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
 
         dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
@@ -538,11 +541,12 @@ class CSR2D:
         sp = np.linspace(np.max((smin - self.formation_length, 0)), smin, self.integration_params.zbins)
         xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
 
-        xL = np.min(xp1) - 3 * self.beam.sigma_x
-        xR = np.max(xp1) + 3 * self.beam.sigma_x
+        xL = np.min(xp1) - 3 * sigma_x
+        xR = np.max(xp1) + 3 * sigma_x
 
         xp = np.linspace(xL, xR, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
+
 
         CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
 
@@ -550,8 +554,11 @@ class CSR2D:
         dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
         x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=xp, axis=0), x=sp)
 
-        return dE_dct1 + dE_dct2, x_kick1 + x_kick2
-        #return xp, sp, CSR_integrand_z, CSR_integrand_x
+        if debug:
+            return xp, sp, CSR_integrand_z, CSR_integrand_x
+        else:
+            return dE_dct1 + dE_dct2, x_kick1 + x_kick2
+
     @profile
     def get_CSR_integrand(self,s ,x, t, sp, xp):
 
@@ -652,9 +659,9 @@ class CSR2D:
         vs_s_ret = 0
         vx_t = 0
         vs_t = 0
-        #vx = 0
-        #vx_x_ret = 0
-        #vx_ret = 0
+        vx = 0
+        vx_x_ret = 0
+        vx_ret = 0
 
         scale_term =  1 + xp_flat*rho_sp
 
@@ -708,18 +715,18 @@ class CSR2D:
         part1 = r_minus_rp_x * n_minus_np_x + r_minus_rp_y * n_minus_np_y
 
         #part2: n tau'
-        part2 = n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y
+        #part2 = n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y
 
         # part3: partial density/partial t_ret
-        partial_density = - (velocity_ret_x * nabla_density_ret_x + velocity_ret_y * nabla_density_ret_y) - \
-                          density_ret * div_velocity
+        #partial_density = - (velocity_ret_x * nabla_density_ret_x + velocity_ret_y * nabla_density_ret_y) - \
+        #                  density_ret * div_velocity
 
         W1 = scale_term * part1 / (r_minus_rp * r_minus_rp * r_minus_rp) * density_ret
-        W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
-        W3 = -scale_term * part2 / r_minus_rp * partial_density
+        #W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
+        #W3 = -scale_term * part2 / r_minus_rp * partial_density
 
-        CSR_integrand_x = W1 + W2 + W3
-
+        #CSR_integrand_x = W1 + W2 + W3
+        CSR_integrand_x = W1
         CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
         CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
 

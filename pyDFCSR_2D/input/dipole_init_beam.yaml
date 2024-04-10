@@ -2,12 +2,12 @@ n_particle: 1000000
 px_dist:
   sigma_px:
     units: keV/c
-    value: 125.0
+    value: 25.0
   type: gaussian
 py_dist:
   sigma_py:
     units: keV/c
-    value: 125.0
+    value: 25.0
   type: gaussian
 pz_dist:
   avg_pz:
@@ -20,7 +20,7 @@ pz_dist:
 r_dist:
   sigma_xy:
     units: um
-    value: 90
+    value: 50
   type: radial_gaussian
 random_type: hammersley
 start:
@@ -36,8 +36,8 @@ z_dist:
     units: mm
     value: 0
   sigma_z:
-    units: mm
-    value: 1
+    units: um
+    value: 50
   type: gaussian
 
 transforms:

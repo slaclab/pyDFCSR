@@ -23,14 +23,14 @@ distribution_interpolation:
 
 CSR_integration:
   n_formation_length: 4
-  zbins: 200
-  xbins: 200
+  zbins: 100
+  xbins: 100
 
 CSR_computation:
   compute_CSR: 1                 # if zero, only track the beam
   apply_CSR: 1                   # flag apply CSR to particles
   transverse_on: 1               # flag include transverse wake
-  xbins: 10                    # The mesh on which CSR wake is computed
+  xbins: 20                    # The mesh on which CSR wake is computed
   zbins: 30
   xlim: 3
   zlim: 3
