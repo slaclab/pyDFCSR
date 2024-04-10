@@ -393,7 +393,7 @@ class CSR2D:
             s = self.beam.position + self.CSR_zmesh[k]
             x = self.CSR_xmesh[k]
 
-            dE_dct_local[i], x_kick_local[i] = self.get_CSR_wake(s, x, self.beam.sigma_x, self.beam.sigma_z)
+            dE_dct_local[i], x_kick_local[i] = self.get_CSR_wake(s,x)
 
         comm.Allgatherv(dE_dct_local, [self.dE_dct, self.count, self.displ, MPI.DOUBLE])
         comm.Allgatherv(x_kick_local, [self.x_kick, self.count, self.displ, MPI.DOUBLE])
