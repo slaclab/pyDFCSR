@@ -3,9 +3,8 @@ step_size:  0.1  # unit step size for tracking and CSR computing (meter)
 B1:
   type: dipole
   L: 0.5002
-
   angle: 0.0483
-  E1: 0
+  E1: 0.0
   E2: 0.0483
   nsep: 2
 
@@ -20,7 +19,7 @@ B2:
   L: 0.5002
   angle: -0.0483
   E1: -0.0483
-  E2: 0
+  E2: 0.0
   nsep: 1
 
 
@@ -35,7 +34,7 @@ B3:
   type: dipole
   L: 0.5002
   angle: -0.0483
-  E1: 0
+  E1: 0.0
   E2: -0.0483
   nsep: 1
 

@@ -209,8 +209,6 @@ class CSR2D:
                     self.formation_length = L
 
 
-            print('formation_length', self.formation_length)
-
 
 
             # -----------------------tracking---------------------------------
