@@ -5,7 +5,7 @@ from collections import deque
 from SGolay_filter import *
 from params import *
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
-@jit
+@jit(nopython = True)
 def histogram_cic_1d(q1, w, nbins, bins_start, bins_end):
     """
     Return an 1D histogram of the values in `q1` weighted by `w`,
@@ -37,7 +37,7 @@ def histogram_cic_1d(q1, w, nbins, bins_start, bins_end):
     return (hist_data)
 
 
-@jit
+@jit(nopython = True)
 def histogram_cic_2d(q1, q2, w,
                      nbins_1, bins_start_1, bins_end_1,
                      nbins_2, bins_start_2, bins_end_2):

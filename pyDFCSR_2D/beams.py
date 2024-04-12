@@ -143,6 +143,7 @@ class Beam():
     def update_status(self):
         self._sigma_x = self.sigma_x
         self._sigma_z = self.sigma_z
+        self._slope = self.slope
 
     def stats_minus_dispersion(self, Rtot = np.eye(6)):
         """

@@ -15,7 +15,7 @@ from twiss_R import *
 import h5py
 import os
 import time
-#from line_profiler_pycharm import profile
+from line_profiler_pycharm import profile
 from tools import isotime
 from interp3D import interpolate3D
 from interp1D import interpolate1D
@@ -198,15 +198,18 @@ class CSR2D:
 
 
             else:
+
                 if self.afterbend:
                     #Todo: Verify the formation length in the drift
                     #self.get_formation_length(R=self.R_rec, sigma_z=5*self.beam.sigma_z, phi = self.phi_rec, inbend=False)
-                    self.get_formation_length(R=R, sigma_z=5 * self.beam.sigma_z, inbend=True)
+                    self.get_formation_length(R=self.R_rec, sigma_z=5 * self.beam.sigma_z, inbend=True)
+
+
                 else:  # if it is the first drift in the lattice
                     self.formation_length = L
 
 
-
+            print('formation_length', self.formation_length)
 
 
 
@@ -486,8 +489,13 @@ class CSR2D:
     def get_CSR_wake(self, s, x, debug = False):
 
         t = self.beam.position
+
+        #if t >= 0.5:
+        #    print('')
+
         sigma_z = self.beam._sigma_z
         sigma_x = self.beam._sigma_x
+        tan_a = self.beam._slope[0]
         # -------------------------------------------------------------------------
         # Todo: kind of hard coding. Change in the future
         #start_point = self.DF_tracker.start_time
@@ -511,54 +519,77 @@ class CSR2D:
         #[xp, sp] = np.meshgrid(x_range_t, s_range_t, indexing='ij')
 
 
-        sp = np.linspace(np.max((s - 100 * sigma_z, 0)), s + 100 * sigma_z, 1000)
-        xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
-        ind = (np.abs(xp1) < 5 * sigma_x) & (np.abs(xp2) < 5 * sigma_x)
+        #sp = np.linspace(np.max((s - 100 * sigma_z, 0)), s + 100 * sigma_z, 1000)
+        #xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
+        #ind = (np.abs(xp1) < 5 * sigma_x) & (np.abs(xp2) < 5 * sigma_x)
 
-        if sum(ind) == len(xp1):  # The two region are parallel and not tilted
-            xmin = x - 5 * sigma_x
-            xmax = x + 5 * sigma_x
-            smin = s - 5 * sigma_z
-            smax = s + 5 * sigma_z
-
+        #if sum(ind) == len(xp1):  # The two region are parallel and not tilted
+        #    xmin = x - 5 * sigma_x
+        #    xmax = x + 5 * sigma_x
+        #    smin = s - 5 * sigma_z
+        #    smax = s + 5 * sigma_z
+#
+        #else:
+        #    xp1_valid = xp1[ind]
+        #    xp2_valid = xp2[ind]
+        #    sp_valid = sp[ind]
+        #    smin = np.min(sp_valid)
+        #    smax = np.max(sp_valid)
+        #    xmin = np.min((np.min(xp1_valid), np.min(xp2_valid)))
+        #    xmax = np.max((np.max(xp1_valid), np.max(xp2_valid)))
+#
+        # near singularity area
+        tan_theta = -2 * tan_a / (1 - tan_a ** 2)
+        dz = 10 * sigma_x / np.abs(tan_theta)
+        x1 = x - dz * tan_theta
+        if tan_theta > 0:
+            x2 = x + 10 * sigma_x
+            xmin, xmax = x1, x2
         else:
-            xp1_valid = xp1[ind]
-            xp2_valid = xp2[ind]
-            sp_valid = sp[ind]
-            smin = np.min(sp_valid)
-            smax = np.max(sp_valid)
-            xmin = np.min((np.min(xp1_valid), np.min(xp2_valid)))
-            xmax = np.max((np.max(xp1_valid), np.max(xp2_valid)))
+            x2 = x - 10 * sigma_x
+            xmin, xmax = x2, x1
 
-        sp = np.linspace(smin, smax, self.integration_params.zbins)
+        s1 = np.max((0,s - dz))
+
+        s2 = s + 3 * sigma_z
+
+        sp = np.linspace(s1, s2, self.integration_params.zbins)
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
 
 
-        CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
+        CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
 
-        dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
-        x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=xp, axis=0), x=sp)
+        dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp, axis=0), x=sp)
+        x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp, axis=0), x=sp)
 
-        sp = np.linspace(np.max((smin - self.formation_length, 0)), smin, self.integration_params.zbins)
-        xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
+        #sp = np.linspace(np.max((smin - self.formation_length, 0)), smin, self.integration_params.zbins)
+        #xp1, xp2 = self.get_localization(x=x, s=s, t=t, sp=sp)
+#
+        #xL = np.min(xp1) - 3 * sigma_x
+        #xR = np.max(xp1) + 3 * sigma_x
+#
+        #xp = np.linspace(xL, xR, self.integration_params.xbins)
 
-        xL = np.min(xp1) - 3 * sigma_x
-        xR = np.max(xp1) + 3 * sigma_x
-
-        xp = np.linspace(xL, xR, self.integration_params.xbins)
+        # other area
+        s3 = np.max((0, s1 - 2*self.formation_length))
+        xmin = x - 10 * sigma_x
+        xmax = x + 10 * sigma_x
+        sp = np.linspace(s3, s1, self.integration_params.zbins)
+        xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
 
 
-        CSR_integrand_z, CSR_integrand_x = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
+
+        CSR_integrand_z2, CSR_integrand_x2 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
 
 
-        dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
-        x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=xp, axis=0), x=sp)
+        dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z2, x=xp, axis=0), x=sp)
+        x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x2, x=xp, axis=0), x=sp)
 
 
         if debug:
-            return xp, sp, CSR_integrand_z, CSR_integrand_x
+            return xp, sp, CSR_integrand_z1, CSR_integrand_x1,CSR_integrand_z2, CSR_integrand_x2
         else:
             return dE_dct1 + dE_dct2, x_kick1 + x_kick2
           

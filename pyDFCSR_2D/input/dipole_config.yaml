@@ -23,8 +23,8 @@ distribution_interpolation:
 
 CSR_integration:
   n_formation_length: 4
-  zbins: 100
-  xbins: 100
+  zbins: 200
+  xbins: 200
 
 CSR_computation:
   compute_CSR: 1                 # if zero, only track the beam
