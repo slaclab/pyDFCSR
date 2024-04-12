@@ -15,7 +15,7 @@ from twiss_R import *
 import h5py
 import os
 import time
-from line_profiler_pycharm import profile
+#from line_profiler_pycharm import profile
 from tools import isotime
 from interp3D import interpolate3D
 from interp1D import interpolate1D
@@ -160,7 +160,7 @@ class CSR2D:
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
-    @profile
+#    @profile
     def run(self, stop_time = None):
         Rtot6 = np.eye(6)
         step_count = 1
@@ -343,7 +343,7 @@ class CSR2D:
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
     
-    @profile
+#    @profile
     def calculate_2D_CSR(self):
 
         N = self.CSR_params.xbins*self.CSR_params.zbins
@@ -402,7 +402,7 @@ class CSR2D:
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
 
 
-    @profile
+#    @profile
     def get_localization(self, x, s, t, sp):
 
         X0_s = interpolate1D(xval=np.array([s]), data=self.lattice.coords[:, 0], min_x=self.lattice.min_x,
@@ -481,8 +481,10 @@ class CSR2D:
 
         return xp1, xp2
 
+
     @profile
     def get_CSR_wake(self, s, x, debug = False):
+
         t = self.beam.position
         sigma_z = self.beam._sigma_z
         sigma_x = self.beam._sigma_x
@@ -554,12 +556,13 @@ class CSR2D:
         dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z, x=xp, axis=0), x=sp)
         x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x, x=xp, axis=0), x=sp)
 
+
         if debug:
             return xp, sp, CSR_integrand_z, CSR_integrand_x
         else:
             return dE_dct1 + dE_dct2, x_kick1 + x_kick2
-
-    @profile
+          
+          
     def get_CSR_integrand(self,s ,x, t, sp, xp):
 
         #vx = self.DF_tracker.F_vx([t, x, s - t])
