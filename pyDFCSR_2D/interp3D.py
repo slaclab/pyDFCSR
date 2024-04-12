@@ -66,6 +66,81 @@ def interpolate3D(xval, yval, zval, data, min_x, min_y, min_z,  delta_x, delta_y
 
     return result
 
+@jit(nopython = True,  cache = True)
+def interpolate_3d_vectorized(data, x, y, z, min_x, min_y, min_z,  delta_x, delta_y, delta_z):
+    """
+    Perform linear interpolation for multiple points (x, y, z) within a 3D space defined by 'data'.
+    Extrapolated values outside the dataset boundaries are set to zero.
+
+    Parameters:
+        data (numpy.ndarray): The 3D numpy array containing data values.
+        x (numpy.ndarray): The x-coordinates of the interpolation points.
+        y (numpy.ndarray): The y-coordinates of the interpolation points.
+        z (numpy.ndarray): The z-coordinates of the interpolation points.
+
+    Returns:
+        numpy.ndarray: The interpolated values or zero if the points are outside the data boundaries.
+    """
+    #nx, ny, nz = data.shape
+    #interpolated_values = np.zeros(x.shape)
+
+    nx, ny, nz = data.shape
+    output = np.zeros_like(x)
+
+    # Clamp coordinates to valid index ranges
+    x = np.clip(x, 0, nx - 1)
+    y = np.clip(y, 0, ny - 1)
+    z = np.clip(z, 0, nz - 1)
+
+    # Convert floating indices to integer indices
+    ix = np.floor(x).astype(np.int32)
+    iy = np.floor(y).astype(np.int32)
+    iz = np.floor(z).astype(np.int32)
+
+    # Calculate linear indices for the corners of the interpolation cube
+    i000 = ix + iy * nx + iz * nx * ny
+    i001 = ix + iy * nx + (iz + 1) * nx * ny
+    i010 = ix + (iy + 1) * nx + iz * nx * ny
+    i011 = ix + (iy + 1) * nx + (iz + 1) * nx * ny
+    i100 = (ix + 1) + iy * nx + iz * nx * ny
+    i101 = (ix + 1) + iy * nx + (iz + 1) * nx * ny
+    i110 = (ix + 1) + (iy + 1) * nx + iz * nx * ny
+    i111 = (ix + 1) + (iy + 1) * nx + (iz + 1) * nx * ny
+
+    # Flatten the data to use linear indexing
+    data_flat = data.ravel()
+
+    # Retrieve values using linear indices
+    v000 = data_flat[i000]
+    v001 = data_flat[i001]
+    v010 = data_flat[i010]
+    v011 = data_flat[i011]
+    v100 = data_flat[i100]
+    v101 = data_flat[i101]
+    v110 = data_flat[i110]
+    v111 = data_flat[i111]
+
+    # Fractional parts for interpolation
+    xd = x - np.floor(x)
+    yd = y - np.floor(y)
+    zd = z - np.floor(z)
+
+    # Interpolate along z-axis
+    c00 = v000 * (1 - zd) + v001 * zd
+    c10 = v010 * (1 - zd) + v011 * zd
+    c01 = v100 * (1 - zd) + v101 * zd
+    c11 = v110 * (1 - zd) + v111 * zd
+
+    # Interpolate along y-axis
+    c0 = c00 * (1 - yd) + c10 * yd
+    c1 = c01 * (1 - yd) + c11 * yd
+
+    # Final interpolation along x-axis
+    output = c0 * (1 - xd) + c1 * xd
+
+    return output
+
+
 
 @jitclass(spec)
 class TrilinearInterpolator:

@@ -44,6 +44,6 @@ transforms:
   s:
     shear_coefficient:
       units: 'gigaelectron_volt/speed_of_light/meter'
-      value: 300
+      value: 0
     type: shear z:pz
 
