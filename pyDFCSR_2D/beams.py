@@ -144,6 +144,7 @@ class Beam():
         self._sigma_x = self.sigma_x
         self._sigma_z = self.sigma_z
         self._slope = self.slope
+        self._sigma_x_transform = self.sigma_x_transform
 
     def stats_minus_dispersion(self, Rtot = np.eye(6)):
         """
@@ -192,6 +193,9 @@ class Beam():
         """
         return self.x - np.polyval(self.slope, self.z)
 
+    @property
+    def sigma_x_transform(self):
+        return np.std(self.x_transform)
 
     def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size):
         # Todo: add options for transverse or longitudinal kick only
