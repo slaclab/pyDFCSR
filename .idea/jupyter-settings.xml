@@ -3,6 +3,14 @@
   <component name="JupyterPersistentConnectionParameters">
     <option name="moduleParameters">
       <map>
+        <entry key="$PROJECT_DIR$/.idea/pyDFCSR.iml">
+          <value>
+            <JupyterConnectionParameters>
+              <option name="managed" value="true" />
+              <option name="sdkName" value="pyDFCSR_new" />
+            </JupyterConnectionParameters>
+          </value>
+        </entry>
         <entry key="$PROJECT_DIR$/../../../../courses/CME241/RL-book/.idea/RL-book.iml">
           <value>
             <JupyterConnectionParameters>

@@ -22,7 +22,7 @@ def isotime():
     """
     return datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone().replace(microsecond=0).isoformat().replace(':','_')
 
-def plot_surface(x, y, z):
+def plot_surface(x, y, z, title = 'None'):
     """
     :param x: 1D x grid (Nx,)
     :param y: 1D y grid (Ny, )
@@ -44,9 +44,11 @@ def plot_surface(x, y, z):
 
     # Add a color bar which maps values to colors.
     fig.colorbar(surf, shrink=0.5, aspect=5)
+
+
     plt.show()
 
-def plot_2D_contour(x, y, z):
+def plot_2D_contour(x, y, z, title = None):
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
     surf = ax.imshow(z, extent=(min(x)*1e6, max(x)*1e6, min(y)*1e6, max(y)*1e6), origin='lower',  cmap='PiYg')
@@ -54,7 +56,10 @@ def plot_2D_contour(x, y, z):
     fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.xlabel('y ($\mu m$)')
     plt.ylabel('x ($\mu m$)')
+    if title:
+        plt.title(title)
     plt.show()
+    plt.close()
 
 def find_nearest_ind(array, value):
     array = np.asarray(array)

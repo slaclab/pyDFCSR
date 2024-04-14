@@ -145,6 +145,7 @@ class Beam():
         self._sigma_z = self.sigma_z
         self._slope = self.slope
         self._sigma_x_transform = self.sigma_x_transform
+        self._mean_x = self.mean_x
 
     def stats_minus_dispersion(self, Rtot = np.eye(6)):
         """

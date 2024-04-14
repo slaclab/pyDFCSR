@@ -537,24 +537,50 @@ class CSR2D:
         #    xmax = np.max((np.max(xp1_valid), np.max(xp2_valid)))
 #
         # near singularity area
-        tan_theta = -2 * tan_a / (1 - tan_a ** 2)
-        dz = 10 * sigma_x / np.abs(tan_theta)
-        x1 = x - dz * tan_theta
-        if tan_theta > 0:
-            x2 = x + 10 * sigma_x
-            xmin, xmax = x1, x2
+        #tan_theta = -2 * tan_a / (1 - tan_a ** 2)
+        #dz = 10 * sigma_x / np.abs(tan_theta)
+        #x1 = x - dz * tan_theta
+        #if tan_theta > 0:
+        #    x2 = x + 10 * sigma_x
+        #    xmin, xmax = x1, x2
+        #else:
+        #    x2 = x - 10 * sigma_x
+        #    xmin, xmax = x2, x1
+#
+        #s1 = np.max((0,s - dz))
+#
+        #s2 = s + 3 * sigma_z
+#
+        #sp = np.linspace(s1, s2, self.integration_params.zbins)
+        #xp = np.linspace(xmin, xmax, self.integration_params.xbins)
+        #[xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
+
+        tan_theta = self.beam._slope[0]
+        x0 = self.beam._mean_x
+        if np.abs(tan_theta) <= 1:  # if theta <45 degre, the chirp band can be ignored. theta is the angle in z-x plane
+            s1 = s - 3 * self.beam._sigma_z
+            s2 = s + 3 * self.beam._sigma_z
+            xmin = x - 3 * self.beam._sigma_x
+            xmax = x + 3 * self.beam._sigma_x
         else:
-            x2 = x - 10 * sigma_x
-            xmin, xmax = x2, x1
+            if tan_theta > 0:
+                tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
+                d = (5 * self.beam._sigma_x + x0 - x) / tan_alpha
+                s1 = np.max((0, s - d))
+                s2 = s + 3 * self.beam._sigma_z
+                xmax = x0 + 5 * self.beam._sigma_x
+                xmin = x - 20 * self.beam._sigma_x_transform
 
-        s1 = np.max((0,s - dz))
-
-        s2 = s + 3 * sigma_z
-
+            else:
+                tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
+                d = -(x0 - x - 5 * self.beam._sigma_x) / tan_alpha
+                s1 = np.max((0, s - d))
+                s2 = s + 3 * self.beam._sigma_z
+                xmin = x0 - 5 * self.beam._sigma_x
+                xmax = x + 20 * self.beam._sigma_x_transform
         sp = np.linspace(s1, s2, self.integration_params.zbins)
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
-
 
         CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
 
@@ -570,10 +596,23 @@ class CSR2D:
         #xp = np.linspace(xL, xR, self.integration_params.xbins)
 
         # other area
-        s3 = np.max((0, s1 - 2*self.formation_length))
-        xmin = x - 10 * sigma_x
-        xmax = x + 10 * sigma_x
+        #s3 = np.max((0, s1 - 2*self.formation_length))
+        #xmin = x - 10 * sigma_x
+        #xmax = x + 10 * sigma_x
+        #sp = np.linspace(s3, s1, self.integration_params.zbins)
+        #xp = np.linspace(xmin, xmax, self.integration_params.xbins)
+        #[xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
+
+        s3 = np.max((0, s1 - 2 * self.formation_length))
         sp = np.linspace(s3, s1, self.integration_params.zbins)
+        if np.abs(tan_theta) <= 1:
+            xmin = x - 20 * self.beam._sigma_x
+            xmax = x + 20 * self.beam._sigma_x
+
+        else:
+            xmin = x - 5 * self.beam._sigma_x
+            xmax = x + 5 * self.beam._sigma_x
+
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
 
