@@ -15,16 +15,17 @@ particle_deposition:
   velocity_threhold : 5
 
 distribution_interpolation:
-  xbins: 500
-  zbins: 500
+  xbins: 200
+  zbins: 200
   xlim: 10
   ylim: 10
   re_interpolate_threhold: 2
 
 CSR_integration:
-  n_formation_length: 4
-  zbins: 200
-  xbins: 200
+  n_formation_length: 1.5
+  zbins: 300
+  xbins: 800
+
 
 CSR_computation:
   compute_CSR: 1                 # if zero, only track the beam

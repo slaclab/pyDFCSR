@@ -493,7 +493,7 @@ class CSR2D:
 
         sigma_z = self.beam._sigma_z
         sigma_x = self.beam._sigma_x
-        tan_a = self.beam._slope[0]
+        #tan_a = self.beam._slope[0]
         # -------------------------------------------------------------------------
         # Todo: kind of hard coding. Change in the future
         #start_point = self.DF_tracker.start_time
@@ -603,15 +603,15 @@ class CSR2D:
         #xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         #[xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
 
-        s3 = np.max((0, s1 - 2 * self.formation_length))
+        s3 = np.max((0, s1 - self.integration_params.n_formation_length*self.formation_length))
         sp = np.linspace(s3, s1, self.integration_params.zbins)
         if np.abs(tan_theta) <= 1:
             xmin = x - 20 * self.beam._sigma_x
             xmax = x + 20 * self.beam._sigma_x
 
         else:
-            xmin = x - 5 * self.beam._sigma_x
-            xmax = x + 5 * self.beam._sigma_x
+            xmin = x - 10 * self.beam._sigma_x
+            xmax = x + 10 * self.beam._sigma_x
 
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
