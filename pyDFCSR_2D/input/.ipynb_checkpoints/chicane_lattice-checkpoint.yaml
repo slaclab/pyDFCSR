@@ -1,4 +1,4 @@
-step_size:  0.1  # unit step size for tracking and CSR computing (meter)
+step_size:  0.05  # unit step size for tracking and CSR computing (meter)
 
 B1:
   type: dipole
@@ -12,7 +12,7 @@ B1:
 D1:     # can be arbitrary name
   type: drift
   L: 5.0058
-  nsep: 5
+  nsep: 10
 
 B2:
   type: dipole
@@ -26,7 +26,7 @@ B2:
 D2:     # can be arbitrary name
   type: drift
   L: 1.0
-  nsep: 1
+  nsep: 2
 
 
 
@@ -41,7 +41,7 @@ B3:
 D3:     # can be arbitrary name
   type: drift
   L: 5.0058
-  nsep: 4
+  nsep: 2
 
 B4:
   type: dipole
@@ -55,7 +55,7 @@ B4:
 Df:     # can be arbitrary name
   type: drift
   L: 0.5
-  nsep: 1
+  nsep: 2
 
 #element_3:
 #  type: drift
