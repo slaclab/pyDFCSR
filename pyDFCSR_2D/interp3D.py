@@ -62,7 +62,7 @@ def interpolate3D(xval, yval, zval, data, min_x, min_y, min_z,  delta_x, delta_y
             result[i] = c0 * (1 - zd) + c1 * zd
 
         else:
-            result[i] = 0
+            result[i] = 0.0
 
     return result
 

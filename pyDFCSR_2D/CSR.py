@@ -210,7 +210,7 @@ class CSR2D:
 
 
 
-
+            distance_in_current_ele = 0.0
             # -----------------------tracking---------------------------------
             for step in range(steps):
                 time0  = time.time()
@@ -235,7 +235,6 @@ class CSR2D:
                 # Propagate beam for one step
                 self.beam.track(dR6, DL)
 
-
                 # get the density functions
                 self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
                 # append the density functions to the log
@@ -248,7 +247,18 @@ class CSR2D:
                 # build interpolant based on the 3D matrix
                 self.DF_tracker.build_interpolant()
 
-                if self.CSR_params.compute_CSR:
+                # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
+                distance_in_current_ele += DL
+                if  self.afterbend and (not self.inbend) and distance_in_current_ele > self.formation_length:
+                    CSR_blocker = True
+                    if not self.parallel or self.rank == 0:
+                        print("Far away from a bending magnet, stopping calculating CSR")
+
+                else:
+                    CSR_blocker = False
+
+
+                if self.CSR_params.compute_CSR and (not CSR_blocker):
                     if not self.parallel or self.rank == 0:
                         print('Calculating CSR at s=', str(self.beam.position))
                     if step % self.lattice.nsep[ele_count] == 0:
@@ -558,11 +568,15 @@ class CSR2D:
         tan_theta = self.beam._slope[0]
         x0 = self.beam._mean_x
         if np.abs(tan_theta) <= 1:  # if theta <45 degre, the chirp band can be ignored. theta is the angle in z-x plane
+            ignore_vx = True
             s1 = s - 3 * self.beam._sigma_z
             s2 = s + 3 * self.beam._sigma_z
             xmin = x - 3 * self.beam._sigma_x
             xmax = x + 3 * self.beam._sigma_x
+
+
         else:
+            ignore_vx = False
             if tan_theta > 0:
                 tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
                 d = (5 * self.beam._sigma_x + x0 - x) / tan_alpha
@@ -578,11 +592,13 @@ class CSR2D:
                 s2 = s + 3 * self.beam._sigma_z
                 xmin = x0 - 5 * self.beam._sigma_x
                 xmax = x + 20 * self.beam._sigma_x_transform
+
         sp = np.linspace(s1, s2, self.integration_params.zbins)
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
+
         [xp_mesh, sp_mesh] = np.meshgrid(xp, sp, indexing='ij')
 
-        CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
+        CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh, ignore_vx= ignore_vx)
 
         dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp, axis=0), x=sp)
         x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp, axis=0), x=sp)
@@ -618,7 +634,7 @@ class CSR2D:
 
 
 
-        CSR_integrand_z2, CSR_integrand_x2 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh)
+        CSR_integrand_z2, CSR_integrand_x2 = self.get_CSR_integrand(s = s, t = t, x = x, xp = xp_mesh, sp = sp_mesh, ignore_vx = ignore_vx)
 
 
         dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z2, x=xp, axis=0), x=sp)
@@ -631,7 +647,7 @@ class CSR2D:
             return dE_dct1 + dE_dct2, x_kick1 + x_kick2
           
           
-    def get_CSR_integrand(self,s ,x, t, sp, xp):
+    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False):
 
         #vx = self.DF_tracker.F_vx([t, x, s - t])
         vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
@@ -730,9 +746,11 @@ class CSR2D:
         vs_s_ret = 0
         vx_t = 0
         vs_t = 0
-        vx = 0
-        vx_x_ret = 0
-        vx_ret = 0
+
+        if ignore_vx:
+            vx = 0
+            vx_x_ret = 0
+            vx_ret = 0
 
         scale_term =  1 + xp_flat*rho_sp
 

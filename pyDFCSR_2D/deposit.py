@@ -200,8 +200,9 @@ class DF_tracker:
 
         # Todo: set input for velocity filter
         vx_x, _ = sgolay2d(vx, 3, 2, derivative='both')
-        threshold = np.max(density) / 50
-        vx_x[density < threshold] = 0
+        threshold = np.max(density) / self.velocity_threhold * 10
+        #vx_x[density < threshold] = 0
+        vx_x[density < threshold] =  np.mean(vx_x[density > threshold])
         vx_x /= np.mean(np.diff(x_grids))
 
         self.x_grids = x_grids
@@ -256,7 +257,7 @@ class DF_tracker:
 
 
 
-    def DF_interp(self, DF, x_grid_interp = None, z_grid_interp = None, x_grids = None, z_grids = None):
+    def DF_interp(self, DF, x_grid_interp = None, z_grid_interp = None, x_grids = None, z_grids = None, fill_value = 0.0):
         if x_grids is None:
             x_grids = self.x_grids
         if z_grids is None:
@@ -268,7 +269,7 @@ class DF_tracker:
 
         X, Z = np.meshgrid(x_grid_interp, z_grid_interp, indexing = 'ij')
         #Todo: check this 2D interpolation
-        interp = RegularGridInterpolator((x_grids, z_grids), DF, method='linear', fill_value=0.0, bounds_error=False)
+        interp = RegularGridInterpolator((x_grids, z_grids), DF, method='linear', fill_value = fill_value, bounds_error=False)
         return interp((X,Z))
 
 
@@ -290,7 +291,7 @@ class DF_tracker:
             current_density_x_interp = self.DF_interp(DF = self.density_x)
             current_density_z_interp = self.DF_interp(DF = self.density_z)
             current_vx_interp = self.DF_interp(DF = self.vx)
-            current_vx_x_interp = self.DF_interp(DF = self.vx_x)
+            current_vx_x_interp = self.DF_interp(DF = self.vx_x, fill_value=np.mean(self.vx_x))
             self.density_interp.append(current_density_interp)
             self.density_x_interp.append(current_density_x_interp)
             self.density_z_interp.append(current_density_z_interp)
@@ -323,7 +324,7 @@ class DF_tracker:
                 current_density_x_interp = self.DF_interp(DF=density_x, x_grids = x_grids, z_grids = z_grids)
                 current_density_z_interp = self.DF_interp(DF=density_z, x_grids = x_grids, z_grids = z_grids)
                 current_vx_interp = self.DF_interp(DF=vx, x_grids = x_grids, z_grids = z_grids)
-                current_vx_x_interp = self.DF_interp(DF=vx_x, x_grids = x_grids, z_grids = z_grids)
+                current_vx_x_interp = self.DF_interp(DF=vx_x, x_grids = x_grids, z_grids = z_grids, fill_value=np.mean(vx_x))
 
                 self.density_interp.append(current_density_interp)
                 self.density_x_interp.append(current_density_x_interp)

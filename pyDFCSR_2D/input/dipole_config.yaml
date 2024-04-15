@@ -12,7 +12,7 @@ particle_deposition:
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
   filter_window: 5
-  velocity_threhold : 5
+  velocity_threhold : 200
 
 distribution_interpolation:
   xbins: 200
@@ -22,16 +22,16 @@ distribution_interpolation:
   re_interpolate_threhold: 2
 
 CSR_integration:
-  n_formation_length: 2
+  n_formation_length: 1.5
   zbins: 200
-  xbins: 300
+  xbins: 400
 
 
 CSR_computation:
   compute_CSR: 1                 # if zero, only track the beam
   apply_CSR: 1                   # flag apply CSR to particles
   transverse_on: 1               # flag include transverse wake
-  xbins: 20                    # The mesh on which CSR wake is computed
+  xbins: 10                    # The mesh on which CSR wake is computed
   zbins: 30
   xlim: 3
   zlim: 3

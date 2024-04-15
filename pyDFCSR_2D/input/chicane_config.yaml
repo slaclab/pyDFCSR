@@ -12,11 +12,11 @@ particle_deposition:
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
   filter_window: 5
-  velocity_threhold : 5
+  velocity_threhold : 100
 
 distribution_interpolation:
-  xbins: 200
-  zbins: 200
+  xbins: 500
+  zbins: 500
   xlim: 10
   ylim: 10
   re_interpolate_threhold: 2
