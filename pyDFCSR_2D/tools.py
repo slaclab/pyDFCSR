@@ -51,7 +51,7 @@ def plot_surface(x, y, z, title = 'None'):
 def plot_2D_contour(x, y, z, title = None):
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
-    surf = ax.imshow(z, extent=(min(x)*1e6, max(x)*1e6, min(y)*1e6, max(y)*1e6), origin='lower',  cmap='PiYg')
+    surf = ax.imshow(z, extent=(np.min(x)*1e6, np.max(x)*1e6, np.min(y)*1e6, np.max(y)*1e6), origin='lower',  cmap='seismic')
 
     fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.xlabel('y ($\mu m$)')

@@ -567,6 +567,7 @@ class CSR2D:
 
         tan_theta = self.beam._slope[0]
         x0 = self.beam._mean_x
+
         if np.abs(tan_theta) <= 1:  # if theta <45 degre, the chirp band can be ignored. theta is the angle in z-x plane
             ignore_vx = True
             s1 = s - 3 * self.beam._sigma_z
@@ -583,7 +584,7 @@ class CSR2D:
                 s1 = np.max((0, s - d))
                 s2 = s + 3 * self.beam._sigma_z
                 xmax = x0 + 5 * self.beam._sigma_x
-                xmin = x - 20 * self.beam._sigma_x_transform
+                xmin = x - 5 * self.beam._sigma_x_transform
 
             else:
                 tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
@@ -591,7 +592,7 @@ class CSR2D:
                 s1 = np.max((0, s - d))
                 s2 = s + 3 * self.beam._sigma_z
                 xmin = x0 - 5 * self.beam._sigma_x
-                xmax = x + 20 * self.beam._sigma_x_transform
+                xmax = x + 5 * self.beam._sigma_x_transform
 
         sp = np.linspace(s1, s2, self.integration_params.zbins)
         xp = np.linspace(xmin, xmax, self.integration_params.xbins)
@@ -804,18 +805,18 @@ class CSR2D:
         part1 = r_minus_rp_x * n_minus_np_x + r_minus_rp_y * n_minus_np_y
 
         #part2: n tau'
-        #part2 = n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y
+        part2 = n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y
 
         # part3: partial density/partial t_ret
-        #partial_density = - (velocity_ret_x * nabla_density_ret_x + velocity_ret_y * nabla_density_ret_y) - \
-        #                  density_ret * div_velocity
+        partial_density = - (velocity_ret_x * nabla_density_ret_x + velocity_ret_y * nabla_density_ret_y) - \
+                          density_ret * div_velocity
 
         W1 = scale_term * part1 / (r_minus_rp * r_minus_rp * r_minus_rp) * density_ret
-        #W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
-        #W3 = -scale_term * part2 / r_minus_rp * partial_density
+        W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
+        W3 = -scale_term * part2 / r_minus_rp * partial_density
 
-        #CSR_integrand_x = W1 + W2 + W3
-        CSR_integrand_x = W1
+        CSR_integrand_x = W1 + W2 + W3
+        #CSR_integrand_x = W1
         CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
         CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
 

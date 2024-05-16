@@ -1,6 +1,8 @@
 input_beam:
-  style: distgen     # from_file or distgen
-  distgen_input_file: input/dipole_init_beam.yaml
+  style: from_file     # from_file or distgen
+  beamfile: input_beam/dipole_beam.dat #(x, xp, y, xp, z ,delta)
+  charge: 1.0e-9     # C
+  energy: 5.0e+9         # eV
 
 input_lattice:
   lattice_input_file: input/dipole_lattice.yaml
@@ -37,7 +39,7 @@ CSR_computation:
   zlim: 3
   write_beam: True
   write_wakes: True
-  write_name: 'chirp'
+  write_name: 'test_file'
   workdir: './output'
 
 

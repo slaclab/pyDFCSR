@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tools import full_path, find_nearest_ind
+from tools import full_path, find_nearest_ind, plot_2D_contour
 import h5py
 from matplotlib import cm
 
@@ -160,6 +160,27 @@ class DFCSR_postprocessor():
         fig.colorbar(surf, shrink=0.5, aspect=5)
         plt.show()
 
+    def plot_wakes2(self, s):
+        ind = find_nearest_ind(self.position_list, s)
+
+        print("plot longitudinal wakes at nearest point s  = {} m, step count {}".format(self.position_list[ind],
+                                                                                         self.step_list[ind]))
+
+        step = "step_" + str(self.step_list[ind])
+
+        with h5py.File(self.wake_filename, "r") as f:
+            print("ebeam energy {}".format(f[step].attrs['beam_energy']))
+            dE_dct = np.array(f[step]['longitudinal']['dE_dct'])
+            unit = f[step]['longitudinal'].attrs['unit']
+
+            x_grids = np.array(f[step]['longitudinal']['x_grids']).reshape(dE_dct.shape)
+            z_grids = np.array(f[step]['longitudinal']['z_grids']).reshape(dE_dct.shape)
+
+            xkicks = np.array(f[step]['transverse']['xkicks'])
+
+        plot_2D_contour(x_grids,z_grids,dE_dct)
+        plot_2D_contour(x_grids,z_grids,xkicks)
+
     def plot_particles(self, s, xkey='z', ykey='delta'):
         ind = find_nearest_ind(self.position_list, s)
 
@@ -187,6 +208,7 @@ class DFCSR_postprocessor():
         plt.plot(x, y)
         plt.xlabel('positions (m)')
         plt.ylabel(f'{key} (m)')
+
 
 
 

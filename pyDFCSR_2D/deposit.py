@@ -150,12 +150,12 @@ class DF_tracker:
 
         #########test#######################
         #Todo: coordinates transform for highly chirped case
-        slice_ind = np.argwhere(np.abs(z) < 0.1*sigma_z)
-        slice_sigX = np.std(x[slice_ind])
-        frac = sigma_x/slice_sigX
-        if frac > 5:
-            self.xbins = 500
-            self.zbins = 500
+        #slice_ind = np.argwhere(np.abs(z) < 0.1*sigma_z)
+        #slice_sigX = np.std(x[slice_ind])
+        #frac = sigma_x/slice_sigX
+        #if frac > 5:
+        #    self.xbins = 500
+        #    self.zbins = 500
             #print('frac', frac)
 
         x_grids = np.linspace(xmean - self.xlim * sigma_x, xmean + self.xlim * sigma_x, self.xbins)
