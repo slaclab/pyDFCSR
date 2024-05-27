@@ -7,7 +7,6 @@
           <value>
             <JupyterConnectionParameters>
               <option name="managed" value="true" />
-              <option name="sdkName" value="pyDFCSR_new" />
             </JupyterConnectionParameters>
           </value>
         </entry>

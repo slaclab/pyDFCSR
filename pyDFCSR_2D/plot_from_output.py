@@ -88,7 +88,6 @@ class DFCSR_postprocessor():
         if not yvalue:
             print('plotting')
 
-            plt.figure()
             x = self.statistics['step_positions']
 
             sigX = self.statistics['sigX']
@@ -204,10 +203,11 @@ class DFCSR_postprocessor():
         with h5py.File(self.statistics_filename, "r") as f:
             x = np.array(f['step_positions'])
             y = np.array(f[key])
-
+        plt.figure()
         plt.plot(x, y)
         plt.xlabel('positions (m)')
         plt.ylabel(f'{key} (m)')
+        plt.show()
 
 
 

@@ -2,7 +2,7 @@ from tools import *
 class Interpolation_params:
     #Todo: Maybe not necessary. Can just be a dictionary with an additional function to parse default values.
     def __init__(self, input_dic = {}):
-        self.configure_params()
+        self.configure_params(**input_dic)
 
     def configure_params(self, xbins=500, zbins=500, xlim=10, zlim=10, re_interpolate_threshold=2):
         self.xbins = xbins

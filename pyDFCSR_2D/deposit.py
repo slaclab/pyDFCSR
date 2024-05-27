@@ -2,9 +2,10 @@ from numba import jit
 import math
 import numpy as np
 from collections import deque
-from SGolay_filter import *
+#from SGolay_filter import *
 from params import *
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
+from scipy.signal import savgol_filter
 @jit(nopython = True)
 def histogram_cic_1d(q1, w, nbins, bins_start, bins_end):
     """
@@ -144,43 +145,53 @@ class DF_tracker:
         sigma_z = np.std(z)
         self.sigma_x = sigma_x
         self.sigma_z = sigma_z
-        xmean = np.mean(x)
-        zmean = np.mean(z)
+        self.xmean = np.mean(x)
+        self.zmean = np.mean(z)
         npart = len(x)
 
         #########test#######################
         #Todo: coordinates transform for highly chirped case
-        #slice_ind = np.argwhere(np.abs(z) < 0.1*sigma_z)
-        #slice_sigX = np.std(x[slice_ind])
-        #frac = sigma_x/slice_sigX
-        #if frac > 5:
-        #    self.xbins = 500
-        #    self.zbins = 500
+        slice_ind = np.argwhere(np.abs(z) < 0.1*sigma_z)
+        slice_sigX = np.std(x[slice_ind])
+        frac = sigma_x/slice_sigX
+        if frac > 5:
+            self.xbins = 100
+            self.zbins = 300
+        else:
+            self.xbins = 100
+            self.zbins = 100
             #print('frac', frac)
 
-        x_grids = np.linspace(xmean - self.xlim * sigma_x, xmean + self.xlim * sigma_x, self.xbins)
-        z_grids = np.linspace(zmean - self.zlim * sigma_z, zmean + self.zlim * sigma_z, self.zbins)
+        x_grids = np.linspace(self.xmean - self.xlim * sigma_x, self.xmean + self.xlim * sigma_x, self.xbins)
+        z_grids = np.linspace(self.zmean - self.zlim * sigma_z, self.zmean + self.zlim * sigma_z, self.zbins)
         density = histogram_cic_2d(q1=x, q2=z, w=np.ones(x.shape),
-                                   nbins_1=self.xbins, bins_start_1=xmean - self.xlim * sigma_x,
-                                   bins_end_1=xmean + self.xlim * sigma_x,
-                                   nbins_2=self.zbins, bins_start_2=zmean - self.zlim * sigma_z,
-                                   bins_end_2=zmean + self.zlim * sigma_z)
+                                   nbins_1=self.xbins, bins_start_1=self.xmean - self.xlim * sigma_x,
+                                   bins_end_1=self.xmean + self.xlim * sigma_x,
+                                   nbins_2=self.zbins, bins_start_2=self.zmean - self.zlim * sigma_z,
+                                   bins_end_2=self.zmean + self.zlim * sigma_z)
 
         vx = histogram_cic_2d(q1=x, q2=z, w=xp,
-                              nbins_1=self.xbins, bins_start_1=xmean - self.xlim * sigma_x,
-                              bins_end_1=xmean + self.xlim * sigma_x,
-                              nbins_2=self.zbins, bins_start_2=zmean - self.zlim * sigma_z,
-                              bins_end_2=zmean + self.zlim * sigma_z)
+                              nbins_1=self.xbins, bins_start_1=self.xmean - self.xlim * sigma_x,
+                              bins_end_1=self.xmean + self.xlim * sigma_x,
+                              nbins_2=self.zbins, bins_start_2=self.zmean - self.zlim * sigma_z,
+                              bins_end_2=self.zmean + self.zlim * sigma_z)
         threshold = np.max(density) / self.velocity_threhold
         vx[density > threshold] /= density[density > threshold]
 
         # Add filter to density and vx
         #vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)  # adding this seems to be wrong
 
-        vx[density < threshold] = 0
+        vx[density <= threshold] = 0
 
         # Add filter to density and vx
-        density = sgolay2d(density, self.filter_window, self.filter_order, derivative=None)
+        #Todo: Consider other 2D sgolay filter
+        #Todo: consider using the derivative in sgoaly filter
+        #density = sgolay2d(density, self.filter_window, self.filter_order, derivative=None)
+        density = savgol_filter(x= savgol_filter(x = density, window_length=self.filter_window, polyorder=self.filter_order, axis = 0),
+                                window_length=self.filter_window, polyorder=self.filter_order, axis = 1)
+
+        vx = savgol_filter(x= savgol_filter(x = vx, window_length=self.filter_window, polyorder=self.filter_order, axis = 0),
+                                window_length=self.filter_window, polyorder=self.filter_order, axis = 1)
 
         dsum = np.trapz(np.trapz(density, x_grids, axis=0), z_grids)
         density /= dsum
@@ -191,19 +202,31 @@ class DF_tracker:
 
         # Todo: how to do it if apply coordiante tranformation?
 
-        # density_x, density_z = np.gradient(density, x_grids, z_grids)
-        # vx_z, vx_x = np.gradient(vx, x_grids, z_grids)
+        density_x, density_z = np.gradient(density, x_grids, z_grids)
+        vx_x, vx_z = np.gradient(vx, x_grids, z_grids)
 
-        density_x, density_z = sgolay2d(density, self.filter_window, self.filter_order, derivative='both')
-        density_x /= np.mean(np.diff(x_grids))
-        density_z /= np.mean(np.diff(z_grids))
+        density_x = savgol_filter(
+            x=savgol_filter(x=density_x, window_length=self.filter_window, polyorder=self.filter_order, axis=0),
+            window_length=self.filter_window, polyorder=self.filter_order, axis=1)
+        density_z = savgol_filter(
+            x=savgol_filter(x=density_z, window_length=self.filter_window, polyorder=self.filter_order, axis=0),
+            window_length=self.filter_window, polyorder=self.filter_order, axis=1)
+
+        vx_x = savgol_filter(
+            x=savgol_filter(x=vx_x, window_length=self.filter_window, polyorder=self.filter_order, axis=0),
+            window_length=self.filter_window, polyorder=self.filter_order, axis=1)
+
+
+        #density_x, density_z = sgolay2d(density, self.filter_window, self.filter_order, derivative='both')
+        #density_x /= np.mean(np.diff(x_grids))
+        #density_z /= np.mean(np.diff(z_grids))
 
         # Todo: set input for velocity filter
-        vx_x, _ = sgolay2d(vx, 3, 2, derivative='both')
-        threshold = np.max(density) / self.velocity_threhold * 10
+        #vx_x, _ = sgolay2d(vx, self.filter_window, self.filter_order, derivative='both')
+        threshold = np.max(density) / self.velocity_threhold * 4
         #vx_x[density < threshold] = 0
         vx_x[density < threshold] =  np.mean(vx_x[density > threshold])
-        vx_x /= np.mean(np.diff(x_grids))
+        #vx_x /= np.mean(np.diff(x_grids))
 
         self.x_grids = x_grids
         self.z_grids = z_grids
@@ -280,13 +303,14 @@ class DF_tracker:
         zlim_interp = interpolation.zlim
         xbins = interpolation.xbins
         zbins = interpolation.zbins
+
         if self.sigma_x_interp and self.sigma_z_interp and \
                 interpolation.re_interpolate_threshold > self.sigma_x/self.sigma_x_interp > 1/interpolation.re_interpolate_threshold and \
                     interpolation.re_interpolate_threshold > self.sigma_z/self.sigma_z_interp > 1 / interpolation.re_interpolate_threshold:
             # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
             self.time_interp.append(self.t)
-            self.x_grid_interp = np.linspace(-xlim_interp*self.sigma_x_interp, xlim_interp*self.sigma_x_interp, xbins)
-            self.z_grid_interp = np.linspace(-zlim_interp*self.sigma_z_interp, zlim_interp*self.sigma_z_interp, zbins)
+            self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
+            self.z_grid_interp = np.linspace(self.zmean-zlim_interp*self.sigma_z_interp, self.zmean + zlim_interp*self.sigma_z_interp, zbins)
             current_density_interp = self.DF_interp(DF = self.density)
             current_density_x_interp = self.DF_interp(DF = self.density_x)
             current_density_z_interp = self.DF_interp(DF = self.density_z)
@@ -301,15 +325,18 @@ class DF_tracker:
         else:
             #Todo: hard code from matlab. Consider change in the future
             #print('start reinterpolation. number of slice', str(len(self.time_log)))
-            #if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
-            #    xlim_interp = 5
+            if self.sigma_x_interp:
+                if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
+                    xlim_interp = 5
+                else:
+                    xlim_interp = 10
 
 
             self.sigma_x_interp = self.sigma_x
             self.sigma_z_interp = self.sigma_z
 
-            self.x_grid_interp = np.linspace(-xlim_interp*self.sigma_x_interp, xlim_interp*self.sigma_x_interp, xbins)
-            self.z_grid_interp = np.linspace(-zlim_interp * self.sigma_z_interp, zlim_interp * self.sigma_z_interp, zbins)
+            self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
+            self.z_grid_interp = np.linspace(self.zmean -zlim_interp * self.sigma_z_interp, self.zmean + zlim_interp * self.sigma_z_interp, zbins)
 
             #clear interpolant and redo interpolation
             self.density_interp = deque([])

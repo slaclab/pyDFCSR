@@ -38,16 +38,16 @@ def r_gen6(L, angle, k1=0, roll=0, E1=0, E2=0, hgap=0):
     else:
         O = np.eye(6, 6)
 
-    if not L:
+    if L == 0:
         return O
 
     h = angle/L
-    kx2 = (k1 + h**2)
+    kx2 = (k1 + h*h)
     ky2 = -k1
 
     if angle:
-        psi1 = 0.50*2*h*hgap*(1 + np.sin(E1)**2)/np.cos(E1)
-        psi2 = 0.50*2*h*hgap*(1 + np.sin(E2)**2)/np.cos(E2)
+        psi1 = 0.50*2*h*hgap*(1 + (np.sin(E1))**2)/np.cos(E1)
+        psi2 = 0.50*2*h*hgap*(1 + (np.sin(E2))**2)/np.cos(E2)
         Rpr1 = np.eye(6, 6)
         Rpr2 = np.eye(6, 6)
         Rpr1[1, 0] = np.tan(E1)*h
