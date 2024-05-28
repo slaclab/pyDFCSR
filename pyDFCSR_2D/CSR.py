@@ -718,9 +718,9 @@ class CSR2D:
         vx_ret = 0
 
         if ignore_vx:
-            #vx = 0
+            vx = 0
             vx_x_ret = 0
-            #vx_ret = 0
+            vx_ret = 0
 
         scale_term =  1 + xp_flat*rho_sp
 

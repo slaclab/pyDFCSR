@@ -37,7 +37,7 @@ CSR_computation:
   zlim: 3
   write_beam: True
   write_wakes: True
-  write_name: 'chirp'
+  write_name: 'dipole'
   workdir: './output'
 
 

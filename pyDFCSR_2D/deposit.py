@@ -155,25 +155,25 @@ class DF_tracker:
         slice_sigX = np.std(x[slice_ind])
         frac = sigma_x/slice_sigX
         if frac > 5:
-            self.xbins = 100
-            self.zbins = 300
+            xbins_t = self.xbins
+            zbins_t = self.zbins
         else:
-            self.xbins = 100
-            self.zbins = 100
+            xbins_t = 100
+            zbins_t = 100
             #print('frac', frac)
 
-        x_grids = np.linspace(self.xmean - self.xlim * sigma_x, self.xmean + self.xlim * sigma_x, self.xbins)
-        z_grids = np.linspace(self.zmean - self.zlim * sigma_z, self.zmean + self.zlim * sigma_z, self.zbins)
+        x_grids = np.linspace(self.xmean - self.xlim * sigma_x, self.xmean + self.xlim * sigma_x, xbins_t)
+        z_grids = np.linspace(self.zmean - self.zlim * sigma_z, self.zmean + self.zlim * sigma_z, zbins_t)
         density = histogram_cic_2d(q1=x, q2=z, w=np.ones(x.shape),
-                                   nbins_1=self.xbins, bins_start_1=self.xmean - self.xlim * sigma_x,
+                                   nbins_1=xbins_t, bins_start_1=self.xmean - self.xlim * sigma_x,
                                    bins_end_1=self.xmean + self.xlim * sigma_x,
-                                   nbins_2=self.zbins, bins_start_2=self.zmean - self.zlim * sigma_z,
+                                   nbins_2= zbins_t, bins_start_2=self.zmean - self.zlim * sigma_z,
                                    bins_end_2=self.zmean + self.zlim * sigma_z)
 
         vx = histogram_cic_2d(q1=x, q2=z, w=xp,
-                              nbins_1=self.xbins, bins_start_1=self.xmean - self.xlim * sigma_x,
+                              nbins_1=xbins_t, bins_start_1=self.xmean - self.xlim * sigma_x,
                               bins_end_1=self.xmean + self.xlim * sigma_x,
-                              nbins_2=self.zbins, bins_start_2=self.zmean - self.zlim * sigma_z,
+                              nbins_2= zbins_t, bins_start_2=self.zmean - self.zlim * sigma_z,
                               bins_end_2=self.zmean + self.zlim * sigma_z)
         threshold = np.max(density) / self.velocity_threhold
         vx[density > threshold] /= density[density > threshold]

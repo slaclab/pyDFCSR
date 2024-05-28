@@ -10,8 +10,8 @@ input_lattice:
   lattice_input_file: input/dipole_facet_lattice.yaml
 
 particle_deposition:
-  xbins: 500         # number of grids in x for particle deposition
-  zbins: 500         # number of grids in y for particle deposition
+  xbins: 100         # number of grids in x for particle deposition
+  zbins: 300         # number of grids in y for particle deposition
   xlim: 5          # range in x in the unit of sigma_x
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter

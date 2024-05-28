@@ -17,11 +17,19 @@ pz_dist:
     units: MeV/c
     value: 0.5
   type: gaussian
-r_dist:
-  sigma_xy:
+
+x_dist:
+  sigma_x:
     units: um
     value: 50
-  type: radial_gaussian
+  type: gaussian
+
+y_dist:
+  sigma_y:
+    units: um
+    value: 5
+  type: gaussian
+
 random_type: hammersley
 start:
   tstart:

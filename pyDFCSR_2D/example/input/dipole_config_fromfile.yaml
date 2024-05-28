@@ -20,13 +20,13 @@ distribution_interpolation:
   xbins: 200
   zbins: 200
   xlim: 10
-  ylim: 10
-  re_interpolate_threhold: 2
+  zlim: 10
+  re_interpolate_threshold: 2
 
 CSR_integration:
   n_formation_length: 1.5
   zbins: 200
-  xbins: 400
+  xbins: 200
 
 
 CSR_computation:
@@ -39,7 +39,7 @@ CSR_computation:
   zlim: 3
   write_beam: True
   write_wakes: True
-  write_name: 'dipole'
+  write_name: 'dipole_fromfile'
   workdir: './output'
 
 

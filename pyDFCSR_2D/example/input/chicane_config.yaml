@@ -6,8 +6,8 @@ input_lattice:
   lattice_input_file: input/chicane_lattice.yaml
 
 particle_deposition:
-  xbins: 200         # number of grids in x for particle deposition
-  zbins: 200         # number of grids in y for particle deposition
+  xbins: 500         # number of grids in x for particle deposition
+  zbins: 500         # number of grids in y for particle deposition
   xlim: 5            # range in x in the unit of sigma_x
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
@@ -15,16 +15,16 @@ particle_deposition:
   velocity_threhold : 100
 
 distribution_interpolation:
-  xbins: 500
-  zbins: 500
+  xbins: 1000
+  zbins: 1000
   xlim: 10
-  ylim: 10
-  re_interpolate_threhold: 2
+  zlim: 10
+  re_interpolate_threshold: 2
 
 CSR_integration:
-  n_formation_length: 1.5
-  zbins: 300
-  xbins: 800
+  n_formation_length: 2
+  zbins: 200
+  xbins: 400
 
 
 CSR_computation:
@@ -38,7 +38,7 @@ CSR_computation:
   write_beam: True
   write_wakes: True
   write_name: 'chicane'
-  workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/chicane_output'
+  workdir: './output'
 
 
 

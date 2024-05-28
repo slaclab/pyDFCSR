@@ -7,7 +7,7 @@ element_1:     # can be arbitrary name
 
 element_2:
   type: dipole
-  L: 1.5
+  L: 1.0
   angle: 1.0
   E1: 0
   E2: 0

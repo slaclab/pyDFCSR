@@ -17,6 +17,10 @@ class DFCSR_postprocessor():
         self.particle_filename = f'{path}/{run_name}-particles.h5'
         self.statistics_filename = f'{path}/{run_name}-statistics.h5'
 
+       
+
+    def parse_all_wakes(self):
+        
         with h5py.File(self.wake_filename, "r") as f:
             self.charge_list = []
             self.energy_list = []
@@ -32,8 +36,7 @@ class DFCSR_postprocessor():
                 self.step_list.append(f[step].attrs['step'])
                 self.position_list.append(f[step].attrs['position'])
                 self.element_list.append(f[step].attrs['element'])
-
-    def parse_all_wakes(self):
+        
 
         with h5py.File(self.wake_filename, "r") as f:
             self.long_wake_list = []
@@ -124,6 +127,23 @@ class DFCSR_postprocessor():
             plt.show()
 
     def plot_wakes(self, s):
+        
+        with h5py.File(self.wake_filename, "r") as f:
+            self.charge_list = []
+            self.energy_list = []
+            self.gamma_list = []
+            self.step_list = []
+            self.element_list = []
+            self.position_list = []
+
+            for step in f.keys():
+                self.energy_list.append(f[step].attrs['beam_energy'])
+                self.charge_list.append(f[step].attrs['charge'])
+                self.gamma_list.append(f[step].attrs['mean_gamma'])
+                self.step_list.append(f[step].attrs['step'])
+                self.position_list.append(f[step].attrs['position'])
+                self.element_list.append(f[step].attrs['element'])
+        
         ind = find_nearest_ind(self.position_list, s)
 
         print("plot longitudinal wakes at nearest point s  = {} m, step count {}".format(self.position_list[ind],
@@ -191,6 +211,8 @@ class DFCSR_postprocessor():
         with h5py.File(self.particle_filename, "r") as f:
             x = np.array(f[step]['particles'][xkey])
             y = np.array(f[step]['particles'][ykey])
+            
+        plt.figure()
 
         h, xedges, yedges, _ = plt.hist2d(x, y, bins=100, cmap=plt.cm.jet)
         plt.colorbar()
