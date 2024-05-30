@@ -15,7 +15,7 @@ from twiss_R import *
 import h5py
 import os
 import time
-from line_profiler_pycharm import profile
+#from line_profiler_pycharm import profile
 from tools import isotime
 from interp3D import interpolate3D
 from interp1D import interpolate1D
@@ -134,7 +134,6 @@ class CSR2D:
         comm = MPI.COMM_WORLD
         self.rank = comm.Get_rank()
         mpi_size = comm.Get_size()
-
         work_size = self.CSR_params.xbins * self.CSR_params.zbins
         ave, res = divmod(work_size, mpi_size)
         self.count = [ave + 1 if p < res else ave for p in range(mpi_size)]
@@ -251,15 +250,16 @@ class CSR2D:
                 distance_in_current_ele += DL
                 if  self.afterbend and (not self.inbend) and distance_in_current_ele > self.formation_length:
                     CSR_blocker = True
-                    if not self.parallel or self.rank == 0:
+                    if (not self.parallel) or (self.rank == 0):
                         print("Far away from a bending magnet, stopping calculating CSR")
 
                 else:
                     CSR_blocker = False
 
-
+                
+                
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
-                    if not self.parallel or self.rank == 0:
+                    if (not self.parallel) or (self.rank == 0):
                         print('Calculating CSR at s=', str(self.beam.position))
                     if step % self.lattice.nsep[ele_count] == 0:
                         # calculate CSR mesh given beam shape
@@ -493,7 +493,7 @@ class CSR2D:
         return xp1, xp2
 
 
-    @profile
+#    @profile
     def get_CSR_wake(self, s, x, debug = False):
 
         t = self.beam.position
@@ -513,8 +513,8 @@ class CSR2D:
 
         chirp_band = False
 
-        if np.abs(tan_theta) <= 1:  # if chirp is small, the chirp band can be ignored. theta is the angle in z-x plane
-            s2 = s - 50 * sigma_z
+        if np.abs(tan_theta) <= 5:  # if chirp is small, the chirp band can be ignored. theta is the angle in z-x plane
+            s2 = s - 200 * sigma_z
             s3 = s + 3 * sigma_z
             x1 = x - 10 * sigma_x
             x2 = x + 10 * sigma_x
@@ -594,9 +594,9 @@ class CSR2D:
                 return dE_dct1 + dE_dct2 + dE_dct3, x_kick1 + x_kick2 + x_kick3
 
         else:
-            sp1 = np.linspace(s1, s2, self.integration_params.zbins)
-            sp2 = np.linspace(s2, s3, self.integration_params.zbins)
-            xp = np.linspace(x1, x2, self.integration_params.xbins)
+            sp1 = np.linspace(s1, s2, 2*self.integration_params.zbins)
+            sp2 = np.linspace(s2, s3, 2*self.integration_params.zbins)
+            xp = np.linspace(x1, x2, 2*self.integration_params.xbins)
 
             [xp_mesh2, sp_mesh2] = np.meshgrid(xp, sp2, indexing='ij')
             [xp_mesh3, sp_mesh3] = np.meshgrid(xp, sp1, indexing='ij')
@@ -713,9 +713,9 @@ class CSR2D:
         vs_s_ret = 0
         vx_t = 0
         vs_t = 0
-        vx = 0
-        vx_x_ret = 0
-        vx_ret = 0
+        #vx = 0
+        #vx_x_ret = 0
+        #vx_ret = 0
 
         if ignore_vx:
             vx = 0

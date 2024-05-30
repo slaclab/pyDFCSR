@@ -157,9 +157,11 @@ class DF_tracker:
         if frac > 5:
             xbins_t = self.xbins
             zbins_t = self.zbins
+            filter_window = self.filter_window
         else:
             xbins_t = 100
             zbins_t = 100
+            filter_window = 5
             #print('frac', frac)
 
         x_grids = np.linspace(self.xmean - self.xlim * sigma_x, self.xmean + self.xlim * sigma_x, xbins_t)
@@ -187,11 +189,11 @@ class DF_tracker:
         #Todo: Consider other 2D sgolay filter
         #Todo: consider using the derivative in sgoaly filter
         #density = sgolay2d(density, self.filter_window, self.filter_order, derivative=None)
-        density = savgol_filter(x= savgol_filter(x = density, window_length=self.filter_window, polyorder=self.filter_order, axis = 0),
-                                window_length=self.filter_window, polyorder=self.filter_order, axis = 1)
+        density = savgol_filter(x= savgol_filter(x = density, window_length=filter_window, polyorder=self.filter_order, axis = 0),
+                                window_length=filter_window, polyorder=self.filter_order, axis = 1)
 
-        vx = savgol_filter(x= savgol_filter(x = vx, window_length=self.filter_window, polyorder=self.filter_order, axis = 0),
-                                window_length=self.filter_window, polyorder=self.filter_order, axis = 1)
+        vx = savgol_filter(x= savgol_filter(x = vx, window_length=filter_window, polyorder=self.filter_order, axis = 0),
+                                window_length=filter_window, polyorder=self.filter_order, axis = 1)
 
         dsum = np.trapz(np.trapz(density, x_grids, axis=0), z_grids)
         density /= dsum
@@ -206,15 +208,15 @@ class DF_tracker:
         vx_x, vx_z = np.gradient(vx, x_grids, z_grids)
 
         density_x = savgol_filter(
-            x=savgol_filter(x=density_x, window_length=self.filter_window, polyorder=self.filter_order, axis=0),
-            window_length=self.filter_window, polyorder=self.filter_order, axis=1)
+            x=savgol_filter(x=density_x, window_length=filter_window, polyorder=self.filter_order, axis=0),
+            window_length=filter_window, polyorder=self.filter_order, axis=1)
         density_z = savgol_filter(
-            x=savgol_filter(x=density_z, window_length=self.filter_window, polyorder=self.filter_order, axis=0),
-            window_length=self.filter_window, polyorder=self.filter_order, axis=1)
+            x=savgol_filter(x=density_z, window_length=filter_window, polyorder=self.filter_order, axis=0),
+            window_length=filter_window, polyorder=self.filter_order, axis=1)
 
         vx_x = savgol_filter(
-            x=savgol_filter(x=vx_x, window_length=self.filter_window, polyorder=self.filter_order, axis=0),
-            window_length=self.filter_window, polyorder=self.filter_order, axis=1)
+            x=savgol_filter(x=vx_x, window_length=filter_window, polyorder=self.filter_order, axis=0),
+            window_length=filter_window, polyorder=self.filter_order, axis=1)
 
 
         #density_x, density_z = sgolay2d(density, self.filter_window, self.filter_order, derivative='both')

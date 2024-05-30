@@ -12,7 +12,7 @@ B1:
 D1:     # can be arbitrary name
   type: drift
   L: 5.0058
-  nsep: 1
+  nsep: 5
 
 B2:
   type: dipole
@@ -41,7 +41,7 @@ B3:
 D3:     # can be arbitrary name
   type: drift
   L: 5.0058
-  nsep: 1
+  nsep: 5
 
 B4:
   type: dipole
@@ -54,8 +54,8 @@ B4:
 
 Df:     # can be arbitrary name
   type: drift
-  L: 0.5
-  nsep: 2
+  L: 0.2
+  nsep: 1
 
 #element_3:
 #  type: drift

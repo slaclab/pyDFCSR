@@ -1,0 +1,1 @@
+salloc --partition milano --account ad:beamphysics -N 1 -n 10 /usr/lib64/openmpi/bin/mpirun python  -m pyDFCSR_mpi_run ./example/input/dipole_config.yaml

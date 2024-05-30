@@ -33,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument("input_file", help="input_file")
 
     args = parser.parse_args()
-    print(args)
+    #print(args)
 
     infile = args.input_file
     assert os.path.exists(infile), f"Input file does not exist: {infile}"

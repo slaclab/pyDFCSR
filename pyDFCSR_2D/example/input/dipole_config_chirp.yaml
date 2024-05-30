@@ -1,9 +1,9 @@
 input_beam:
   style: distgen     # from_file or distgen
-  distgen_input_file: input/dipole_chirp_beam.yaml
+  distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input//dipole_chirp_beam.yaml
 
 input_lattice:
-  lattice_input_file: input/dipole_lattice.yaml
+  lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input//dipole_lattice.yaml
 
 particle_deposition:
   xbins: 200         # number of grids in x for particle deposition
@@ -38,7 +38,7 @@ CSR_computation:
   write_beam: True
   write_wakes: True
   write_name: 'dipole_chirp'
-  workdir: './output'
+  workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/dipole_chirp_output/'
 
 
 

@@ -38,7 +38,7 @@ CSR_computation:
   write_beam: True
   write_wakes: True
   write_name: 'dipole_chirp'
-  workdir: './output'
+  workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/dipole_chirp_output/'
 
 
 

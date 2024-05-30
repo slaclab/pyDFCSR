@@ -1,4 +1,5 @@
 n_particle: 1000000
+species: electron
 px_dist:
   sigma_px:
     units: keV/c
@@ -17,11 +18,19 @@ pz_dist:
     units: MeV/c
     value: 0.5
   type: gaussian
-r_dist:
-  sigma_xy:
+
+x_dist:
+  sigma_x:
     units: um
     value: 50
-  type: radial_gaussian
+  type: gaussian
+
+y_dist:
+  sigma_y:
+    units: um
+    value: 5
+  type: gaussian
+
 random_type: hammersley
 start:
   tstart:
@@ -44,6 +53,6 @@ transforms:
   s:
     shear_coefficient:
       units: 'gigaelectron_volt/speed_of_light/meter'
-      value: 50
+      value: 0
     type: shear z:pz
 
