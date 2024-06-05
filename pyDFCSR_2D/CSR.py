@@ -520,7 +520,7 @@ class CSR2D:
 
         chirp_band = False
 
-        if np.abs(tan_theta) <= 5:  # if chirp is small, the chirp band can be ignored. theta is the angle in z-x plane
+        if np.abs(tan_theta) <= 1:  # if chirp is small, the chirp band can be ignored. theta is the angle in z-x plane
             s2 = s - 500 * sigma_z
             s3 = s - 20*sigma_z
             s4 = s + 5 * sigma_z
@@ -534,28 +534,32 @@ class CSR2D:
             chirp_band = True
             if tan_theta > 0:
                 tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
-                d = (5 * sigma_x + xmean - x) / tan_alpha
+                d = (10 * sigma_x + xmean - x) / tan_alpha
                 s2 = np.max((0, s - d))
                 s3 = s + 3 * sigma_z
 
                 # area 1
                 x1_l = x + 0.1 * sigma_x
-                x1_r = x + 5 * sigma_x
+                x1_r = x + 10 * sigma_x
         
                 # area 2
                 x2_l = x - 3 * sigma_x
                 x2_r = x1_l
 
                 # area 3
-                x3_l = x - 5 * sigma_x
-                x3_r = x + 5 * sigma_x
+                x3_l = x0 - 5 * sigma_x
+                x3_r = x0 + 5 * sigma_x
 
 
             else:
                 tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
                 d = -(xmean - x - 10 * sigma_x) / tan_alpha
-                s2 = np.max((0, s - d))
-                s3 = s + 3 * sigma_z
+                
+                
+                s4 = s + 3 * sigma_z
+                s3 = np.max((0, s - d))
+                s2 = s3 - 200 * sigma_z
+
                 # area 1
                 x1_l = x - 10 * sigma_x
                 x1_r = x - 1 * sigma_x
@@ -565,38 +569,48 @@ class CSR2D:
                 x2_r = x + 3 *sigma_x
   
                 # area 3
-                x3_l = x - 5 * sigma_x
-                x3_r = x + 5 * sigma_x
+                x3_l = x0 - 5 * sigma_x
+                x3_r = x0 + 5 * sigma_x
+
+                x4_l = x0 - 20 * sigma_x
+                x4_r = x0 + 20 * sigma_x
         
         s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
        
         if chirp_band:
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)
             sp2 = np.linspace(s2, s3, self.integration_params.zbins)
+            sp3 = np.linspace(s3, s4, self.interpolation_params.zbins)
             xp1 = np.linspace(x1_l, x1_r, self.integration_params.xbins)
             xp2 = np.linspace(x2_l, x2_r, self.integration_params.xbins)
             xp3 = np.linspace(x3_l, x3_r, self.integration_params.xbins)
+            xp4 = np.linspace(x4_l, x4_r, 2*self.integration_params.xbins)
 
-            [xp_mesh1, sp_mesh1] = np.meshgrid(xp1, sp2, indexing='ij')
-            [xp_mesh2, sp_mesh2] = np.meshgrid(xp2, sp2, indexing='ij')
-            [xp_mesh3, sp_mesh3] = np.meshgrid(xp3, sp1, indexing='ij')
+            [xp_mesh1, sp_mesh1] = np.meshgrid(xp4, sp1, indexing='ij')
+            [xp_mesh2, sp_mesh2] = np.meshgrid(xp3, sp2, indexing = 'ij')
+            [xp_mesh3, sp_mesh3] = np.meshgrid(xp1, sp3, indexing='ij')
+            [xp_mesh4, sp_mesh4] = np.meshgrid(xp2, sp3, indexing='ij')
 
             CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh1, sp=sp_mesh1, ignore_vx = ignore_vx)
-            dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp1, axis=0), x=sp2)
-            x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp1, axis=0), x=sp2)
+            dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp4, axis=0), x=sp1)
+            x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp4, axis=0), x=sp1)
 
             CSR_integrand_z2, CSR_integrand_x2 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh2, sp=sp_mesh2, ignore_vx = ignore_vx)
-            dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z2, x=xp2, axis=0), x=sp2)
-            x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x2, x=xp2, axis=0), x=sp2)
+            dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z2, x=xp3, axis=0), x=sp2)
+            x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x2, x=xp3, axis=0), x=sp2)
 
             CSR_integrand_z3, CSR_integrand_x3 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh3, sp=sp_mesh3, ignore_vx = ignore_vx)
-            dE_dct3 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z3, x=xp3, axis=0), x=sp1)
-            x_kick3 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x3, x=xp3, axis=0), x=sp1)
+            dE_dct3 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z3, x=xp1, axis=0), x=sp3)
+            x_kick3 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x3, x=xp1, axis=0), x=sp3)
+
+            CSR_integrand_z4, CSR_integrand_x4 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh4, sp=sp_mesh4, ignore_vx = ignore_vx)
+            dE_dct4 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z4, x=xp2, axis=0), x=sp3)
+            x_kick4 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x4, x=xp2, axis=0), x=sp3)
 
             if debug:
-                return xp1, xp2, xp3, sp1, sp2,  CSR_integrand_z1, CSR_integrand_x1, CSR_integrand_z2, CSR_integrand_x2, CSR_integrand_z3, CSR_integrand_x3
+                return xp1, xp2, xp3, xp4, sp1, sp2, sp3,  CSR_integrand_z1, CSR_integrand_x1, CSR_integrand_z2, CSR_integrand_x2, CSR_integrand_z3, CSR_integrand_x3, CSR_integrand_z4, CSR_integrand_x4
             else:
-                return dE_dct1 + dE_dct2 + dE_dct3, x_kick1 + x_kick2 + x_kick3
+                return dE_dct1 + dE_dct2 + dE_dct3 + dE_dct4, x_kick1 + x_kick2 + x_kick3 + x_kick4
 
         else:
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)

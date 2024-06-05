@@ -22,7 +22,7 @@ distribution_interpolation:
   re_interpolate_threshold: 2
 
 CSR_integration:
-  n_formation_length: 1
+  n_formation_length: 2
   zbins: 200
   xbins: 200
 
