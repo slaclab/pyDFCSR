@@ -327,11 +327,11 @@ class DF_tracker:
         else:
             #Todo: hard code from matlab. Consider change in the future
             #print('start reinterpolation. number of slice', str(len(self.time_log)))
-            if self.sigma_x_interp:
-                if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
-                    xlim_interp = 5
-                else:
-                    xlim_interp = 10
+            #if self.sigma_x_interp:
+            #    if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
+            #        xlim_interp = 5
+            #    else:
+            #        xlim_interp = 10
 
 
             self.sigma_x_interp = self.sigma_x

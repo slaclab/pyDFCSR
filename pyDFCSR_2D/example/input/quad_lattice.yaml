@@ -1,0 +1,20 @@
+step_size:  0.1 
+element_1:
+  type: quad
+  L: 0.2
+  strength: 0.5
+  nsep: 1
+
+element_2:    
+  type: drift
+  L: 1.0
+  nsep: 1
+
+element_3:    
+  type: quad
+  L: 0.2
+  strength: 0.5
+  nsep: 1
+
+
+  

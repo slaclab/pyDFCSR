@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def r_gen6(L, angle, k1=0, roll=0, E1=0, E2=0, hgap=0):
+def r_gen6(L, angle = 0, k1=0, roll=0, E1=0, E2=0, hgap=0):
     """
     Return a general 6*6 R matrix. Translated from Paul Emma's matlab codes.
     :param L:  magnetic length [meters]. If L = 0, return a rotation matrix defined by roll and all other params are ignored.

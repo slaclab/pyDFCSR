@@ -48,9 +48,23 @@ transforms:
       value: -180
     type: shear z:pz
 
-  s2:
-    shear_coefficient:
-      units: 'gigaelectron_volt/speed_of_light/meter'
-      value: -0.3250
-    type: shear x:px
+  twiss:
+    alpha:
+      units: dimensionless
+      value: 2.6
+    beta:
+      units: meter
+      value: 40
+    emittance:
+      units: nanometer
+      value: 0.102
+    type: set_twiss x
+
+#  s2:
+#    shear_coefficient:
+#      units: 'gigaelectron_volt/speed_of_light/meter'
+#      value: -0.3250
+#    type: shear x:px
+
+
 
