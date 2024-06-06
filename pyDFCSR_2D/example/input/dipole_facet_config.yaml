@@ -1,13 +1,15 @@
 input_beam:
   style: from_file     # from_file or distgen
-  beamfile: /sdf/data/ad/ard/u/jytang/pyDFCSR/facet_dipole_output/input_beam/preB1LE1_lucretiaLSC.dat #(x, xp, y, xp, z ,delta)
+  #beamfile: /sdf/data/ad/ard/u/jytang/pyDFCSR/facet_dipole_output/input_beam/preB1LE1_lucretiaLSC.dat #(x, xp, y, xp, z ,delta)
+  beamfile:  ./input_beam/preB1LE1_lucretiaLSC.dat
   #beamfile: input_beam/P1_-20_P2_-38.4.dat
   #beamfile: input_beam/facetii_B4.dat
   charge: 1.898240000000001e-09     # C
   energy: 9.856e+9         # eV
 
 input_lattice:
-  lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/dipole_facet_lattice.yaml
+  #lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/dipole_facet_lattice.yaml
+  lattice_input_file: input/dipole_facet_lattice.yaml
 
 particle_deposition:
   xbins: 100         # number of grids in x for particle deposition
@@ -16,14 +18,9 @@ particle_deposition:
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
   filter_window: 5
-  velocity_threhold : 200
+  velocity_threhold : 1000
 
-distribution_interpolation:
-  xbins: 1000
-  zbins: 1000
-  xlim: 5
-  zlim: 5
-  re_interpolate_threshold: 2
+
 
 CSR_integration:
   n_formation_length: 1.5
@@ -42,7 +39,8 @@ CSR_computation:
   write_beam: True
   write_wakes: True
   write_name: 'facet_obed'
-  workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/facet_dipole_output/'
+  #workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/facet_dipole_output/'
+  workdir: ./output
 
 
 

@@ -54,10 +54,10 @@ class CSR2D:
         else:
             self.DF_tracker = DF_tracker()
 
-        if 'distribution_interpolation' in input:
-            self.interpolation_params = Interpolation_params(input['distribution_interpolation'])
-        else:
-            self.interpolation_params = Interpolation_params()
+ #       if 'distribution_interpolation' in input:
+ #           self.interpolation_params = Interpolation_params(input['distribution_interpolation'])
+ #       else:
+ #           self.interpolation_params = Interpolation_params()
 
         if 'CSR_integration' in input:
             self.integration_params = Integration_params(input['CSR_integration'])
@@ -77,8 +77,7 @@ class CSR2D:
         self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
         self.DF_tracker.append_DF()
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
-                                           n_formation_length=self.integration_params.n_formation_length,
-                                           interpolation=self.interpolation_params)
+                                           n_formation_length=self.integration_params.n_formation_length)
         #Todo: add more flexible unit conversion, for both charge and energy
         self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
         self.init_statistics()
@@ -241,8 +240,7 @@ class CSR2D:
                 # append 3D matrix for interpolation with the new DFs by interpolation
                 #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                 self.DF_tracker.append_interpolant(formation_length=self.formation_length,
-                                                   n_formation_length=self.integration_params.n_formation_length,
-                                                   interpolation=self.interpolation_params)
+                                                   n_formation_length=self.integration_params.n_formation_length)
                 # build interpolant based on the 3D matrix
                 self.DF_tracker.build_interpolant()
 
@@ -527,8 +525,8 @@ class CSR2D:
             x1_w = x0 - 20 * sigma_x
             x2_w = x0 + 20 * sigma_x
 
-            x1_n = x0 - 5 * sigma_x
-            x2_n = x0 + 5 * sigma_x
+            x1_n = x0 - 10 * sigma_x
+            x2_n = x0 + 10 * sigma_x
 
         else:
             chirp_band = True
@@ -584,7 +582,7 @@ class CSR2D:
         if chirp_band:
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)
             sp2 = np.linspace(s2, s3, self.integration_params.zbins)
-            sp3 = np.linspace(s3, s4, self.interpolation_params.zbins)
+            sp3 = np.linspace(s3, s4, self.integration_params.zbins)
             xp1 = np.linspace(x1_l, x1_r, self.integration_params.xbins)
             xp2 = np.linspace(x2_l, x2_r, self.integration_params.xbins)
             xp3 = np.linspace(x3_l, x3_r, self.integration_params.xbins)

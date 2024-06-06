@@ -1,9 +1,11 @@
 input_beam:
   style: distgen     # from_file or distgen
-  distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/chicane_init_beam.yaml
+  #distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/chicane_init_beam.yaml
+  distgen_input_file: input/chicane_init_beam.yaml
 
 input_lattice:
-  lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/chicane_lattice.yaml
+  #lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/chicane_lattice.yaml
+  lattice_input_file: input/chicane_lattice.yaml
 
 particle_deposition:
   xbins: 500         # number of grids in x for particle deposition
@@ -12,17 +14,10 @@ particle_deposition:
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
   filter_window: 15
-  velocity_threhold : 100
-
-distribution_interpolation:
-  xbins: 2000
-  zbins: 500
-  xlim: 30
-  zlim: 5
-  re_interpolate_threshold: 2
+  velocity_threhold : 1000
 
 CSR_integration:
-  n_formation_length: 2
+  n_formation_length: 1
   zbins: 200
   xbins: 200
 
@@ -38,7 +33,8 @@ CSR_computation:
   write_beam: True
   write_wakes: True
   write_name: 'chicane'
-  workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/chicane_output/'
+  #workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/chicane_output/'
+  workdir: './output'
 
 
 

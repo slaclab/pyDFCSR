@@ -107,6 +107,8 @@ class DF_tracker:
         #params for DF log
         self.slope_log = deque([])
         self.DF_log = deque([])
+        self.sigma_x_log = deque([])
+        self.sigma_z_log = deque([])
         self.time_log = deque([])
         self.log_start_time = 0
         self.log_end_time = 0
@@ -183,7 +185,7 @@ class DF_tracker:
         # Add filter to density and vx
         #vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)  # adding this seems to be wrong
 
-        vx[density <= threshold] = 0
+
 
         # Add filter to density and vx
         #Todo: Consider other 2D sgolay filter
@@ -197,6 +199,8 @@ class DF_tracker:
 
         dsum = np.trapz(np.trapz(density, x_grids, axis=0), z_grids)
         density /= dsum
+
+        vx[density <= threshold] = 0
 
 
 
@@ -225,7 +229,7 @@ class DF_tracker:
 
         # Todo: set input for velocity filter
         #vx_x, _ = sgolay2d(vx, self.filter_window, self.filter_order, derivative='both')
-        threshold = np.max(density) / self.velocity_threhold * 4
+        threshold = np.max(density) / self.velocity_threhold * 8
         #vx_x[density < threshold] = 0
         vx_x[density < threshold] =  np.mean(vx_x[density > threshold])
         #vx_x /= np.mean(np.diff(x_grids))
@@ -246,6 +250,8 @@ class DF_tracker:
         """
         self.DF_log.append((self.x_grids, self.z_grids, self.density, self.vx, self.density_x, self.density_z, self.vx_x))
         self.time_log.append(self.t)
+        self.sigma_x_log.append(self.sigma_x)
+        self.sigma_z_log.append(self.sigma_z)
         self.end_time = self.t
 
     def pop_left_DF(self, new_start_time):
@@ -258,6 +264,8 @@ class DF_tracker:
         while self.start_time < new_start_time:
             self.DF_log.popleft()
             self.time_log.popleft()
+            self.sigma_x_log.popleft()
+            self.sigma_z_log.popleft()
             self.start_time = self.time_log[0]
 
         #  remove outdated interpolant
@@ -278,6 +286,8 @@ class DF_tracker:
         """
         self.DF_log.pop()
         self.time_log.pop()
+        self.sigma_x_log.pop()
+        self.sigma_z_log.pop()
         self.end_time = self.time_log[-1]
 
 
@@ -298,21 +308,22 @@ class DF_tracker:
         return interp((X,Z))
 
 
-    def append_interpolant(self, formation_length, n_formation_length, interpolation):
+    def append_interpolant(self, formation_length, n_formation_length):
         start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
         self.pop_left_DF(new_start_time=start_point)
-        xlim_interp = interpolation.xlim
-        zlim_interp = interpolation.zlim
-        xbins = interpolation.xbins
-        zbins = interpolation.zbins
+
+        #xlim_interp = interpolation.xlim
+        #zlim_interp = interpolation.zlim
+        #xbins = interpolation.xbins
+        #zbins = interpolation.zbins
 
         if self.sigma_x_interp and self.sigma_z_interp and \
-                interpolation.re_interpolate_threshold > self.sigma_x/self.sigma_x_interp > 1/interpolation.re_interpolate_threshold and \
-                    interpolation.re_interpolate_threshold > self.sigma_z/self.sigma_z_interp > 1 / interpolation.re_interpolate_threshold:
+                2 > self.sigma_x/self.sigma_x_interp > 1/2 and \
+                    2 > self.sigma_z/self.sigma_z_interp > 1 / 2:
             # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
             self.time_interp.append(self.t)
-            self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
-            self.z_grid_interp = np.linspace(self.zmean-zlim_interp*self.sigma_z_interp, self.zmean + zlim_interp*self.sigma_z_interp, zbins)
+            #self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
+            #self.z_grid_interp = np.linspace(self.zmean-zlim_interp*self.sigma_z_interp, self.zmean + zlim_interp*self.sigma_z_interp, zbins)
             current_density_interp = self.DF_interp(DF = self.density)
             current_density_x_interp = self.DF_interp(DF = self.density_x)
             current_density_z_interp = self.DF_interp(DF = self.density_z)
@@ -326,19 +337,36 @@ class DF_tracker:
 
         else:
             #Todo: hard code from matlab. Consider change in the future
-            #print('start reinterpolation. number of slice', str(len(self.time_log)))
+            print('start reinterpolation. number of slice', str(len(self.time_log)))
             #if self.sigma_x_interp:
             #    if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
             #        xlim_interp = 5
             #    else:
             #        xlim_interp = 10
 
+            max_sigma_x = np.max(self.sigma_x_log)
+            min_sigma_x = np.min(self.sigma_x_log)
+            max_sigma_z = np.max(self.sigma_z_log)
+            min_sigma_z = np.min(self.sigma_z_log)
 
-            self.sigma_x_interp = self.sigma_x
-            self.sigma_z_interp = self.sigma_z
 
-            self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
-            self.z_grid_interp = np.linspace(self.zmean -zlim_interp * self.sigma_z_interp, self.zmean + zlim_interp * self.sigma_z_interp, zbins)
+            t_x = max_sigma_x / min_sigma_x
+            t_z = max_sigma_z / min_sigma_z
+
+            print('t_x', t_x)
+            print('t_z', t_z)
+
+            xbins = int(500 * t_x)
+            zbins = int(500 * t_z)
+
+            print('xbins', xbins)
+            print('zbins', zbins)
+
+            self.sigma_x_interp = max_sigma_x
+            self.sigma_z_interp = max_sigma_z
+
+            self.x_grid_interp = np.linspace(self.xmean-5*self.sigma_x_interp, self.xmean + 5*self.sigma_x_interp, xbins)
+            self.z_grid_interp = np.linspace(self.zmean -5* self.sigma_z_interp, self.zmean + 5* self.sigma_z_interp, zbins)
 
             #clear interpolant and redo interpolation
             self.density_interp = deque([])

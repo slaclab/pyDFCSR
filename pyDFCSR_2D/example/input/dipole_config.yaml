@@ -1,9 +1,10 @@
 input_beam:
   style: distgen     # from_file or distgen
-  distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input//dipole_init_beam.yaml
+  #distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input//dipole_init_beam.yaml
+  distgen_input_file: ./input//dipole_init_beam.yaml
 
 input_lattice:
-  lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input//dipole_lattice.yaml
+  lattice_input_file: input//dipole_lattice.yaml
 
 particle_deposition:
   xbins: 200         # number of grids in x for particle deposition
@@ -13,13 +14,6 @@ particle_deposition:
   filter_order: 2    # 0 for no filter
   filter_window: 5
   velocity_threhold : 200
-
-distribution_interpolation:
-  xbins: 200
-  zbins: 200
-  xlim: 10
-  zlim: 10
-  re_interpolate_threshold: 2
 
 CSR_integration:
   n_formation_length: 1.5
@@ -38,7 +32,7 @@ CSR_computation:
   write_beam: True
   write_wakes: True
   write_name: 'dipole'
-  workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/dipole_output/'
+  workdir: './output'
 
 
 
