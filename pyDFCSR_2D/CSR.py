@@ -535,8 +535,10 @@ class CSR2D:
             if tan_theta > 0:
                 tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
                 d = (10 * sigma_x + xmean - x) / tan_alpha
-                s2 = np.max((0, s - d))
-                s3 = s + 3 * sigma_z
+                
+                s4 = s + 3 * sigma_z
+                s3 = np.max((0, s - d))
+                s2 = s3 - 200 * sigma_z
 
                 # area 1
                 x1_l = x + 0.1 * sigma_x
@@ -550,11 +552,13 @@ class CSR2D:
                 x3_l = x0 - 5 * sigma_x
                 x3_r = x0 + 5 * sigma_x
 
+                x4_l = x0 - 20 * sigma_x
+                x4_r = x0 + 20 * sigma_x
+
 
             else:
                 tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
                 d = -(xmean - x - 10 * sigma_x) / tan_alpha
-                
                 
                 s4 = s + 3 * sigma_z
                 s3 = np.max((0, s - d))
