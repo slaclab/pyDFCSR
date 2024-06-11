@@ -13,12 +13,12 @@ particle_deposition:
   zlim: 5            # range in z in the unit of sigma_z
   filter_order: 2    # 0 for no filter
   filter_window: 5
-  velocity_threhold : 200
+  velocity_threhold : 1000
 
 CSR_integration:
   n_formation_length: 1.5
-  zbins: 200
-  xbins: 200
+  zbins: 100
+  xbins: 100
 
 
 CSR_computation:

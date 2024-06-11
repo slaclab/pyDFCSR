@@ -1,9 +1,9 @@
-step_size:  0.1 
+step_size:  0.1
 
 Q1:
   type: quad
-  L: 0.15
-  strength: 0.5
+  L: 0.05
+  strength: 1.0
   nsep: 1
   
 
@@ -13,10 +13,16 @@ D1:
   nsep: 1
   
 
-Q2:    
+Q2_1:
   type: quad
-  L: 0.3
-  strength: -0.5
+  L: 0.05
+  strength: -1.0
+  nsep: 1
+
+Q2_2:
+  type: quad
+  L: 0.05
+  strength: -1.0
   nsep: 1
 
 
@@ -28,8 +34,8 @@ D2:
   
 Q3:    
   type: quad
-  L: 0.15
-  strength: 0.5
+  L: 0.05
+  strength: 1.0
   nsep: 1
   
 

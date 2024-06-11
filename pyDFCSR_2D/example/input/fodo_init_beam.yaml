@@ -1,0 +1,80 @@
+n_particle: 1000000
+species: electron
+px_dist:
+  sigma_px:
+    units: keV/c
+    value: 25.0
+  type: gaussian
+py_dist:
+  sigma_py:
+    units: keV/c
+    value: 25.0
+  type: gaussian
+pz_dist:
+  avg_pz:
+    units: GeV/c
+    value: 5
+  sigma_pz:
+    units: MeV/c
+    value: 0.5
+  type: gaussian
+
+x_dist:
+  sigma_x:
+    units: um
+    value: 50
+  type: gaussian
+
+y_dist:
+  sigma_y:
+    units: um
+    value: 5
+  type: gaussian
+
+random_type: hammersley
+start:
+  tstart:
+    units: sec
+    value: 0
+  type: time
+total_charge:
+  units: nC
+  value: 1
+z_dist:
+  avg_z:
+    units: mm
+    value: 0
+  sigma_z:
+    units: um
+    value: 50
+  type: gaussian
+
+transforms:
+  order:
+  - twiss_x
+  - twiss_y
+  twiss_x:
+    alpha:
+      units: dimensionless
+      value: 0.0
+    beta:
+      units: meter
+      value: 21.75
+    emittance:
+      units: nanometer
+      value: 0.10
+    type: set_twiss x
+  
+  twiss_y:
+    alpha:
+      units: dimensionless
+      value: 0.0
+    beta:
+      units: meter
+      value: 19.58
+    emittance:
+      units: nanometer
+      value: 0.10
+    type: set_twiss y
+
+

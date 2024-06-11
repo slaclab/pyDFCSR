@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from yaml_parser import *
-def get_referece_traj(lattice_config, Nsample = 1000, Ndim = 2):
+def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     """
     A function to get the reference trajectory of partices with given lattice configuration
     :param lattice_config: dictionary
@@ -151,7 +151,8 @@ class Lattice():
 
     def get_steps(self):
         self.step_size = self.lattice_config['step_size']
-        self._positions_record = np.arange(0, self.lattice_length, self.step_size)
+        #Todo: Deal with the endpoint
+        self._positions_record = np.arange(0, self.lattice_length + self.step_size/2, self.step_size)
         self._total_steps = len(self._positions_record)
         self._CSR_steps_index = np.array([])                   # the index of total_steps where the CSR will be computed
         self.steps_per_element = np.zeros((self.Nelement,), dtype = int)

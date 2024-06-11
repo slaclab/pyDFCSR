@@ -158,34 +158,84 @@ class CSR2D:
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
+    def get_R6(self, ele, type, DL, entrance = False, exit = False):
+        L = self.lattice.lattice_config[ele]['L']
+        type = self.lattice.lattice_config[ele]['type']
+
+        if type == 'dipole':
+            angle = self.lattice.lattice_config[ele]['angle']
+            E1 = self.lattice.lattice_config[ele]['E1']
+            E2 = self.lattice.lattice_config[ele]['E2']
+
+            dang = angle * DL / L
+
+            if entrance and exit:
+                dR6 = r_gen6(L=DL, angle=dang, E1=E1, E2 = E2)
+            elif entrance:
+                dR6 = r_gen6(L=DL, angle=dang, E1=E1)
+            # Todo: How to deal with the exiting edge
+            elif exit:
+                dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=E2)
+            else:
+                dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=0)
+
+        elif type == 'drift':
+            dR6 = r_gen6(L=DL, angle=0)
+
+        elif type == 'quad':
+            k1 = self.lattice.lattice_config[ele]['strength']
+            dR6 = r_gen6(L=DL, k1=k1)
+
+        return dR6
+
 #    @profile
     def run(self, stop_time = None):
+
+        if (not self.parallel) or (self.rank == 0):
+            print('Starting the DFCSR run')
+
         Rtot6 = np.eye(6)
         step_count = 1
         betaX0 = self.beam.betaX
         alphaX0 = self.beam.alphaX
         DL = self.lattice.step_size
         ele_count = 0
+        skip_ele = False
+        self.inbend = False
+        self.afterbend = False
+        self.formation_length = 0.0
         for ele in list(self.lattice.lattice_config.keys())[1:]:
             self.lattice.update(ele)
             # Todo: add sextupole, maybe Bmad Tracking?
             # -----------------------load current lattice params-----------------#
-            #steps = self.lattice.lattice_config[ele]['steps']
+            # Pre-process the lattice params
             L = self.lattice.lattice_config[ele]['L']
             type = self.lattice.lattice_config[ele]['type']
             steps = self.lattice.steps_per_element[ele_count]
             R = float('inf')
+
+            ####### When entering a new element, deal with the part of the step in the previous element
+            if (not skip_ele) and ele_count > 0:
+                DL_1 = self.lattice.distance[ele_count - 1] - self.beam.position   # The remaining distance in last element
+                # calculate the part in the previous element
+                dR6 = self.get_R6(ele=ele_prev, type=type_prev, DL=DL_1, exit=True)
+                Rtot6 = np.matmul(dR6, Rtot6)
+                self.beam.track(dR6, DL_1, update_step=False)
+
+            # If no steps inside an element
+            if steps == 0:    #If one step over the whole element
+                skip_ele = True
+                dR6 = self.get_R6(ele=ele, type=type, DL=L, exit=True, entrance = True)
+                Rtot6 = np.matmul(dR6, Rtot6)
+                self.beam.track(dR6, L, update_step=False)
+
+
+
+
             if type == 'dipole':
                 angle = self.lattice.lattice_config[ele]['angle']
                 R = L / angle
-                E1 = self.lattice.lattice_config[ele]['E1']
-                E2 = self.lattice.lattice_config[ele]['E2']
-                dang = angle*DL/L
-            if type == 'quad':
-                k1 = self.lattice.lattice_config[ele]['strength']
 
-
-            if type == 'dipole':
                 self.inbend = True
 
                 self.afterbend = True
@@ -195,7 +245,7 @@ class CSR2D:
                 self.get_formation_length(R=R, sigma_z=5*self.beam.sigma_z, inbend = True)
 
 
-            else:
+            else:  # If not in a bend
 
                 if self.afterbend:
                     #Todo: Verify the formation length in the drift
@@ -204,7 +254,7 @@ class CSR2D:
 
 
                 else:  # if it is the first drift in the lattice
-                    self.formation_length = L
+                    self.formation_length += L
 
 
 
@@ -216,22 +266,27 @@ class CSR2D:
                 #    print(ele)
                 #    print("current step ", step)
 
-                # get R6
-                if type == 'dipole':
-                    if step == 0:
-                        dR6 = r_gen6(L=DL, angle=dang, E1=E1)
-                    #Todo: How to deal with the exiting edge
-                    elif step == steps - 1:
-                        dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=E2)
-                    else:
-                        dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=0)
-                elif type == 'drift':
-                    dR6 = r_gen6(L=DL, angle  = 0)
-                elif type == 'quad':
-                    dR6 = r_gen6(L=DL, k1=k1)
+                # Deal with boundary condition. A step over the boundary of two adjacent elements
+                if (step == 0) and (ele_count > 0):
+                    # If enter a new element, split the step
 
-                # Propagate beam for one step
-                self.beam.track(dR6, DL)
+                    DL_2 = self.lattice._positions_record[step_count] - self.lattice.distance[ele_count - 1]
+
+                    # calculate the part in the new element
+                    dR6 = self.get_R6(ele = ele, type = type, DL = DL_2, entrance = True)
+                    Rtot6 = np.matmul(dR6, Rtot6)
+                    self.beam.track(dR6, DL_2)
+                    distance_in_current_ele += DL_2
+                    skip_ele = False    # Reset the flag
+
+                else:
+                    dR6 = self.get_R6(ele = ele, type = type, DL = DL)
+                    Rtot6 = np.matmul(dR6, Rtot6)
+                    # Propagate beam for one step
+                    self.beam.track(dR6, DL)
+                    distance_in_current_ele += DL
+
+
 
                 # get the density functions
                 self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
@@ -245,7 +300,7 @@ class CSR2D:
                 self.DF_tracker.build_interpolant()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
-                distance_in_current_ele += DL
+
                 if  self.afterbend and (not self.inbend) and distance_in_current_ele > self.formation_length:
                     CSR_blocker = True
                     if (not self.parallel) or (self.rank == 0):
@@ -257,8 +312,6 @@ class CSR2D:
                 
                 
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
-                    if (not self.parallel) or (self.rank == 0):
-                        print('Calculating CSR at s=', str(self.beam.position))
                     if step % self.lattice.nsep[ele_count] == 0:
                         # calculate CSR mesh given beam shape
                         self.get_CSR_mesh()
@@ -280,7 +333,6 @@ class CSR2D:
 
 
                 # recording statistics at each step
-                Rtot6 = np.matmul(dR6, Rtot6)
                 self.etaX[step_count] = Rtot6[0][5]
                 self.etaXp[step_count] = Rtot6[1][5]
                 self.R56[step_count] = Rtot6[4][5]
@@ -306,10 +358,13 @@ class CSR2D:
                 step_count += 1
                 
                 if not self.parallel or self.rank == 0:
-                    print("Finish step {} in {} seconds".format(step_count, time.time() - time0))
+                    print("Finish step {}, s = {},  in {} seconds".format(step_count, self.beam.position, time.time() - time0),end="\r")
 
                 if stop_time and self.beam.position > stop_time:
                     return
+
+            ele_prev = ele
+            type_prev = type
 
             ele_count += 1
             
@@ -375,7 +430,6 @@ class CSR2D:
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
-        print("--- %s seconds ---" % (time.time() - start_time))
 
     def calculate_2D_CSR_parallel(self):
         work_size= self.CSR_params.xbins * self.CSR_params.zbins
@@ -828,12 +882,12 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + '_particles.h5'
-        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
+        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
         if self.beam.step == 1:
             if os.path.isfile(filename):
                 os.remove(filename)
                 print("Existing file " + filename + " deleted.")
-        print("Beams written to ", filename)
+            print("Beams written to ", filename)
         with h5py.File(filename, 'a') as hf:
 
             step = self.beam.step
@@ -860,12 +914,13 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
-        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
-        print("Wakes written to ", filename)
+        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
+
         if self.beam.step == 1:
             if os.path.isfile(filename):
                 os.remove(filename)
                 print("Existing file " + filename + " deleted.")
+            print("Wakes written to ", filename)
 
 
         with h5py.File(filename, 'a') as hf:
@@ -897,7 +952,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
-        filename = f'{path}/{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
+        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")

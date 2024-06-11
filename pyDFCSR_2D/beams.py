@@ -165,11 +165,12 @@ class Beam():
 
 
 
-    def track(self, r6, step_size):
+    def track(self, r6, step_size, update_step = True):
         self.particles = np.matmul(r6, self.particles.T)
         self.particles = self.particles.T
         self.position += step_size
-        self.step += 1
+        if update_step:
+            self.step += 1
         self.update_status()
 
     @property

@@ -110,8 +110,7 @@ class DF_tracker:
         self.sigma_x_log = deque([])
         self.sigma_z_log = deque([])
         self.time_log = deque([])
-        self.log_start_time = 0
-        self.log_end_time = 0
+
 
         #params for interpolant
         self.sigma_x_interp = None
@@ -349,18 +348,12 @@ class DF_tracker:
             max_sigma_z = np.max(self.sigma_z_log)
             min_sigma_z = np.min(self.sigma_z_log)
 
-
             t_x = max_sigma_x / min_sigma_x
             t_z = max_sigma_z / min_sigma_z
-
-            print('t_x', t_x)
-            print('t_z', t_z)
 
             xbins = int(500 * t_x)
             zbins = int(500 * t_z)
 
-            print('xbins', xbins)
-            print('zbins', zbins)
 
             self.sigma_x_interp = max_sigma_x
             self.sigma_z_interp = max_sigma_z

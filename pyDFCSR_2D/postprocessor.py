@@ -45,32 +45,38 @@ class DFCSR_postprocessor():
             self.trans_unit_list = []
             self.x_grids_list = []
             self.z_grids_list = []
+            self.position_list = []
 
             for step in f.keys():
                 print("Parsing wakes at step ", step)
 
-                self.dE_dct = np.array(f[step]['longitudinal']['dE_dct'])
+                position = f[step].attrs['position']
+
+                dE_dct = np.array(f[step]['longitudinal']['dE_dct'])
                 self.long_unit_list.append(f[step]['longitudinal'].attrs['unit'])
 
-                self.x_grids = np.array(f[step]['longitudinal']['x_grids']).reshape(dE_dct.shape)
-                self.z_grids = np.array(f[step]['longitudinal']['z_grids']).reshape(dE_dct.shape)
+                x_grids = np.array(f[step]['longitudinal']['x_grids']).reshape(dE_dct.shape)
+                z_grids = np.array(f[step]['longitudinal']['z_grids']).reshape(dE_dct.shape)
 
-                self.xkicks = np.array(f[step]['transverse']['xkicks'])
+                xkicks = np.array(f[step]['transverse']['xkicks'])
                 self.trans_unit_list.append(f[step]['transverse'].attrs['unit'])
 
                 self.long_wake_list.append(dE_dct)
                 self.trans_wake_list.append(xkicks)
                 self.x_grids_list.append(x_grids)
                 self.z_grids_list.append(z_grids)
+                self.positions_list.append(position)
 
     def parse_all_particles(self):
 
         with h5py.File(self.particle_filename, "r") as f:
             self.particles_list = []
+            self.position_list = []
 
             for step in f.keys():
                 print("Parsing particles at step ", step)
 
+                position = f[step].attrs['position']
                 x = np.array(f[step]['particles']['x'])
                 y = np.array(f[step]['particles']['y'])
                 xp = np.array(f[step]['particles']['xp'])
@@ -79,6 +85,7 @@ class DFCSR_postprocessor():
                 delta = np.array(f[step]['particles']['delta'])
 
                 self.particles_list.append(np.vstack((x, xp, y, yp, z, delta)).T)
+                self.position_list.append(position)
 
     # 'Cx', 'Cxp', 'R51', 'R52', 'R56', 'alphaX', 'alphaX_beam',
     # 'alphaX_minus_dispersion', 'betaX', 'betaX_beam',
@@ -86,47 +93,21 @@ class DFCSR_postprocessor():
     # 'gemitX', 'gemitX_minus_dispersion', 'n_vec', 'sigE',
     # 'sigX', 'sigZ', 'slope', 'step_positions', 'tau_vec'
 
-    def plot_statistics(self, yvalue=None):
+    def get_statistics(self, key=None, show_plot = True):
+        with h5py.File(self.statistics_filename, "r") as f:
+            x = np.array(f['step_positions'])
+            y = np.array(f[key])
 
-        if not yvalue:
-            print('plotting')
-
-            x = self.statistics['step_positions']
-
-            sigX = self.statistics['sigX']
-            sigZ = self.statistics['sigZ']
-
-            betaX = self.statistics['betaX']
-            betaX_CSR = self.statistics['betaX_beam']
-            alphaX = self.statistics['alphaX']
-            alphaX_CSR = self.statistics['alphaX_beam']
-
-            gemitX = self.statistics['gemitX']
-            gemitX_minus_dispersion = self.statistics['gemitX_minus_dispersion']
-
+        if show_plot:
             plt.figure()
-            ax = plt.gca()
-            ax2 = plt.twinx()
-            ax.plot(x, sigZ / 1e6)
-            ax2.plot(x, sigX / 1e6, color='C1')
-
-            ax.set_xlabel('s (m)')
-            ax.set_ylabel('$\sigma_z$ ($\mu m$)')
-            ax2.set_ylabel('$\sigma_x$ ($\mu m$)', color='C1')
-
+            plt.plot(x, y)
+            plt.xlabel('positions (m)')
+            plt.ylabel(f'{key} (m)')
             plt.show()
 
-            plt.figure()
-            plt.plot(x, gemitX_minus_dispersion / 1e6)
+        return x, y
 
-            ax = plt.gca()
-
-            ax.set_xlabel('s (m)')
-            ax.set_ylabel(r'$\gamma\epsilon_x (m)$', color='C0')
-
-            plt.show()
-
-    def plot_wakes(self, s):
+    def get_wakes(self, s, show_plot = True):
         
         with h5py.File(self.wake_filename, "r") as f:
             self.charge_list = []
@@ -161,25 +142,29 @@ class DFCSR_postprocessor():
 
             xkicks = np.array(f[step]['transverse']['xkicks'])
 
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(10, 8))
-        surf = ax.plot_surface(x_grids * 1e6, z_grids * 1e6, dE_dct, cmap=cm.coolwarm,
-                               linewidth=0, antialiased=False)
-        ax.set_xlabel('x (um)')
-        ax.set_ylabel('z (um)')
-        ax.set_zlabel("Longitudinal ({})".format(unit))
-        fig.colorbar(surf, shrink=0.5, aspect=5)
-        plt.show()
+        if show_plot:
 
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(10, 8))
-        surf = ax.plot_surface(x_grids * 1e6, z_grids * 1e6, xkicks, cmap=cm.coolwarm,
-                               linewidth=0, antialiased=False)
-        ax.set_xlabel('x (um)')
-        ax.set_ylabel('z (um)')
-        ax.set_zlabel("Transverse ({})".format(unit))
-        fig.colorbar(surf, shrink=0.5, aspect=5)
-        plt.show()
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(10, 8))
+            surf = ax.plot_surface(x_grids * 1e6, z_grids * 1e6, dE_dct, cmap=cm.coolwarm,
+                                   linewidth=0, antialiased=False)
+            ax.set_xlabel('x (um)')
+            ax.set_ylabel('z (um)')
+            ax.set_zlabel("Longitudinal ({})".format(unit))
+            fig.colorbar(surf, shrink=0.5, aspect=5)
+            plt.show()
 
-    def plot_wakes2(self, s):
+            fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(10, 8))
+            surf = ax.plot_surface(x_grids * 1e6, z_grids * 1e6, xkicks, cmap=cm.coolwarm,
+                                   linewidth=0, antialiased=False)
+            ax.set_xlabel('x (um)')
+            ax.set_ylabel('z (um)')
+            ax.set_zlabel("Transverse ({})".format(unit))
+            fig.colorbar(surf, shrink=0.5, aspect=5)
+            plt.show()
+
+        return x_grids, z_grids, xkicks, dE_dct
+
+    def plot_wakes_contour(self, s):
         ind = find_nearest_ind(self.position_list, s)
 
         print("plot longitudinal wakes at nearest point s  = {} m, step count {}".format(self.position_list[ind],
@@ -220,16 +205,7 @@ class DFCSR_postprocessor():
         plt.ylabel(ykey)
         plt.show()
 
-    def plot_stats(self, key='sigZ'):
 
-        with h5py.File(self.statistics_filename, "r") as f:
-            x = np.array(f['step_positions'])
-            y = np.array(f[key])
-        plt.figure()
-        plt.plot(x, y)
-        plt.xlabel('positions (m)')
-        plt.ylabel(f'{key} (m)')
-        plt.show()
 
 
 

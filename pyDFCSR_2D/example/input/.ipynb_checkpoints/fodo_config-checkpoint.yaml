@@ -1,10 +1,10 @@
 input_beam:
   style: distgen     # from_file or distgen
   #distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input//dipole_init_beam.yaml
-  distgen_input_file: ./input//dipole_init_beam.yaml
+  distgen_input_file: ./input//fodo_init_beam.yaml
 
 input_lattice:
-  lattice_input_file: input//dipole_lattice.yaml
+  lattice_input_file: input//fodo_lattice.yaml
 
 particle_deposition:
   xbins: 200         # number of grids in x for particle deposition
@@ -16,7 +16,7 @@ particle_deposition:
   velocity_threhold : 1000
 
 CSR_integration:
-  n_formation_length: 1.5
+  n_formation_length: 1.0
   zbins: 100
   xbins: 100
 
@@ -31,7 +31,7 @@ CSR_computation:
   zlim: 3
   write_beam: True
   write_wakes: True
-  write_name: 'dipole'
+  write_name: 'fodo'
   workdir: './output'
 
 
