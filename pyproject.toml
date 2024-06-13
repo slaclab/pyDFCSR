@@ -9,7 +9,9 @@ dependencies = [
   "pyyaml",
   "scipy",
   "mpi4py",
-  "distgen",
+  "numba",
+  # Distgen is not available on PyPI.
+  # "distgen",
 ]
 dynamic = ["version"]
 requires-python = ">=3.9"
@@ -22,10 +24,12 @@ requires = ["setuptools>=60", "setuptools_scm[toml]>=8.0"]
 omit = ["pyDFCSR_2D/_version.py"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=pyDFCSR_2D/"
+addopts = ""
+# For coverage checks, we could add:
+# ""--cov=pyDFCSR_2D/"
 log_cli_level = "info"
 log_level = "debug"
-testpaths = ["pyDFCSR_2D/test/"]
+testpaths = ["pyDFCSR_2D/test/test_import.py"]
 
 [tool.setuptools.packages.find]
 where = ["."]

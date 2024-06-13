@@ -1,0 +1,20 @@
+# mamba env create -f environment.yml
+name: pydfcsr
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - distgen
+  - h5py
+  - jupyterlab
+  - matplotlib
+  - mpi4py
+  - numba
+  - numpy
+  - pyyaml
+  - pytest
+  - scipy
+  - pip
+  - pip:
+      # Install this package as well
+      - .
