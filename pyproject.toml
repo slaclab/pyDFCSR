@@ -1,0 +1,52 @@
+[project]
+name = "pydfcsr"
+description = "Fast 2D/3D CSR simulation with Python"
+authors = [{ name = "Jy Tang", email = "jytang@stanford.edu" }]
+dependencies = ["h5py", "matplotlib", "numpy", "pyyaml", "scipy"]
+dynamic = ["version"]
+requires-python = ">=3.9"
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=60", "setuptools_scm[toml]>=8.0"]
+
+[tool.coverage.report]
+omit = ["pyDFCSR_2D/_version.py"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=pyDFCSR_2D/"
+log_cli_level = "info"
+log_level = "debug"
+testpaths = ["pyDFCSR_2D/test/"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+namespaces = false
+
+[tool.setuptools_scm]
+version_file = "pyDFCSR_2D/_version.py"
+root = "."
+
+[project.scripts]
+
+[tool.ruff]
+# Reference and defaults: https://docs.astral.sh/ruff/configuration/
+# exclude = []
+line-length = 100
+indent-width = 4
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+  # Pycodestyle E errors: https://pycodestyle.pycqa.org/en/latest/intro.html
+  "E4",
+  "E7",
+  "E9",
+  # pyflakes F error codes:
+  # https://flake8.pycqa.org/en/latest/user/error-codes.html
+  "F",
+]
+ignore = [
+  # Ignore ambiguous variables such as `I`
+  "E741",
+]
