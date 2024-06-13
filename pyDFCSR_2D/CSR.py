@@ -881,7 +881,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + '_particles.h5'
-        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
+        filename = os.path.join(path, f'{self.CSR_params.write_name}-{self.timestamp}-particles.h5')
         if self.beam.step == 1:
             if os.path.isfile(filename):
                 os.remove(filename)
@@ -913,7 +913,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
-        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
+        filename = os.path.join(path, f'{self.CSR_params.write_name}-{self.timestamp}-wakes.h5')
 
         if self.beam.step == 1:
             if os.path.isfile(filename):
@@ -951,7 +951,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
-        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
+        filename = os.path.join(path, f'{self.CSR_params.write_name}-{self.timestamp}-statistics.h5')
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")
