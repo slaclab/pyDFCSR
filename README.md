@@ -38,3 +38,17 @@ the directory [pyDFCSR_2D/example/](pyDFCSR_2D/example/).
 cd pyDFCSR_2D/example
 jupyter lab
 ```
+
+### Developing pyDFCSR
+
+To develop pyDFCSR, perform the following after setting up the environment as
+in the previous section:
+
+```python
+cd /path/to/pyDFCSR  # replace this with the top-level directory of your clone
+python -m pip install -e .
+```
+
+The ``pip install`` line will make a "development" install of this library so
+that you don't have to reinstall the library after each modification to its
+code.
