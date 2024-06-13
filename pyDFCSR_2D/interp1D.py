@@ -1,9 +1,8 @@
 import numpy as np
-import numpy as np
 from numba import jit
 from numba.experimental import jitclass
-from numba import int32, float32, double
-from numba import njit, prange
+from numba import double
+from numba import prange
 spec = [
     ('min_x', double),
     ('max_x', double),

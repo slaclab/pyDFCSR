@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def bmad_to_particlegroup_data(bmad_data):
     """
     Convert Bmad particle data to a ParticleGroup data dictionary.

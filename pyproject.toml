@@ -2,7 +2,15 @@
 name = "pydfcsr"
 description = "Fast 2D/3D CSR simulation with Python"
 authors = [{ name = "Jy Tang", email = "jytang@stanford.edu" }]
-dependencies = ["h5py", "matplotlib", "numpy", "pyyaml", "scipy"]
+dependencies = [
+  "h5py",
+  "matplotlib",
+  "numpy",
+  "pyyaml",
+  "scipy",
+  "mpi4py",
+  "distgen",
+]
 dynamic = ["version"]
 requires-python = ">=3.9"
 

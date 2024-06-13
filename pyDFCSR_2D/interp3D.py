@@ -1,8 +1,7 @@
 import numpy as np
-from numba import jit, vectorize, float64
+from numba import jit
 from numba.experimental import jitclass
-from numba import int32, float32, double
-from numba import njit, prange
+from numba import double
 spec = [
     ('min_x', double),
     ('min_y', double), # a simple scalar field

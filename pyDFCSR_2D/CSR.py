@@ -1,26 +1,25 @@
-import numpy as np
-from distgen import Generator
-from lattice import *
-from beams import *
-from scipy.interpolate import RegularGridInterpolator
-from yaml_parser import *
-from tools import *
-from beams import *
-from lattice import *
-from deposit import *
-from params import *
-from physical_constants import *
-from r_gen6 import *
-from twiss_R import *
-import h5py
 import os
 import time
-#from line_profiler_pycharm import profile
-from tools import isotime
-from interp3D import interpolate3D
-from interp1D import interpolate1D
-from numba import jit
+
+import h5py
+import numpy as np
 from mpi4py import MPI
+
+from .beams import Beam
+# from .deposit import histogram_cic_1d, histogram_cic_2d
+from .deposit import DF_tracker
+from .interp1D import interpolate1D
+from .interp3D import interpolate3D
+from .lattice import Lattice  # , get_referece_traj
+from .params import Integration_params, CSR_params
+# from .physical_constants import c, e, qe, me, MC2
+from .r_gen6 import r_gen6
+#from line_profiler_pycharm import profile
+# from .tools import (find_nearest_ind, full_path, isotime, plot_2D_contour,
+#                     plot_surface)
+from .tools import full_path, isotime
+from .twiss_R import twiss_R
+from .yaml_parser import parse_yaml
 
 
 class CSR2D:

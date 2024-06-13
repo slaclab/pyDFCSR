@@ -175,7 +175,7 @@ class DFCSR_postprocessor():
         with h5py.File(self.wake_filename, "r") as f:
             print("ebeam energy {}".format(f[step].attrs['beam_energy']))
             dE_dct = np.array(f[step]['longitudinal']['dE_dct'])
-            unit = f[step]['longitudinal'].attrs['unit']
+            # unit = f[step]['longitudinal'].attrs['unit']
 
             x_grids = np.array(f[step]['longitudinal']['x_grids']).reshape(dE_dct.shape)
             z_grids = np.array(f[step]['longitudinal']['z_grids']).reshape(dE_dct.shape)

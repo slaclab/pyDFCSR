@@ -1,11 +1,9 @@
 import argparse
-import logging
 import os
-import sys
 
 from mpi4py import MPI
 
-from CSR import *
+from pyDFCSR_2D import CSR2D
 
 # from mpi4py.futures import MPIPoolExecutor
 
