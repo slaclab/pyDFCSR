@@ -34,7 +34,7 @@ conda activate pydfcsr
 To install Bmad-X
 
 ```bash
-git clone git clone https://github.com/bmad-sim/Bmad-X.git
+git clone https://github.com/bmad-sim/Bmad-X.git
 cd Bmad-X
 pip install --no-dependencies -e .
 ```
