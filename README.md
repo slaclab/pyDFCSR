@@ -31,6 +31,14 @@ conda env create -n pydfcsr -f environment.yml
 conda activate pydfcsr
 ```
 
+To install Bmad-X
+
+```bash
+git clone git clone https://github.com/bmad-sim/Bmad-X.git
+cd Bmad-X
+pip install --no-dependencies -e .
+```
+
 The new environment ``pydfcsr`` contains JupyterLab. You can then try the examples in
 the directory [pyDFCSR_2D/example/](pyDFCSR_2D/example/).
 

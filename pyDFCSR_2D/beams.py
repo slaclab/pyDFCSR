@@ -4,11 +4,11 @@ from .physical_constants import MC2
 from scipy.interpolate import RegularGridInterpolator
 from bmadx import Particle, M_ELECTRON
 #from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
-from interfaces import  openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
+from .interfaces import  openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
 from bmadx import track_element
 from pmd_beamphysics import ParticleGroup
-from line_profiler_pycharm import profile
-from twiss import  twiss_from_bmadx_particles
+#from line_profiler_pycharm import profile
+from .twiss import  twiss_from_bmadx_particles
 class Beam():
     """
     Beam class to initialize, track and apply wakes
@@ -84,7 +84,7 @@ class Beam():
         # Make sure all required parameters are specified
         for req in self.required_inputs:
             assert req in input_beam, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
-    @profile
+#    @profile
     def update_status(self):
         #self.particleGroup = bmadx_particles_to_openpmd(self.particle)
         self._sigma_x = self.sigma_x
@@ -97,14 +97,14 @@ class Beam():
         #self._sigma_energy = self.sigma_energy
         #self._mean_energy = self.mean_energy
 
-    @profile
+ #   @profile
     def track(self, element, step_size, update_step=True):
         self.particle = track_element(self.particle, element)
         self.position += step_size
         if update_step:
             self.step += 1
         self.update_status()
-    @profile
+  #  @profile
     def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on):
         # Todo: add options for transverse or longitudinal kick only
         dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV

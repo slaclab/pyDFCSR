@@ -1,7 +1,7 @@
 import os
 import time
 from bmadx import  Drift, SBend, Quadrupole, Sextupole
-from tools import dict2hdf5
+from .tools import dict2hdf5
 import h5py
 import numpy as np
 from mpi4py import MPI
