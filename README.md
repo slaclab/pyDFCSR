@@ -14,8 +14,7 @@ Fast 2D/3D CSR simulation with Python
 - numpy
 - pyyaml
 - scipy
-
-Bmad-X is required from https://github.com/bmad-sim/Bmad-X
+- Bmad-X is required from https://github.com/bmad-sim/Bmad-X
 
 For the examples:
 
