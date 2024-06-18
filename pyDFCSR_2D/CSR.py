@@ -311,7 +311,8 @@ class CSR2D:
                         # Apply CSR kick to the beam
                         if self.CSR_params.apply_CSR:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
-                                              self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count])
+                                              self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count],
+                                                  self.CSR_params.transverse_on)
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
                             self.dump_beam(label = step_count)

@@ -104,7 +104,7 @@ class Beam():
             self.step += 1
         self.update_status()
     @profile
-    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size):
+    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on):
         # Todo: add options for transverse or longitudinal kick only
         dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV
         interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
@@ -112,12 +112,13 @@ class Beam():
         #self.particle.pz += dE_Es
         pz_new = self.particle.pz + dE_Es
 
-        dxp = step_size * x_kick * 1e6 / self.init_energy
-        interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0, bounds_error=False)
-        dxps = interp(np.array([self.x_transform, self.z]).T)
-        #self.particle.px += dxps
-        px_new = self.particle.px + dxps
-        self.particle = Particle(self.particle.x, px_new,
+        if transverse_on:
+            dxp = step_size * x_kick * 1e6 / self.init_energy
+            interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0, bounds_error=False)
+            dxps = interp(np.array([self.x_transform, self.z]).T)
+            #self.particle.px += dxps
+            px_new = self.particle.px + dxps
+            self.particle = Particle(self.particle.x, px_new,
                                  self.particle.y, self.particle.py,
                                  self.particle.z, pz_new,
                                  self.particle.s, self.particle.p0c, self.particle.mc2)
