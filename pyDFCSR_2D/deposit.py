@@ -140,7 +140,7 @@ class DF_tracker:
         self.filter_order = filter_order
         self.filter_window = filter_window
 
-    def get_DF(self, x, z, xp, t):
+    def get_DF(self, x, z, px, t):
         # Todo: add filter, add different depositing type
         sigma_x = np.std(x)
         sigma_z = np.std(z)
@@ -173,7 +173,7 @@ class DF_tracker:
                                    nbins_2= zbins_t, bins_start_2=self.zmean - self.zlim * sigma_z,
                                    bins_end_2=self.zmean + self.zlim * sigma_z)
 
-        vx = histogram_cic_2d(q1=x, q2=z, w=xp,
+        vx = histogram_cic_2d(q1=x, q2=z, w=px,
                               nbins_1=xbins_t, bins_start_1=self.xmean - self.xlim * sigma_x,
                               bins_end_1=self.xmean + self.xlim * sigma_x,
                               nbins_2= zbins_t, bins_start_2=self.zmean - self.zlim * sigma_z,

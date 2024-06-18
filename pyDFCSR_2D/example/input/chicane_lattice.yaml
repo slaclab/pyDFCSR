@@ -1,5 +1,10 @@
 step_size:  0.1  # unit step size for tracking and CSR computing (meter)
 
+D0:
+  type: drift
+  L: 0.1
+  nsep: 1
+
 B1:
   type: dipole
   L: 0.5002

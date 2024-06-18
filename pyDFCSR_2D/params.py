@@ -29,7 +29,7 @@ class CSR_params:
         self.configure_params(**input_dic)
 
     def configure_params(self, workdir = '.', apply_CSR = 1, compute_CSR = 1,
-                         transverse_on = 1, xbins = 20, zbins = 30, xlim = 5, zlim = 5, write_beam = True, write_wakes = True, write_name = ''):
+                         transverse_on = 1, xbins = 20, zbins = 30, xlim = 5, zlim = 5, write_beam = None, write_wakes = True, write_name = ''):
         self.compute_CSR = compute_CSR
         self.apply_CSR = apply_CSR
         self.transverse_on = transverse_on

@@ -6,6 +6,7 @@ from matplotlib import cm
 import datetime
 import numpy as np
 from scipy.interpolate import griddata
+import h5py
 
 def full_path(path):
     """
@@ -66,4 +67,16 @@ def find_nearest_ind(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return idx
+
+
+def dict2hdf5(hf, dic, group=None):
+    for key, item in dic.items():
+        if not isinstance(item, dict):
+            if group:
+                group.create_dataset(key, data=item)
+            else:
+                hf.create_dataset(key, data=item)
+        else:
+            dict2hdf5(hf, item, hf.create_group(key))
+
 

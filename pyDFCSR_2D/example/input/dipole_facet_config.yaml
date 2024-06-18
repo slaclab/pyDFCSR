@@ -24,8 +24,8 @@ particle_deposition:
 
 CSR_integration:
   n_formation_length: 1.5
-  zbins: 200
-  xbins: 200
+  zbins: 100
+  xbins: 100
 
 
 CSR_computation:
@@ -36,7 +36,7 @@ CSR_computation:
   zbins: 30
   xlim: 3
   zlim: 3
-  write_beam: True
+  write_beam: None
   write_wakes: True
   write_name: 'facet_obed'
   #workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/facet_dipole_output/'

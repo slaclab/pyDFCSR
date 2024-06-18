@@ -35,9 +35,14 @@ D2:
 Q3:    
   type: quad
   L: 0.05
-  strength: 1.0
+  strength: 1.0          #1/m^2
   nsep: 1
   
+#S1:
+#  type: sextupole
+#  L: 0.05
+#  strength: 0.5         #1/m^3
+#  nsep: 1
 
 
   

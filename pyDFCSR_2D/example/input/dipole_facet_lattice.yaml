@@ -4,7 +4,7 @@ step_size:  0.05  # unit step size for tracking and CSR computing (meter)
 element_1:
   type: drift
   L: 0.1
-  nsep: 2
+  nsep: 1
 
 
 element_2:
@@ -13,7 +13,7 @@ element_2:
   angle: 0.022602
   E1: 0.022602
   E2: 0
-  nsep: 2
+  nsep: 1
 
 #element_2:     # can be arbitrary name
 #  type: drift

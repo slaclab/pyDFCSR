@@ -8,13 +8,14 @@ input_lattice:
   lattice_input_file: input/chicane_lattice.yaml
 
 particle_deposition:
-  xbins: 500         # number of grids in x for particle deposition
-  zbins: 500         # number of grids in y for particle deposition
-  xlim: 5            # range in x in the unit of sigma_x
+  xbins: 300         # number of grids in x for particle deposition
+  zbins: 300         # number of grids in y for particle deposition
+  xlim:  5           # range in x in the unit of sigma_x
   zlim: 5            # range in z in the unit of sigma_z
-  filter_order: 2    # 0 for no filter
-  filter_window: 15
+  filter_order: 1    # 0 for no filter
+  filter_window: 9
   velocity_threhold : 1000
+
 
 CSR_integration:
   n_formation_length: 1
@@ -24,13 +25,13 @@ CSR_integration:
 
 CSR_computation:
   compute_CSR: 1                # if zero, only track the beam
-  apply_CSR: 0                   # flag apply CSR to particles
+  apply_CSR: 1                   # flag apply CSR to particles
   transverse_on: 1               # flag include transverse wake
   xbins: 10                    # The mesh on which CSR wake is computed
   zbins: 30
   xlim: 3
   zlim: 3
-  write_beam: True
+  write_beam: [16, 17, 18, 19, 24, 25, 26, 32, 33,34, 35, 46,47,48,49,50]
   write_wakes: True
   write_name: 'chicane'
   #workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/chicane_output/'

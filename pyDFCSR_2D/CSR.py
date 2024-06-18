@@ -15,13 +15,14 @@ from twiss_R import *
 import h5py
 import os
 import time
-#from line_profiler_pycharm import profile
+from line_profiler_pycharm import profile
 from tools import isotime
 from interp3D import interpolate3D
 from interp1D import interpolate1D
 from numba import jit
 from mpi4py import MPI
-
+from bmadx import  Drift, SBend, Quadrupole, Sextupole
+from tools import dict2hdf5
 
 class CSR2D:
     """
@@ -36,6 +37,8 @@ class CSR2D:
             self.input_file = input_file
         self.formation_length = None
         self.initialization()  # process the initial beam
+
+        self.prefix = f'{self.CSR_params.write_name}-{self.timestamp}'
 
         if parallel:
             self.init_MPI()
@@ -54,11 +57,6 @@ class CSR2D:
         else:
             self.DF_tracker = DF_tracker()
 
- #       if 'distribution_interpolation' in input:
- #           self.interpolation_params = Interpolation_params(input['distribution_interpolation'])
- #       else:
- #           self.interpolation_params = Interpolation_params()
-
         if 'CSR_integration' in input:
             self.integration_params = Integration_params(input['CSR_integration'])
         else:
@@ -74,7 +72,7 @@ class CSR2D:
         deposit the initial beam
         :return:
         """
-        self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
+        self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
         self.DF_tracker.append_DF()
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
                                            n_formation_length=self.integration_params.n_formation_length)
@@ -83,45 +81,32 @@ class CSR2D:
         self.init_statistics()
     def init_statistics(self):
         Nstep = self.lattice.total_steps
-        self.gemitX = np.zeros(Nstep)
-        self.gemitX[0] = self.beam.norm_emitX
+        self.statistics = {}
+        self.statistics['twiss'] = {'alpha_x': np.zeros(Nstep),
+                                    'beta_x': np.zeros(Nstep),
+                                    'gamma_x': np.zeros(Nstep),
+                                    'emit_x': np.zeros(Nstep),
+                                    'eta_x': np.zeros(Nstep),
+                                    'etap_x': np.zeros(Nstep),
+                                    'norm_emit_x': np.zeros(Nstep),
+                                    'alpha_y': np.zeros(Nstep),
+                                    'beta_y': np.zeros(Nstep),
+                                    'gamma_y': np.zeros(Nstep),
+                                    'emit_y': np.zeros(Nstep),
+                                    'eta_y': np.zeros(Nstep),
+                                    'etap_y': np.zeros(Nstep),
+                                    'norm_emit_y': np.zeros(Nstep)}
 
+        self.statistics['slope'] = np.zeros((Nstep, 2))
+        self.statistics['sigma_x'] = np.zeros(Nstep)
+        self.statistics['sigma_z'] = np.zeros(Nstep)
+        self.statistics['sigma_energy'] = np.zeros(Nstep)
+        self.statistics['mean_x']  = np.zeros(Nstep)
+        self.statistics['mean_z'] = np.zeros(Nstep)
+        self.statistics['mean_energy'] = np.zeros(Nstep)
 
-        self.slope = np.zeros((Nstep, 2))
-        self.slope[0,:] = self.beam.slope
+        self.update_statistics(step = 0)
 
-        self.Cx = np.zeros(Nstep)
-        self.Cx[0] = self.beam.mean_x
-        self.Cxp = np.zeros(Nstep)
-        self.Cxp[0] = self.beam.mean_xp
-        self.etaX = np.zeros(Nstep)
-        self.etaXp = np.zeros(Nstep)
-        self.betaX = np.zeros(Nstep)
-        self.betaX[0] = self.beam.betaX
-        self.alphaX = np.zeros(Nstep)
-        self.alphaX[0] = self.beam.alphaX
-        self.betaX_beam = np.zeros(Nstep)
-        self.betaX_beam[0] = self.beam.betaX
-        self.alphaX_beam = np.zeros(Nstep)
-        self.alphaX_beam[0] = self.beam.alphaX
-        emitX_t, norm_emitX_t, beta_t, alpha_t = self.beam.stats_minus_dispersion()
-        self.gemitX_minus_dispersion = np.zeros(Nstep)
-        self.gemitX_minus_dispersion[0] = norm_emitX_t
-        self.betaX_minus_dispersion = np.zeros(Nstep)
-        self.betaX_minus_dispersion[0] = beta_t
-        self.alphaX_minus_dispersion = np.zeros(Nstep)
-        self.alphaX_minus_dispersion[0] = alpha_t
-
-        self.sigX = np.zeros(Nstep)
-        self.sigX[0] = self.beam.sigma_x
-        self.sigZ = np.zeros(Nstep)
-        self.sigZ[0] = self.beam.sigma_z
-        self.sigE = np.zeros(Nstep)
-        self.sigE[0] = self.beam.sigma_delta
-
-        self.R56 = np.zeros(Nstep)
-        self.R51 = np.zeros(Nstep)
-        self.R52 = np.zeros(Nstep)
 
         self.inbend = False
         self.afterbend = False
@@ -158,7 +143,7 @@ class CSR2D:
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
-    def get_R6(self, ele, type, DL, entrance = False, exit = False):
+    def get_bmadx_element(self, ele, type, DL, entrance = False, exit = False):
         L = self.lattice.lattice_config[ele]['L']
         type = self.lattice.lattice_config[ele]['type']
 
@@ -166,45 +151,56 @@ class CSR2D:
             angle = self.lattice.lattice_config[ele]['angle']
             E1 = self.lattice.lattice_config[ele]['E1']
             E2 = self.lattice.lattice_config[ele]['E2']
-
-            dang = angle * DL / L
+            G = angle/L
 
             if entrance and exit:
-                dR6 = r_gen6(L=DL, angle=dang, E1=E1, E2 = E2)
+                element = SBend(L = DL, P0C = self.beam.init_energy, G = G, E1 = E1, E2 = E2)
+
             elif entrance:
-                dR6 = r_gen6(L=DL, angle=dang, E1=E1)
-            # Todo: How to deal with the exiting edge
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=E1, E2=0.0)
+
+
             elif exit:
-                dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=E2)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=E2)
+
             else:
-                dR6 = r_gen6(L=DL, angle=dang, E1=0, E2=0)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=0.0)
 
         elif type == 'drift':
-            dR6 = r_gen6(L=DL, angle=0)
+            element = Drift(L = DL)
 
         elif type == 'quad':
-            k1 = self.lattice.lattice_config[ele]['strength']
-            dR6 = r_gen6(L=DL, k1=k1)
+            K1 = self.lattice.lattice_config[ele]['strength']
+            element = Quadrupole(L=DL, K1=K1)
 
-        return dR6
+        elif type == 'sextupole':
+            K2 = self.lattice.lattice_config[ele]['strength']
+            element = Sextupole(L=DL, K2=K2)
 
-#    @profile
+        return element
+
+    @profile
     def run(self, stop_time = None):
 
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
 
-        Rtot6 = np.eye(6)
         step_count = 1
-        betaX0 = self.beam.betaX
-        alphaX0 = self.beam.alphaX
+
         DL = self.lattice.step_size
         ele_count = 0
         skip_ele = False
         self.inbend = False
         self.afterbend = False
         self.formation_length = 0.0
+
         for ele in list(self.lattice.lattice_config.keys())[1:]:
+
+            # ------------For Debug---------------
+            if ele == 'element_3':
+                print('I am here')
+            # ------------------------------------
+
             self.lattice.update(ele)
             # Todo: add sextupole, maybe Bmad Tracking?
             # -----------------------load current lattice params-----------------#
@@ -214,20 +210,21 @@ class CSR2D:
             steps = self.lattice.steps_per_element[ele_count]
             R = float('inf')
 
-            ####### When entering a new element, deal with the part of the step in the previous element
+            ####### A step over the boundary of the elements, deal with the part of the step in the previous element
             if (not skip_ele) and ele_count > 0:
                 DL_1 = self.lattice.distance[ele_count - 1] - self.beam.position   # The remaining distance in last element
+                #Todo: Bmadx seems to have some problems when DL is very
+                if DL_1 > 1.0e-6:
                 # calculate the part in the previous element
-                dR6 = self.get_R6(ele=ele_prev, type=type_prev, DL=DL_1, exit=True)
-                Rtot6 = np.matmul(dR6, Rtot6)
-                self.beam.track(dR6, DL_1, update_step=False)
-
+                    element = self.get_bmadx_element(ele=ele_prev, type=type_prev, DL=DL_1, exit=True)
+                    self.beam.track(element, DL_1, update_step=False)
+                else:
+                    DL_1 = 0.0
             # If no steps inside an element
             if steps == 0:    #If one step over the whole element
                 skip_ele = True
-                dR6 = self.get_R6(ele=ele, type=type, DL=L, exit=True, entrance = True)
-                Rtot6 = np.matmul(dR6, Rtot6)
-                self.beam.track(dR6, L, update_step=False)
+                element = self.get_bmadx_element(ele=ele, type=type, DL=L, exit=True, entrance = True)
+                self.beam.track(element, L, update_step=False)
 
 
 
@@ -246,6 +243,7 @@ class CSR2D:
 
 
             else:  # If not in a bend
+                self.inbend = False
 
                 if self.afterbend:
                     #Todo: Verify the formation length in the drift
@@ -262,9 +260,6 @@ class CSR2D:
             # -----------------------tracking---------------------------------
             for step in range(steps):
                 time0  = time.time()
-                #if type == 'dipole' and step == 6:
-                #    print(ele)
-                #    print("current step ", step)
 
                 # Deal with boundary condition. A step over the boundary of two adjacent elements
                 if (step == 0) and (ele_count > 0):
@@ -273,23 +268,21 @@ class CSR2D:
                     DL_2 = self.lattice._positions_record[step_count] - self.lattice.distance[ele_count - 1]
 
                     # calculate the part in the new element
-                    dR6 = self.get_R6(ele = ele, type = type, DL = DL_2, entrance = True)
-                    Rtot6 = np.matmul(dR6, Rtot6)
-                    self.beam.track(dR6, DL_2)
+                    element = self.get_bmadx_element(ele = ele, type = type, DL = DL_2, entrance = True)
+                    self.beam.track(element, DL_2)
                     distance_in_current_ele += DL_2
                     skip_ele = False    # Reset the flag
 
                 else:
-                    dR6 = self.get_R6(ele = ele, type = type, DL = DL)
-                    Rtot6 = np.matmul(dR6, Rtot6)
+                    element = self.get_bmadx_element(ele = ele, type = type, DL = DL)
                     # Propagate beam for one step
-                    self.beam.track(dR6, DL)
+                    self.beam.track(element, DL)
                     distance_in_current_ele += DL
 
 
 
                 # get the density functions
-                self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, xp=self.beam.xp, t=self.beam.position)
+                self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
                 # append the density functions to the log
                 self.DF_tracker.append_DF()
                 # append 3D matrix for interpolation with the new DFs by interpolation
@@ -300,8 +293,8 @@ class CSR2D:
                 self.DF_tracker.build_interpolant()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
-
-                if  self.afterbend and (not self.inbend) and distance_in_current_ele > self.formation_length:
+                #Todo: formation length not correct here
+                if  self.afterbend and (not self.inbend) and distance_in_current_ele > 3*self.formation_length:
                     CSR_blocker = True
                     if (not self.parallel) or (self.rank == 0):
                         print("Far away from a bending magnet, stopping calculating CSR")
@@ -324,41 +317,19 @@ class CSR2D:
                         if self.CSR_params.apply_CSR:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count])
-                        if self.CSR_params.write_beam:
-                            self.write_beam()
+                        if (self.CSR_params.write_beam == 'all' or
+                                (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
+                            self.dump_beam(label = step_count)
                         if self.CSR_params.write_wakes:
                             self.write_wakes()
 
-
-
-
                 # recording statistics at each step
-                self.etaX[step_count] = Rtot6[0][5]
-                self.etaXp[step_count] = Rtot6[1][5]
-                self.R56[step_count] = Rtot6[4][5]
-                self.R51[step_count] = Rtot6[4][0]
-                self.R52[step_count] = Rtot6[4][1]
-                self.betaX[step_count], self.alphaX[step_count], _ = twiss_R(R = Rtot6[0:2, 0:2], alpha0 = alphaX0, beta0 = betaX0)
-                self.betaX_beam[step_count] = self.beam.betaX
-                self.alphaX_beam[step_count] = self.beam.alphaX
-                self.gemitX[step_count] = self.beam.norm_emitX
-                self.Cx[step_count]  = self.beam.mean_x
-                self.Cxp[step_count] = self.beam.mean_xp
-                self.sigX[step_count] = self.beam.sigma_x
-                self.sigZ[step_count] = self.beam.sigma_z
-                self.sigE[step_count] = self.beam.sigma_delta
-                self.beam_slope = self.beam.slope
-                self.slope[step_count, :] = self.beam_slope
+                self.update_statistics(step = step_count)
 
-                emitX_t, norm_emitX_t, beta_t, alpha_t = self.beam.stats_minus_dispersion(Rtot= Rtot6)
-                self.gemitX_minus_dispersion[step_count] = norm_emitX_t
-                self.betaX_minus_dispersion[step_count] = beta_t
-                self.alphaX_minus_dispersion[step_count] = alpha_t
+                if not self.parallel or self.rank == 0:
+                    print("Finish step {}, s = {},  in {} seconds".format(step_count, self.beam.position, time.time() - time0))
 
                 step_count += 1
-                
-                if not self.parallel or self.rank == 0:
-                    print("Finish step {}, s = {},  in {} seconds".format(step_count, self.beam.position, time.time() - time0),end="\r")
 
                 if stop_time and self.beam.position > stop_time:
                     return
@@ -367,8 +338,8 @@ class CSR2D:
             type_prev = type
 
             ele_count += 1
-            
 
+        self.dump_beam(label='end')
         self.write_statistics()
 
 
@@ -463,87 +434,6 @@ class CSR2D:
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
-
-
-#    @profile
-    def get_localization(self, x, s, t, sp):
-
-        X0_s = interpolate1D(xval=np.array([s]), data=self.lattice.coords[:, 0], min_x=self.lattice.min_x,
-                             delta_x=self.lattice.delta_x)[0]
-        X0_sp = interpolate1D(xval=sp, data=self.lattice.coords[:, 0], min_x=self.lattice.min_x,
-                              delta_x=self.lattice.delta_x)
-        Y0_s = interpolate1D(xval=np.array([s]), data=self.lattice.coords[:, 1], min_x=self.lattice.min_x,
-                             delta_x=self.lattice.delta_x)[0]
-        Y0_sp = interpolate1D(xval=sp, data=self.lattice.coords[:, 1], min_x=self.lattice.min_x,
-                              delta_x=self.lattice.delta_x)
-        n_vec_s_x = interpolate1D(xval=np.array([s]), data=self.lattice.n_vec[:, 0], min_x=self.lattice.min_x,
-                                  delta_x=self.lattice.delta_x)[0]
-        n_vec_sp_x = interpolate1D(xval=sp, data=self.lattice.n_vec[:, 0], min_x=self.lattice.min_x,
-                                   delta_x=self.lattice.delta_x)
-        n_vec_s_y = interpolate1D(xval=np.array([s]), data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
-                                  delta_x=self.lattice.delta_x)[0]
-        n_vec_sp_y = interpolate1D(xval=sp, data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
-                                   delta_x=self.lattice.delta_x)
-        k = interpolate1D(xval=sp, data = self.slope[:,0],min_x=self.lattice.steps_record[0],
-                                   delta_x=self.lattice.step_size )
-
-        #q_x = x*n_vec_s_x + X0_s - X0_sp
-        #q_y = x*n_vec_s_y + Y0_s - Y0_sp
-        #q2 = q_x*q_x + q_y*q_y
-
-        #n_sp_q = n_vec_sp_x* q_x + n_vec_sp_y* q_y
-
-        #term1 = (n_sp_q * k**2 + (t - sp)*k)/(k**2 - 1)
-
-        #term2 = k**2/(k**2 - 1)*np.sqrt((k**2 - 1)*((t - sp)**2 - q2) + (n_sp_q * k + t - sp)**2)
-
-        #xp1 = term1 + term2
-        #xp2 = term1 - term2
-
-        term = (- X0_s**2 * n_vec_sp_y**2 * k**2 + X0_s**2 +
-                              2* X0_s * X0_sp * n_vec_sp_y**2 * k**2 -
-                              2* X0_s * X0_sp + 2 * X0_s * Y0_s * n_vec_sp_x * n_vec_sp_y * k**2 -
-                              2* X0_s * Y0_sp * n_vec_sp_x * n_vec_sp_y * k**2 -
-                              2. * X0_s * n_vec_s_x * n_vec_sp_y **2 * k** 2 * x +
-                              2. * X0_s * n_vec_s_x * x + 2. * X0_s * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k**2 * x -
-                              2. * X0_s * n_vec_sp_x * k * sp + 2 * X0_s * n_vec_sp_x * k * t -
-                              X0_sp**2 * n_vec_sp_y ** 2 * k**2 +
-                              X0_sp**2 - 2* X0_sp* Y0_s * n_vec_sp_x * n_vec_sp_y * k**2 +
-                              2 * X0_sp * Y0_sp * n_vec_sp_x * n_vec_sp_y * k**2 + 2 * X0_sp * n_vec_s_x * n_vec_sp_y**2 * k**2 * x -
-                              2. * X0_sp * n_vec_s_x * x - 2. * X0_sp * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k**2 * x +
-                              2. * X0_sp * n_vec_sp_x * k * sp - 2. * X0_sp * n_vec_sp_x * k * t -
-                              Y0_s** 2 * n_vec_sp_x**2 * k**2 + Y0_s**2 + 2. * Y0_s * Y0_sp * n_vec_sp_x **2 * k**2
-                              - 2. * Y0_s * Y0_sp + 2. * Y0_s * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k**2 * x -
-                              2 * Y0_s * n_vec_s_y * n_vec_sp_x**2 * k**2 * x + 2. * Y0_s * n_vec_s_y * x
-                              - 2. * Y0_s * n_vec_sp_y * k * sp + 2 * Y0_s * n_vec_sp_y * k * t -
-                              Y0_sp**2 * n_vec_sp_x**2 * k**2 + Y0_sp ** 2 -
-                              2. * Y0_sp * n_vec_s_x * n_vec_sp_x * n_vec_sp_y * k**2 * x +
-                              2. * Y0_sp * n_vec_s_y * n_vec_sp_x**2 * k**2 * x -
-                              2. * Y0_sp * n_vec_s_y * x + 2. * Y0_sp * n_vec_sp_y* k * sp -
-                              2. * Y0_sp * n_vec_sp_y * k * t - n_vec_s_x**2 * n_vec_sp_y **2 * k**2 * x**2 +
-                              n_vec_s_x**2 * x **2 + 2. * n_vec_s_x * n_vec_s_y * n_vec_sp_x * n_vec_sp_y * k**2 * x **2 -
-                              2. * n_vec_s_x * n_vec_sp_x * k * sp * x + 2. * n_vec_s_x * n_vec_sp_x * k * t* x -
-                              n_vec_s_y**2 * n_vec_sp_x **2 * k**2 * x** 2 + n_vec_s_y**2 * x**2 -
-                              2. * n_vec_s_y * n_vec_sp_y * k * sp * x + 2 * n_vec_s_y * n_vec_sp_y * k * t * x +
-                              n_vec_sp_x**2 * k**2 * sp**2 - 2. * n_vec_sp_x**2 * k**2 * sp * t +
-                              n_vec_sp_x **2 * k**2 * t**2 + n_vec_sp_y**2 * k**2 * sp**2 - 2. * n_vec_sp_y**2 * k**2 * sp * t +
-                              n_vec_sp_y** 2 * k**2 * t**2)** (1 / 2)
-
-        xp1 = (k * (t - sp - term +
-                              X0_s * n_vec_sp_x * k - X0_sp * n_vec_sp_x * k +
-                              Y0_s * n_vec_sp_y * k - Y0_sp * n_vec_sp_y * k +
-                              n_vec_s_x * n_vec_sp_x * k * x + n_vec_s_y * n_vec_sp_y * k * x)) / (
-                         n_vec_sp_x**2 * k**2 + n_vec_sp_y**2 * k**2 - 1)
-
-        xp2= (k * (t - sp + term +
-                    X0_s * n_vec_sp_x * k - X0_sp * n_vec_sp_x * k +
-                    Y0_s * n_vec_sp_y * k - Y0_sp * n_vec_sp_y * k +
-                    n_vec_s_x * n_vec_sp_x * k * x + n_vec_s_y * n_vec_sp_y * k * x)) / (
-                      n_vec_sp_x ** 2 * k ** 2 + n_vec_sp_y ** 2 * k ** 2 - 1)
-
-
-        return xp1, xp2
-
 
 #    @profile
     def get_CSR_wake(self, s, x, debug = False):
@@ -876,36 +766,21 @@ class CSR2D:
 
         return CSR_integrand_z, CSR_integrand_x
 
-    def write_beam(self):
+    def dump_beam(self, label):
         if self.parallel and self.rank != 0:
             return
 
         path = full_path(self.CSR_params.workdir)
-        #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + '_particles.h5'
-        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-particles.h5'
-        if self.beam.step == 1:
-            if os.path.isfile(filename):
-                os.remove(filename)
-                print("Existing file " + filename + " deleted.")
-            print("Beams written to ", filename)
-        with h5py.File(filename, 'a') as hf:
+        filename = f'{path}\{self.prefix}-particles-{label}.h5'
 
-            step = self.beam.step
-            groupname = 'step_' + str(step)
-            g = hf.create_group(groupname)
-            g.attrs['step'] = step
-            g.attrs['position']  = self.beam.position
-            g.attrs['mean_gamma'] = self.beam.init_gamma
-            g.attrs['beam_energy'] = self.beam.init_energy
-            g.attrs['element'] = self.lattice.current_element
-            g.attrs['charge'] = self.beam.charge
-            g2 = g.create_group('particles')
-            g2.create_dataset('x', data = self.beam.particles[:, 0])
-            g2.create_dataset('xp', data = self.beam.particles[:, 1])
-            g2.create_dataset('y', data = self.beam.particles[:, 2])
-            g2.create_dataset('yp', data=self.beam.particles[:, 3])
-            g2.create_dataset('z', data=self.beam.particles[:,4])
-            g2.create_dataset('delta', data=self.beam.particles[:, 5])
+
+        if os.path.isfile(filename):
+            os.remove(filename)
+            print("Existing file " + filename + " deleted.")
+
+        print("Beam at position {} is written to {}".format(self.beam.position, filename))
+
+        self.beam.particle_group.write(filename)
 
     def write_wakes(self):
 
@@ -914,7 +789,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
-        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-wakes.h5'
+        filename = f'{path}\{self.prefix}-wakes.h5'
 
         if self.beam.step == 1:
             if os.path.isfile(filename):
@@ -943,8 +818,30 @@ class CSR2D:
             g2.create_dataset('x_grids', data = self.CSR_xmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('z_grids', data = self.CSR_zmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('xkicks', data = self.x_kick)
-
-
+    @profile
+    def update_statistics(self, step):
+        twiss = self.beam.twiss
+        self.statistics['twiss']['alpha_x'][step] = twiss['alpha_x']
+        self.statistics['twiss']['beta_x'][step] = twiss['beta_x']
+        self.statistics['twiss']['gamma_x'][step] = twiss['gamma_x']
+        self.statistics['twiss']['emit_x'][step] = twiss['emit_x']
+        self.statistics['twiss']['eta_x'][step] = twiss['eta_x']
+        self.statistics['twiss']['etap_x'][step] = twiss['etap_x']
+        self.statistics['twiss']['norm_emit_x'][step] = twiss['norm_emit_x']
+        self.statistics['twiss']['alpha_y'][step] = twiss['alpha_y']
+        self.statistics['twiss']['beta_y'][step] = twiss['beta_y']
+        self.statistics['twiss']['gamma_y'][step] = twiss['gamma_y']
+        self.statistics['twiss']['emit_y'][step] = twiss['emit_y']
+        self.statistics['twiss']['eta_y'][step] = twiss['eta_y']
+        self.statistics['twiss']['etap_y'][step] = twiss['etap_y']
+        self.statistics['twiss']['norm_emit_y'][step] = twiss['norm_emit_y']
+        self.statistics['slope'][step, :] = self.beam._slope
+        self.statistics['sigma_x'][step] = self.beam._sigma_x
+        self.statistics['sigma_z'][step] = self.beam._sigma_z
+        self.statistics['sigma_energy'][step] = self.beam.sigma_energy
+        self.statistics['mean_x'][step] = self.beam._mean_x
+        self.statistics['mean_z'][step] = self.beam._mean_z
+        self.statistics['mean_energy'][step] = self.beam.mean_energy
     def write_statistics(self):
 
         if self.parallel and self.rank != 0:
@@ -952,7 +849,7 @@ class CSR2D:
 
         path = full_path(self.CSR_params.workdir)
         #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
-        filename = f'{path}\{self.CSR_params.write_name}-{self.timestamp}-statistics.h5'
+        filename = f'{path}\{self.prefix}-statistics.h5'
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")
@@ -960,28 +857,12 @@ class CSR2D:
 
         with h5py.File(filename, 'w') as hf:
             hf.create_dataset(name = 'step_positions', data = self.lattice.steps_record, shape = self.lattice.steps_record.shape)
-            hf.create_dataset(name = 'slope', data = self.slope)
-            hf.create_dataset(name = 'gemitX', data = self.gemitX)
-            hf.create_dataset(name = 'Cx', data = self.Cx)
-            hf.create_dataset(name = 'Cxp', data = self.Cxp)
-            hf.create_dataset(name = 'etaX', data = self.etaX)
-            hf.create_dataset(name = 'etaXp', data = self.etaXp)
-            hf.create_dataset(name = 'betaX', data = self.betaX)
-            hf.create_dataset(name = 'alphaX', data = self.alphaX)
-            hf.create_dataset(name ='betaX_beam', data = self.betaX_beam)
-            hf.create_dataset(name ='alphaX_beam', data = self.alphaX_beam)
-            hf.create_dataset(name ='sigX', data = self.sigX)
-            hf.create_dataset(name ='sigZ', data = self.sigZ)
-            hf.create_dataset(name ='sigE', data = self.sigE)
-            hf.create_dataset(name ='R56', data = self.R56)
-            hf.create_dataset(name ='R51', data = self.R51)
-            hf.create_dataset(name ='R52', data = self.R52)
-            hf.create_dataset(name = 'gemitX_minus_dispersion', data = self.gemitX_minus_dispersion)
-            hf.create_dataset(name = 'betaX_minus_dispersion', data = self.betaX_minus_dispersion)
-            hf.create_dataset(name = 'alphaX_minus_dispersion', data = self.alphaX_minus_dispersion)
             hf.create_dataset(name='coords', data=self.lattice.coords)
             hf.create_dataset(name='n_vec', data=self.lattice.n_vec)
             hf.create_dataset(name='tau_vec', data=self.lattice.tau_vec)
+            dict2hdf5(hf, self.statistics)
+
+
 
 
 

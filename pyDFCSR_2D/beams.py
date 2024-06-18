@@ -3,7 +3,12 @@ import sys
 from distgen import Generator
 from physical_constants import *
 from scipy.interpolate import RegularGridInterpolator
-
+from bmadx import Particle, M_ELECTRON
+from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
+from bmadx import track_element
+from pmd_beamphysics import ParticleGroup
+from line_profiler_pycharm import profile
+from twiss import  twiss_from_bmadx_particles
 class Beam():
     """
     Beam class to initialize, track and apply wakes
@@ -16,34 +21,49 @@ class Beam():
 
         if self.style == 'from_file':
             filename = input_beam['beamfile']
-            self.particles = np.loadtxt(filename)
-            assert self.particles.shape[1] == 6, f'Error: input beam must have 6 dimension, but get {self.particles.shape[1]} instead'
+
+            ## Read bmadx coords
+            coords = np.loadtxt(filename)
+            assert coords.shape[1] == 6, f'Error: input beam must have 6 dimension, but get {coords.shape[1]} instead'
+
             self._charge = input_beam['charge']
             self._init_energy = input_beam['energy']
 
+            # Keep track of both BmadX particle format (for tracking) and Particle Group format (for calculating twiss).
+            self.particle = Particle(*coords.T, 0, self._init_energy, MC2)   #BmadX Particle
+            #self.particleGroup = bmadx_particles_to_openpmd(self.particle)  # Particle Group
 
-        else:
+
+
+        elif  self.style == 'distgen':
             filename = input_beam['distgen_input_file']
             gen = Generator(filename)
             gen.run()
             pg = gen.particles
-            gamma = pg.gamma
-            delta = (gamma - np.mean(gamma))/np.mean(gamma)
-            self.particles = np.vstack((pg.x, pg.xp, pg.y, pg.yp, pg.z, delta)).T
             self._charge = pg['charge']
             self._init_energy = np.mean(pg['energy'])
+
+            self.particle = openpmd_to_bmadx_particles(pg, self._init_energy, 0.0, MC2)   #Bmad X particle
+            #self.particleGroup = pg              # Particle Group
+
+        else:
+            ParticleGroup_h5 = input_beam['ParticleGroup_h5']
+            pg = ParticleGroup(ParticleGroup_h5)
+
+            self._charge = pg['charge']
+            self._init_energy = np.mean(pg['energy'])
+
+            self.particle = openpmd_to_bmadx_particles(pg, self._init_energy, 0.0, MC2)  # Bmad X particle
+            #self.particleGroup = pg  # Particle Group
+
             # unchanged, initial energy and gamma
         self._init_gamma = self._init_energy/MC2
-        self._n_particle = self.particles.shape[0]
-        self._particles_keys = ['x', 'px', 'y', 'py', 'z', 'delta']
+        #self._n_particle = self.particles.shape[0]
+
         self.position = 0
         self.step = 0
 
-
-
-
-
-
+        self.update_status()
 
 
     def check_inputs(self, input_beam):
@@ -52,6 +72,8 @@ class Beam():
             self.required_inputs = ['style', 'beamfile', 'charge','energy']
         elif input_beam['style'] == 'distgen':
             self.required_inputs = ['style', 'distgen_input_file']
+        elif input_beam['style'] == 'ParticleGroup':
+            self.required_inputs = ['style', 'particleGroup_h5']
         else:
             raise Exception("input beam parsing Error: invalid input style")
 
@@ -62,20 +84,72 @@ class Beam():
         # Make sure all required parameters are specified
         for req in self.required_inputs:
             assert req in input_beam, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
+    @profile
+    def update_status(self):
+        #self.particleGroup = bmadx_particles_to_openpmd(self.particle)
+        self._sigma_x = self.sigma_x
+        self._sigma_z = self.sigma_z
+        self._slope = self.slope
+        #self._sigma_x_transform = self.sigma_x_transform
+        self._mean_x = self.mean_x
+        self._mean_z = self.mean_z
+        #self._twiss = self.twiss
+        #self._sigma_energy = self.sigma_energy
+        #self._mean_energy = self.mean_energy
 
+    @profile
+    def track(self, element, step_size, update_step=True):
+        self.particle = track_element(self.particle, element)
+        self.position += step_size
+        if update_step:
+            self.step += 1
+        self.update_status()
+    @profile
+    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size):
+        # Todo: add options for transverse or longitudinal kick only
+        dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV
+        interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
+        dE_Es = interp(np.array([self.x_transform, self.z]).T)
+        #self.particle.pz += dE_Es
+        pz_new = self.particle.pz + dE_Es
 
+        dxp = step_size * x_kick * 1e6 / self.init_energy
+        interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0, bounds_error=False)
+        dxps = interp(np.array([self.x_transform, self.z]).T)
+        #self.particle.px += dxps
+        px_new = self.particle.px + dxps
+        self.particle = Particle(self.particle.x, px_new,
+                                 self.particle.y, self.particle.py,
+                                 self.particle.z, pz_new,
+                                 self.particle.s, self.particle.p0c, self.particle.mc2)
+
+        self.update_status()
+
+    def frog_leap(self):
+        # Todo: track half step, apply kicks, track another half step
+        pass
 
     @property
     def mean_x(self):
-        return np.mean(self.x)
-
-    @property
-    def mean_xp(self):
-        return np.mean(self.xp)
+        return np.mean(self.particle.x)
 
     @property
     def mean_y(self):
-        return np.mean(self.y)
+        return np.mean(self.particle.y)
+
+    @property
+    def sigma_x(self):
+        return np.std(self.particle.x)
+
+
+    @property
+    def sigma_z(self):
+        return np.std(self.particle.z)
+
+    @property
+    def mean_z(self):
+        return np.mean(self.particle.z)
+
 
     @property
     def init_energy(self):
@@ -85,108 +159,44 @@ class Beam():
     def init_gamma(self):
         return self._init_gamma
 
-    @property
-    def gamma(self):
-        return self.init_gamma + self.init_gamma*np.mean(self.particles[:,5])
 
     @property
     def energy(self):
-        return self.gamma/MC2
+        return (self.particle.pz+1)*self.particle.p0c
+    @property
+    def mean_energy(self):
+        return np.mean(self.energy)
+
+    @property
+    def gamma(self):
+        return self.energy/MC2
+
+    @property
+    def sigma_energy(self):
+        return np.std(self.energy)
+
+    @property
+    def x(self):
+        return self.particle.x
+
+    @property
+    def px(self):
+        return self.particle.px
+
+    @property
+    def z(self):
+        return self.particle.z
+
+    @property
+    def pz(self):
+        return self.particle.pz
+
 
 
     @property
     def slope(self):
         p = np.polyfit(self.z, self.x, deg=1)
         return p
-
-    @property
-    def sigma_z(self):
-        return np.std(self.particles[:,4])
-
-    @property
-    def mean_z(self):
-        return np.mean(self.particles[:,4])
-
-    @property
-    def sigma_x(self):
-        return np.std(self.x)
-
-    @property
-    def sigma_xp(self):
-        return np.std(self.xp)
-
-    @property
-    def sigma_delta(self):
-        return np.std(self.delta)
-
-    @property
-    def x_xp(self):
-        return np.mean(self.x*self.xp)
-
-    @property
-    def charge(self):
-        return self._charge
-
-    @property
-    def emitX(self):
-        return np.sqrt(np.mean(self.x**2)*np.mean(self.xp**2) - np.mean(self.x*self.xp)**2)
-    @property
-    def norm_emitX(self):
-        return self.init_gamma*self.emitX
-    @property
-    def betaX(self):
-        return self.sigma_x**2/self.emitX
-    @property
-    def alphaX(self):
-        return -self.x_xp/self.emitX
-
-    def update_status(self):
-        self._sigma_x = self.sigma_x
-        self._sigma_z = self.sigma_z
-        self._slope = self.slope
-        self._sigma_x_transform = self.sigma_x_transform
-        self._mean_x = self.mean_x
-
-    def stats_minus_dispersion(self, Rtot = np.eye(6)):
-        """
-        :param Rtot: reverse transfer matrix
-        :return:x-emittance, beta and alpha minus dispersion effect
-        """
-        iRtot = np.linalg.inv(Rtot)
-        SIGj = np.cov(self.particles.T)
-        SIGj0 = np.matmul(iRtot, np.matmul(SIGj, iRtot.T))
-        SIGj2 = np.matmul(Rtot[0:2, 0:2], np.matmul(SIGj0[0:2, 0:2], Rtot[0:2, 0:2].T))
-
-        emitX =  np.sqrt(np.linalg.det(SIGj0[0:2,0:2]))
-        norm_emitX = emitX*self.init_gamma
-        beta = SIGj2[0,0]/emitX
-        alpha = - SIGj2[0,1]/emitX
-        return emitX, norm_emitX, beta, alpha
-
-
-
-    def track(self, r6, step_size, update_step = True):
-        self.particles = np.matmul(r6, self.particles.T)
-        self.particles = self.particles.T
-        self.position += step_size
-        if update_step:
-            self.step += 1
-        self.update_status()
-
-    @property
-    def x(self):
-        return self.particles[:,0]
-    @property
-    def xp(self):
-        return self.particles[:,1]
-
-    @property
-    def z(self):
-        return self.particles[:,4]
-
-    @property
-    def delta(self):
-        return self.particles[:,5]
 
     @property
     def x_transform(self):
@@ -199,23 +209,15 @@ class Beam():
     def sigma_x_transform(self):
         return np.std(self.x_transform)
 
-    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size):
-        # Todo: add options for transverse or longitudinal kick only
-        dE_E1 = step_size*dE_dct*1e6/self.init_energy # self.energy in eV
-        interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
-        dE_Es = interp(np.array([self.x_transform, self.z]).T)
-        self.particles[:,5] += dE_Es
 
+    @property
+    def charge(self):
+        return self._charge
 
-        dxp = step_size*x_kick*1e6/self.init_energy
-        interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0,bounds_error=False)
-        dxps = interp(np.array([self.x_transform, self.z]).T)
-        self.particles[:,1] += dxps
+    @property
+    def twiss(self):
+        return twiss_from_bmadx_particles(self.particle)
 
-
-        #self.update_status()
-
-
-    def frog_leap(self):
-        #Todo: track half step, apply kicks, track another half step
-        pass
+    @property
+    def particle_group(self):
+        return bmadx_particles_to_openpmd(self.particle)

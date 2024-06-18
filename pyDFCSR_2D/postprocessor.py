@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from tools import full_path, find_nearest_ind, plot_2D_contour
 import h5py
 from matplotlib import cm
-
+from pmd_beamphysics import ParticleGroup
 class DFCSR_postprocessor():
     """
     load output files from CSR class and make plots
@@ -14,10 +14,47 @@ class DFCSR_postprocessor():
         path = full_path(work_dir)
 
         self.wake_filename = f'{path}/{run_name}-wakes.h5'
-        self.particle_filename = f'{path}/{run_name}-particles.h5'
+        self.particle_prefix = f'{path}/{run_name}-particles'
         self.statistics_filename = f'{path}/{run_name}-statistics.h5'
 
-       
+    def get_particles(self, step = None):
+
+        if step is None:
+            filename = self.particle_prefix + '-end.h5'
+        else:
+            filename = f'{self.particle_prefix}-{step}.h5'
+        print('Reading ', filename)
+        pg = ParticleGroup(filename)
+        return pg
+
+    def get_statistics(self, key, show_plot = True):
+        with h5py.File(self.statistics_filename, "r") as f:
+            x = np.array(f['step_positions'])
+            if key in ['slope', 'sigma_x', 'sigma_z', 'sigma_energy', 'mean_x', 'mean_z', 'mean_energy']:
+                y = np.array(f[key])
+            else:
+                y = np.array(f['twiss'][key])
+
+        if key in ['norm_emit_x', 'norm_emit_y', 'emit_x', 'emit_y',
+                    'beta_x', 'beta_y', 'eta_x', 'eta_y',
+                   'sigma_x', 'sigma_z', 'mean_x', 'mean_z']:
+            unit = '(m)'
+
+        elif key in ['mean_energy', 'sigma_energy']:
+            unit = '(eV)'
+
+        else:
+            unit = ""
+
+
+        if show_plot:
+            plt.figure()
+            plt.plot(x, y)
+            plt.xlabel('positions (m)')
+            plt.ylabel(f'{key} {unit}')
+            plt.show()
+
+        return x, y
 
     def parse_all_wakes(self):
         
@@ -67,25 +104,9 @@ class DFCSR_postprocessor():
                 self.z_grids_list.append(z_grids)
                 self.positions_list.append(position)
 
-    def parse_all_particles(self):
 
-        with h5py.File(self.particle_filename, "r") as f:
-            self.particles_list = []
-            self.position_list = []
 
-            for step in f.keys():
-                print("Parsing particles at step ", step)
 
-                position = f[step].attrs['position']
-                x = np.array(f[step]['particles']['x'])
-                y = np.array(f[step]['particles']['y'])
-                xp = np.array(f[step]['particles']['xp'])
-                yp = np.array(f[step]['particles']['yp'])
-                z = np.array(f[step]['particles']['z'])
-                delta = np.array(f[step]['particles']['delta'])
-
-                self.particles_list.append(np.vstack((x, xp, y, yp, z, delta)).T)
-                self.position_list.append(position)
 
     # 'Cx', 'Cxp', 'R51', 'R52', 'R56', 'alphaX', 'alphaX_beam',
     # 'alphaX_minus_dispersion', 'betaX', 'betaX_beam',
@@ -93,19 +114,7 @@ class DFCSR_postprocessor():
     # 'gemitX', 'gemitX_minus_dispersion', 'n_vec', 'sigE',
     # 'sigX', 'sigZ', 'slope', 'step_positions', 'tau_vec'
 
-    def get_statistics(self, key=None, show_plot = True):
-        with h5py.File(self.statistics_filename, "r") as f:
-            x = np.array(f['step_positions'])
-            y = np.array(f[key])
 
-        if show_plot:
-            plt.figure()
-            plt.plot(x, y)
-            plt.xlabel('positions (m)')
-            plt.ylabel(f'{key} (m)')
-            plt.show()
-
-        return x, y
 
     def get_wakes(self, s, show_plot = True):
         
@@ -185,25 +194,7 @@ class DFCSR_postprocessor():
         plot_2D_contour(x_grids,z_grids,dE_dct)
         plot_2D_contour(x_grids,z_grids,xkicks)
 
-    def plot_particles(self, s, xkey='z', ykey='delta'):
-        ind = find_nearest_ind(self.position_list, s)
 
-        print("plot longitudinal wakes at nearest point s  = {} m, step count {}".format(self.position_list[ind],
-                                                                                         self.step_list[ind]))
-
-        step = "step_" + str(self.step_list[ind])
-
-        with h5py.File(self.particle_filename, "r") as f:
-            x = np.array(f[step]['particles'][xkey])
-            y = np.array(f[step]['particles'][ykey])
-            
-        plt.figure()
-
-        h, xedges, yedges, _ = plt.hist2d(x, y, bins=100, cmap=plt.cm.jet)
-        plt.colorbar()
-        plt.xlabel(xkey)
-        plt.ylabel(ykey)
-        plt.show()
 
 
 
