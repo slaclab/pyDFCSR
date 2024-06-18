@@ -3,7 +3,8 @@ from distgen import Generator
 from .physical_constants import MC2
 from scipy.interpolate import RegularGridInterpolator
 from bmadx import Particle, M_ELECTRON
-from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
+#from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
+from interfaces import  openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
 from bmadx import track_element
 from pmd_beamphysics import ParticleGroup
 from line_profiler_pycharm import profile
@@ -220,4 +221,6 @@ class Beam():
 
     @property
     def particle_group(self):
-        return bmadx_particles_to_openpmd(self.particle)
+        pg = bmadx_particles_to_openpmd(self.particle)
+        pg.weight = np.abs(pg.weight)
+        return pg
