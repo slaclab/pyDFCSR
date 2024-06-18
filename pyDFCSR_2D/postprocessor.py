@@ -4,6 +4,7 @@ from tools import full_path, find_nearest_ind, plot_2D_contour
 import h5py
 from matplotlib import cm
 from pmd_beamphysics import ParticleGroup
+import os
 class DFCSR_postprocessor():
     """
     load output files from CSR class and make plots
@@ -13,9 +14,9 @@ class DFCSR_postprocessor():
 
         path = full_path(work_dir)
 
-        self.wake_filename = f'{path}/{run_name}-wakes.h5'
-        self.particle_prefix = f'{path}/{run_name}-particles'
-        self.statistics_filename = f'{path}/{run_name}-statistics.h5'
+        self.wake_filename = os.path.join(path, f'{run_name}-wakes.h5')
+        self.particle_prefix = os.path.join(path, f'{run_name}-particles')
+        self.statistics_filename = os.path.join(path, f'{run_name}-statistics.h5')
 
     def get_particles(self, step = None):
 
@@ -184,7 +185,7 @@ class DFCSR_postprocessor():
         with h5py.File(self.wake_filename, "r") as f:
             print("ebeam energy {}".format(f[step].attrs['beam_energy']))
             dE_dct = np.array(f[step]['longitudinal']['dE_dct'])
-            unit = f[step]['longitudinal'].attrs['unit']
+            # unit = f[step]['longitudinal'].attrs['unit']
 
             x_grids = np.array(f[step]['longitudinal']['x_grids']).reshape(dE_dct.shape)
             z_grids = np.array(f[step]['longitudinal']['z_grids']).reshape(dE_dct.shape)

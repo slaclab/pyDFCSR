@@ -3,9 +3,10 @@ import math
 import numpy as np
 from collections import deque
 #from SGolay_filter import *
-from params import *
-from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
+
+from scipy.interpolate import RegularGridInterpolator
 from scipy.signal import savgol_filter
+
 @jit(nopython = True)
 def histogram_cic_1d(q1, w, nbins, bins_start, bins_end):
     """

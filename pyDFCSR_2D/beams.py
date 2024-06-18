@@ -1,7 +1,6 @@
 import numpy as np
-import sys
 from distgen import Generator
-from physical_constants import *
+from .physical_constants import MC2
 from scipy.interpolate import RegularGridInterpolator
 from bmadx import Particle, M_ELECTRON
 from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
@@ -67,7 +66,7 @@ class Beam():
 
 
     def check_inputs(self, input_beam):
-        assert 'style' in input_beam, f'ERROR: input_beam must have keyword <style>'
+        assert 'style' in input_beam, 'ERROR: input_beam must have keyword <style>'
         if input_beam['style'] == 'from_file':
             self.required_inputs = ['style', 'beamfile', 'charge','energy']
         elif input_beam['style'] == 'distgen':

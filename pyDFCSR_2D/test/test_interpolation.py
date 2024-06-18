@@ -1,6 +1,5 @@
-from pyDFCSR_2D.interp3D import  TrilinearInterpolator, interpolate3D,interpolate_3d_vectorized
+from pyDFCSR_2D.interp3D import  TrilinearInterpolator, interpolate3D
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 import time
 def f(x, y, z):
     return 2 * x**3 + 3 * y**2 - z

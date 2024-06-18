@@ -1,4 +1,4 @@
-from tools import *
+from .tools import full_path
 #class Interpolation_params:
 #
 #    def __init__(self, input_dic = {}):

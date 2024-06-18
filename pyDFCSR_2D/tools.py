@@ -1,12 +1,9 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import math
 from matplotlib import cm
 import datetime
-import numpy as np
-from scipy.interpolate import griddata
-import h5py
+
 
 def full_path(path):
     """

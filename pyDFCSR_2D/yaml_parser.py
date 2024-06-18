@@ -1,7 +1,8 @@
 import yaml
 from collections import OrderedDict
-import os, sys
-from tools import full_path
+import os
+import sys
+from .tools import full_path
 
 def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
     class OrderedLoader(Loader):

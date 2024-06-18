@@ -1,28 +1,28 @@
-import numpy as np
-from distgen import Generator
-from lattice import *
-from beams import *
-from scipy.interpolate import RegularGridInterpolator
-from yaml_parser import *
-from tools import *
-from beams import *
-from lattice import *
-from deposit import *
-from params import *
-from physical_constants import *
-from r_gen6 import *
-from twiss_R import *
-import h5py
 import os
 import time
-from line_profiler_pycharm import profile
-from tools import isotime
-from interp3D import interpolate3D
-from interp1D import interpolate1D
-from numba import jit
-from mpi4py import MPI
 from bmadx import  Drift, SBend, Quadrupole, Sextupole
 from tools import dict2hdf5
+import h5py
+import numpy as np
+from mpi4py import MPI
+
+from .beams import Beam
+# from .deposit import histogram_cic_1d, histogram_cic_2d
+from .deposit import DF_tracker
+from .interp1D import interpolate1D
+from .interp3D import interpolate3D
+from .lattice import Lattice  # , get_referece_traj
+from .params import Integration_params, CSR_params
+# from .physical_constants import c, e, qe, me, MC2
+from .r_gen6 import r_gen6
+#from line_profiler_pycharm import profile
+# from .tools import (find_nearest_ind, full_path, isotime, plot_2D_contour,
+#                     plot_surface)
+from .tools import full_path, isotime
+from .twiss_R import twiss_R
+from .yaml_parser import parse_yaml
+
+
 
 class CSR2D:
     """
@@ -179,7 +179,7 @@ class CSR2D:
 
         return element
 
-    @profile
+#    @profile
     def run(self, stop_time = None):
 
         if (not self.parallel) or (self.rank == 0):
@@ -195,11 +195,6 @@ class CSR2D:
         self.formation_length = 0.0
 
         for ele in list(self.lattice.lattice_config.keys())[1:]:
-
-            # ------------For Debug---------------
-            if ele == 'element_3':
-                print('I am here')
-            # ------------------------------------
 
             self.lattice.update(ele)
             # Todo: add sextupole, maybe Bmad Tracking?
@@ -771,8 +766,7 @@ class CSR2D:
             return
 
         path = full_path(self.CSR_params.workdir)
-        filename = f'{path}\{self.prefix}-particles-{label}.h5'
-
+        filename = os.path.join(path, f'{self.prefix}-particles-{label}.h5')
 
         if os.path.isfile(filename):
             os.remove(filename)
@@ -788,8 +782,9 @@ class CSR2D:
             return
 
         path = full_path(self.CSR_params.workdir)
-        #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp +  '_wakes.h5'
-        filename = f'{path}\{self.prefix}-wakes.h5'
+
+        filename = os.path.join(path, f'{self.prefix}-wakes.h5')
+
 
         if self.beam.step == 1:
             if os.path.isfile(filename):
@@ -818,7 +813,7 @@ class CSR2D:
             g2.create_dataset('x_grids', data = self.CSR_xmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('z_grids', data = self.CSR_zmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('xkicks', data = self.x_kick)
-    @profile
+#    @profile
     def update_statistics(self, step):
         twiss = self.beam.twiss
         self.statistics['twiss']['alpha_x'][step] = twiss['alpha_x']
@@ -848,8 +843,9 @@ class CSR2D:
             return
 
         path = full_path(self.CSR_params.workdir)
-        #filename = path + '\\' + self.CSR_params.write_name + '_' + self.timestamp + 'statistics.h5'
-        filename = f'{path}\{self.prefix}-statistics.h5'
+
+        filename = os.path.join(path, f'{self.prefix}-statistics.h5')
+
         if os.path.isfile(filename):
             os.remove(filename)
             print("Existing file " + filename + " deleted.")

@@ -1,6 +1,6 @@
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
-from yaml_parser import *
+from .yaml_parser import parse_yaml
+
 def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     """
     A function to get the reference trajectory of partices with given lattice configuration
@@ -117,7 +117,7 @@ class Lattice():
 
     def __init__(self, input_lattice):
 
-        assert 'lattice_input_file' in input_lattice, f'Error in parsing lattice: must include the keyword <lattice_input_file>'
+        assert 'lattice_input_file' in input_lattice, 'Error in parsing lattice: must include the keyword <lattice_input_file>'
         self.lattice_input_file = input_lattice['lattice_input_file']
 
         lattice_config = parse_yaml(self.lattice_input_file)
@@ -198,10 +198,6 @@ class Lattice():
     @property
     def Nelement(self):
         return self._Nelement
-
-    @property
-    def lattice_length(self):
-        return self._lattice_length
 
     def update(self, ele_name):
         self.current_element = ele_name
