@@ -22,19 +22,27 @@ from .tools import full_path, isotime
 from .twiss_R import twiss_R
 from .yaml_parser import parse_yaml
 
-
-
 class CSR2D:
     """
     The main class to calculate 2D CSR
     """
 
     def __init__(self, input_file=None, parallel = False):
+        """
+        Creates an instance of the CSR2D class 
+        parameters - input_file: optional, assumed to be a configuration in YMAL file format that can be converted to dict
+                   - parallel: boolean, indicate if parallel processing should be used for computations
+        :return: instance of CSR2D
+        """
 
         self.timestamp = isotime()
+
+        # If given an input file, parse it into a dictionary and create instances of Beam, Lattice, DF_Tracker, 
+        # CSR_integration, and CSR_computation
         if input_file:
             self.parse_input(input_file)
             self.input_file = input_file
+        
         self.formation_length = None
         self.initialization()  # process the initial beam
 
@@ -46,12 +54,26 @@ class CSR2D:
             self.parallel = False
 
     def parse_input(self, input_file):
+        """
+        Given an input_file, we parse it into a dictionary
+        parameters - input_file: configuration YAML file data, assumed to be either type string indicating file path
+                                 or type stream
+        :return: nothing, although defines many class attributes and creates instances of Beam, Lattice, DF_Tracker, 
+                 CSR_integration, and CSR_computation
+        """
+
+        # Convert yaml data into dict
         input = parse_yaml(input_file)
+
+        # Make sure that our dictionary has the necessary elements for a configuration
         self.check_input_consistency(input)
         self.input = input
+
+        # Create Beam and Lattice instances (input required)
         self.beam = Beam(input['input_beam'])
         self.lattice = Lattice(input['input_lattice'])
 
+        # Creates DF_tracker, Integration_params, and CSR_params instances (input not required)
         if 'particle_deposition' in input:
             self.DF_tracker = DF_tracker(input['particle_deposition'])
         else:
@@ -79,6 +101,7 @@ class CSR2D:
         #Todo: add more flexible unit conversion, for both charge and energy
         self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
         self.init_statistics()
+
     def init_statistics(self):
         Nstep = self.lattice.total_steps
         self.statistics = {}
@@ -125,11 +148,19 @@ class CSR2D:
         self.displ = np.array(displ)
 
     def check_input_consistency(self, input):
+        """
+        Checks to make sure that the dictionary we are using for our configuration has the correct format
+        parameters - input: the dictionary in question
+        :return: returns nothing if the dictionary has the correct format, if not asserts what is wrong
+        """
         # Todo: need modification if dipole_config.yaml format changed
+        # Must be given a beam and a lattice
         self.required_inputs = ['input_beam', 'input_lattice']
 
         allowed_params = self.required_inputs + ['particle_deposition', 'distribution_interpolation', 'CSR_integration',
                                                  'CSR_computation']
+        
+        # Make sure all keys in input are allowed
         for input_param in input:
             assert input_param in allowed_params, f'Incorrect param given to {self.__class__.__name__}.__init__(**kwargs): {input_param}\nAllowed params: {allowed_params}'
 

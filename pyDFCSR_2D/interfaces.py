@@ -36,6 +36,7 @@ def openpmd_to_bmadx_coords(
     bmad_coords = (x, px, y, py, z, pz)
 
     return bmad_coords
+
 def openpmd_to_bmadx_particles(
         pmd_particle: ParticleGroup,
         p0c: float,
@@ -60,7 +61,6 @@ def openpmd_to_bmadx_particles(
         p0c = p0c,
         mc2 = mc2)
     return particle
-
 
 def bmadx_particles_to_openpmd(particle: Particle):
     """

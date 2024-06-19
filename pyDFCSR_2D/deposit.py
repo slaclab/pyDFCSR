@@ -1,6 +1,8 @@
 from numba import jit
 import math
 import numpy as np
+
+# deque is a 'double ended quote' data structure that allows for efficient append and pop operations from both ends of the queue
 from collections import deque
 #from SGolay_filter import *
 
@@ -88,10 +90,21 @@ def histogram_cic_2d(q1, q2, w,
 
 
 class DF_tracker:
+    """
+    The class for the 'distribution function' (DF) of a beam
+    Doesn't handle the discrete data of the DF, rather it stores and compute the beam characteristics
+    """
     def __init__(self, input_dic={}):
+        """
+        Initializes the DF tracker
+        parameters - input_dic: optional, a dictionary mapping various optional parameters (keys) to 
+                                their values that can be specified if desired
+        :return:
+        """
 
-
+        # Initalize the optional parameters
         self.configure_params(**input_dic)
+
         #params for current DF
         self.sigma_x = None
         self.sigma_z = None
@@ -112,7 +125,6 @@ class DF_tracker:
         self.sigma_z_log = deque([])
         self.time_log = deque([])
 
-
         #params for interpolant
         self.sigma_x_interp = None
         self.sigma_z_interp = None
@@ -128,10 +140,12 @@ class DF_tracker:
         self.x_grid_interp = None
         self.z_grid_interp = None
 
-
     def configure_params(self, xbins=100, zbins=100, xlim=5, zlim=5,
                          filter_order=0, filter_window=0,
                          velocity_threhold=5):
+        """
+        Initalizes the optional parameters
+        """
         self.xbins = xbins
         self.zbins = zbins
         self.xlim = xlim
@@ -142,6 +156,10 @@ class DF_tracker:
         self.filter_window = filter_window
 
     def get_DF(self, x, z, px, t):
+        """
+        Given the discrete data of the distribution function (in 2D), computes the beam characteristics
+        """
+
         # Todo: add filter, add different depositing type
         sigma_x = np.std(x)
         sigma_z = np.std(z)
@@ -201,8 +219,6 @@ class DF_tracker:
         density /= dsum
 
         vx[density <= threshold] = 0
-
-
 
 
 

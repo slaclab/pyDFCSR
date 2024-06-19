@@ -14,10 +14,26 @@ class Beam():
     Beam class to initialize, track and apply wakes
     """
     def __init__(self, input_beam):
+        """
+        Initalizes instance of Beam using the settings defined in input_beam. Input beam may be in 3 different allowed
+        formats. Regardless of the formatt, 3 class attributes are defined: _charge, _init_energy, and particle.
+        Parameters:
+            input_beam: dictionary of beam settings
+        Returns:
+            instance of Beam
+        """
 
+        # Verify that the input beam has the correct format
         self.check_inputs(input_beam)
         self.input_beam_config = input_beam
+
+        # Indicates how the beam settings are stored
         self.style = input_beam['style']
+
+        # There are 3 ways beam settings can be stored: 
+        # 1: from a .dat file path inside the input_beam dictionary 
+        # 2: from a YAML distgen file path inside the input_beam dictionary
+        # 3: from a h5 file???
 
         if self.style == 'from_file':
             filename = input_beam['beamfile']
@@ -33,10 +49,9 @@ class Beam():
             self.particle = Particle(*coords.T, 0, self._init_energy, MC2)   #BmadX Particle
             #self.particleGroup = bmadx_particles_to_openpmd(self.particle)  # Particle Group
 
-
-
         elif  self.style == 'distgen':
             filename = input_beam['distgen_input_file']
+            # Generates a particle distribution based upon the settings in the distgen_input_file
             gen = Generator(filename)
             gen.run()
             pg = gen.particles
@@ -67,7 +82,16 @@ class Beam():
 
 
     def check_inputs(self, input_beam):
+        """
+        Checks to make sure that the dictionary we are using for our inital beam settings has the correct format.
+        parameters - input_beam: the dictionary in question
+        :return: returns nothing if the dictionary has the correct format, if not asserts what is wrong
+        """
+
+        # The input_beam must have a style key, indicating in what format the beam parameters are stored in
         assert 'style' in input_beam, 'ERROR: input_beam must have keyword <style>'
+
+        # The beam parameters can be stored either in another YAML file, 
         if input_beam['style'] == 'from_file':
             self.required_inputs = ['style', 'beamfile', 'charge','energy']
         elif input_beam['style'] == 'distgen':
@@ -84,6 +108,7 @@ class Beam():
         # Make sure all required parameters are specified
         for req in self.required_inputs:
             assert req in input_beam, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
+
 #    @profile
     def update_status(self):
         #self.particleGroup = bmadx_particles_to_openpmd(self.particle)
@@ -104,6 +129,7 @@ class Beam():
         if update_step:
             self.step += 1
         self.update_status()
+
   #  @profile
     def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on):
         # Todo: add options for transverse or longitudinal kick only
@@ -130,6 +156,7 @@ class Beam():
         # Todo: track half step, apply kicks, track another half step
         pass
 
+    ### Various properties of the beam ### 
     @property
     def mean_x(self):
         return np.mean(self.particle.x)
@@ -142,7 +169,6 @@ class Beam():
     def sigma_x(self):
         return np.std(self.particle.x)
 
-
     @property
     def sigma_z(self):
         return np.std(self.particle.z)
@@ -150,7 +176,6 @@ class Beam():
     @property
     def mean_z(self):
         return np.mean(self.particle.z)
-
 
     @property
     def init_energy(self):
@@ -160,10 +185,10 @@ class Beam():
     def init_gamma(self):
         return self._init_gamma
 
-
     @property
     def energy(self):
         return (self.particle.pz+1)*self.particle.p0c
+
     @property
     def mean_energy(self):
         return np.mean(self.energy)
@@ -192,8 +217,6 @@ class Beam():
     def pz(self):
         return self.particle.pz
 
-
-
     @property
     def slope(self):
         p = np.polyfit(self.z, self.x, deg=1)
@@ -209,7 +232,6 @@ class Beam():
     @property
     def sigma_x_transform(self):
         return np.std(self.x_transform)
-
 
     @property
     def charge(self):
