@@ -11,7 +11,7 @@ Fast 2D/3D CSR simulation with Python
 - matplotlib
 - mpi4py
 - numba
-- numpy
+- numpy 1.x
 - pytorch
 - pyyaml
 - scipy

@@ -12,7 +12,7 @@ dependencies:
   - matplotlib
   - mpi4py
   - numba
-  - numpy
+  - numpy <2
   - pyyaml
   - pytest
   - scipy
