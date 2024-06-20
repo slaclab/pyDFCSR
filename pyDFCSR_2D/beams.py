@@ -221,6 +221,6 @@ class Beam():
 
     @property
     def particle_group(self):
-        pg = bmadx_particles_to_openpmd(self.particle)
-        pg.weight = np.abs(pg.weight)
+        pg = bmadx_particles_to_openpmd(self.particle, self.charge)
+        #pg.weight = np.abs(pg.weight)
         return pg

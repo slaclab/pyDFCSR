@@ -15,6 +15,7 @@ particle_deposition:
   filter_order: 1    # 0 for no filter
   filter_window: 9
   velocity_threhold : 1000
+  upper_limit: 2000   # upper limit for interpolation
 
 
 CSR_integration:

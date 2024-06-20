@@ -180,7 +180,7 @@ class CSR2D:
         return element
 
 #    @profile
-    def run(self, stop_time = None):
+    def run(self, stop_time = None, debug = False):
 
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
@@ -275,28 +275,28 @@ class CSR2D:
                     distance_in_current_ele += DL
 
 
-
-                # get the density functions
-                self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
-                # append the density functions to the log
-                self.DF_tracker.append_DF()
-                # append 3D matrix for interpolation with the new DFs by interpolation
-                #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
-                self.DF_tracker.append_interpolant(formation_length=self.formation_length,
-                                                   n_formation_length=self.integration_params.n_formation_length)
-                # build interpolant based on the 3D matrix
-                self.DF_tracker.build_interpolant()
+                if debug or self.CSR_params.compute_CSR:
+                    # get the density functions
+                    self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
+                    # append the density functions to the log
+                    self.DF_tracker.append_DF()
+                    # append 3D matrix for interpolation with the new DFs by interpolation
+                    #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
+                    self.DF_tracker.append_interpolant(formation_length=self.formation_length,
+                                                       n_formation_length=self.integration_params.n_formation_length)
+                    # build interpolant based on the 3D matrix
+                    self.DF_tracker.build_interpolant()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
                 #Todo: formation length not correct here
-                if  self.afterbend and (not self.inbend) and distance_in_current_ele > 3*self.formation_length:
-                    CSR_blocker = True
-                    if (not self.parallel) or (self.rank == 0):
-                        print("Far away from a bending magnet, stopping calculating CSR")
+                #if  self.afterbend and (not self.inbend) and distance_in_current_ele > 3*self.formation_length:
+                #    CSR_blocker = True
+                #    if (not self.parallel) or (self.rank == 0):
+                #        print("Far away from a bending magnet, stopping calculating CSR")
 
-                else:
-                    CSR_blocker = False
-
+                #else:
+                #    CSR_blocker = False
+                CSR_blocker = False
                 
                 
                 if self.CSR_params.compute_CSR and (not CSR_blocker):

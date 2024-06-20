@@ -131,7 +131,7 @@ class DF_tracker:
 
     def configure_params(self, xbins=100, zbins=100, xlim=5, zlim=5,
                          filter_order=0, filter_window=0,
-                         velocity_threhold=5):
+                         velocity_threhold=5, upper_limit = None):
         self.xbins = xbins
         self.zbins = zbins
         self.xlim = xlim
@@ -140,6 +140,7 @@ class DF_tracker:
 
         self.filter_order = filter_order
         self.filter_window = filter_window
+        self.upper_limit = upper_limit
 
     def get_DF(self, x, z, px, t):
         # Todo: add filter, add different depositing type
@@ -355,6 +356,11 @@ class DF_tracker:
             xbins = int(500 * t_x)
             zbins = int(500 * t_z)
 
+            if isinstance(self.upper_limit, int):
+                xbins = min(xbins, self.upper_limit)
+                zbins = min(zbins, self.upper_limit)
+
+            print("xbins =", xbins, " zbins = ", zbins)
 
             self.sigma_x_interp = max_sigma_x
             self.sigma_z_interp = max_sigma_z
