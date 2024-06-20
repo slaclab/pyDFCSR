@@ -12,7 +12,7 @@ dependencies:
   - matplotlib
   - mpi4py
   - numba
-  - numpy
+  - numpy <2
   - pyyaml
   - pytest
   - scipy
@@ -20,3 +20,5 @@ dependencies:
   - pip:
       # Install this package as well
       - .
+      # Install bmad-x from git until it's available on conda-forge:
+      - git+https://github.com/bmad-sim/Bmad-X/
