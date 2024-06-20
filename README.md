@@ -2,8 +2,8 @@
 
 Fast 2D/3D CSR simulation with Python
 
-
 ## Installation
+
 ### Requirements
 
 - distgen
@@ -12,14 +12,16 @@ Fast 2D/3D CSR simulation with Python
 - mpi4py
 - numba
 - numpy
+- pytorch
 - pyyaml
 - scipy
-- Bmad-X is required from https://github.com/bmad-sim/Bmad-X
+- [Bmad-X](https://github.com/bmad-sim/Bmad-X)
 
 For the examples:
 
 - jupyterlab
 - ipympl
+
 ### Using conda
 
 To install pyDFCSR using conda, perform the following:
@@ -31,15 +33,7 @@ conda env create -n pydfcsr -f environment.yml
 conda activate pydfcsr
 ```
 
-To install Bmad-X
-
-```bash
-git clone https://github.com/bmad-sim/Bmad-X.git
-cd Bmad-X
-pip install --no-dependencies -e .
-```
-
-The new environment ``pydfcsr`` contains JupyterLab. You can then try the examples in
+The new environment `pydfcsr` contains JupyterLab. You can then try the examples in
 the directory [pyDFCSR_2D/example/](pyDFCSR_2D/example/).
 
 ```bash
@@ -58,6 +52,6 @@ cd /path/to/pyDFCSR  # replace this with the top-level directory of your clone
 python -m pip install -e .
 ```
 
-The ``pip install`` line will make a "development" install of this library so
+The `pip install` line will make a "development" install of this library so
 that you don't have to reinstall the library after each modification to its
 code.
