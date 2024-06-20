@@ -119,7 +119,11 @@ class Beam():
             dxps = interp(np.array([self.x_transform, self.z]).T)
             #self.particle.px += dxps
             px_new = self.particle.px + dxps
-            self.particle = Particle(self.particle.x, px_new,
+        
+        else:
+            px_new = self.particle.px
+
+        self.particle = Particle(self.particle.x, px_new,
                                  self.particle.y, self.particle.py,
                                  self.particle.z, pz_new,
                                  self.particle.s, self.particle.p0c, self.particle.mc2)
