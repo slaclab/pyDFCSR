@@ -92,7 +92,7 @@ def histogram_cic_2d(q1, q2, w,
 class DF_tracker:
     """
     The class for the 'distribution function' (DF) of a beam
-    Doesn't handle the discrete data of the DF, rather it stores and compute the beam characteristics
+    Doesn't handle the discrete data of the DF, rather it stores and compute the beam characteristics (ie tracker)
     """
     def __init__(self, input_dic={}):
         """
@@ -105,7 +105,7 @@ class DF_tracker:
         # Initalize the optional parameters
         self.configure_params(**input_dic)
 
-        #params for current DF
+        # Params for current DF, basically what the distribution function looks like 'now'
         self.sigma_x = None
         self.sigma_z = None
         self.density = None
@@ -118,7 +118,8 @@ class DF_tracker:
         self.start_time = 0.0
         self.t = 0.0
 
-        #params for DF log
+        # Params for DF log
+        # The DF log stores all the data about the DF in the past
         self.slope_log = deque([])
         self.DF_log = deque([])
         self.sigma_x_log = deque([])
@@ -158,6 +159,10 @@ class DF_tracker:
     def get_DF(self, x, z, px, t):
         """
         Given the discrete data of the distribution function (in 2D), computes the beam characteristics
+        parameters - x: 
+                     y:
+                     px:
+                     t: int, the time at which the DF is shaped like this 
         """
 
         # Todo: add filter, add different depositing type
@@ -294,7 +299,6 @@ class DF_tracker:
             self.time_interp.popleft()
             self.interp_start = self.time_interp[0]
 
-
     def pop_right_DF(self):
         """
         pop the newest DF from the log
@@ -305,8 +309,6 @@ class DF_tracker:
         self.sigma_x_log.pop()
         self.sigma_z_log.pop()
         self.end_time = self.time_log[-1]
-
-
 
     def DF_interp(self, DF, x_grid_interp = None, z_grid_interp = None, x_grids = None, z_grids = None, fill_value = 0.0):
         if x_grids is None:
@@ -400,7 +402,6 @@ class DF_tracker:
                 self.vx_x_interp.append(current_vx_x_interp)
 
             #print('Re-interpolation finished!')
-
 
     def build_interpolant(self):
         """

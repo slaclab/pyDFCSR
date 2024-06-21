@@ -22,7 +22,6 @@ class Integration_params:
         self.zbins = zbins
         self.xbins = xbins
 
-
 class CSR_params:
     # Todo: Maybe not necessary. Can just be a dictionary with an additional function to parse default values.
     def __init__(self, input_dic = {}):

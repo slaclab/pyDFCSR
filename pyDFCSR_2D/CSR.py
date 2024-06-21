@@ -30,9 +30,11 @@ class CSR2D:
     def __init__(self, input_file=None, parallel = False):
         """
         Creates an instance of the CSR2D class 
-        parameters - input_file: optional, assumed to be a configuration in YMAL file format that can be converted to dict
-                   - parallel: boolean, indicate if parallel processing should be used for computations
-        :return: instance of CSR2D
+        Parameters:
+            input_file: optional, assumed to be a configuration in YMAL file format that can be converted to dict
+            parallel: boolean, indicate if parallel processing should be used for computations
+        Returns:
+            instance of CSR2D
         """
 
         self.timestamp = isotime()
@@ -44,10 +46,13 @@ class CSR2D:
             self.input_file = input_file
         
         self.formation_length = None
-        self.initialization()  # process the initial beam
+        
+        # 'process' the initial beam (just read the doctring for more info)
+        self.initialization()  
 
         self.prefix = f'{self.CSR_params.write_name}-{self.timestamp}'
 
+        # If we are using parallel computing, initialize MPI
         if parallel:
             self.init_MPI()
         else:
@@ -55,11 +60,12 @@ class CSR2D:
 
     def parse_input(self, input_file):
         """
-        Given an input_file, we parse it into a dictionary
-        parameters - input_file: configuration YAML file data, assumed to be either type string indicating file path
-                                 or type stream
-        :return: nothing, although defines many class attributes and creates instances of Beam, Lattice, DF_Tracker, 
-                 CSR_integration, and CSR_computation
+        Given an input_file, we parse it into a dictionary. Defines many class attributes and creates 
+        instances of Beam, Lattice, DF_Tracker, CSR_integration, and CSR_computation.
+        Parameters:
+            input_file: configuration YAML file data, assumed to be either type string indicating
+                        file path or type stream
+        :return:
         """
 
         # Convert yaml data into dict
@@ -91,19 +97,34 @@ class CSR2D:
 
     def initialization(self):
         """
-        deposit the initial beam
+        'Deposit' the initial beam. This consists of creating the initial DF (attribute already initialized),
+        logging the DF, and initializing the statistics dictionary.
         :return:
         """
+
+        # Give the DF_tracker our inital beam distribution so that it computes initial beam characteristics
         self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
+        
+        # Log these initial beam characteristics to the DF_tracker log
         self.DF_tracker.append_DF()
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
                                            n_formation_length=self.integration_params.n_formation_length)
+                                           
         #Todo: add more flexible unit conversion, for both charge and energy
         self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
         self.init_statistics()
 
     def init_statistics(self):
+        """
+        Initialize the statitics dictionary, a class attribute that stores the twiss of the beam at each 
+        step (also a dictionary) and other various statistics. All statistics are a np array which have an
+        element for each 'step' in the lattice.
+        """
+
+        # The number of steps in the lattice
         Nstep = self.lattice.total_steps
+
+        # Preallocate size based upon Nstep of np arrays for speed
         self.statistics = {}
         self.statistics['twiss'] = {'alpha_x': np.zeros(Nstep),
                                     'beta_x': np.zeros(Nstep),
@@ -128,8 +149,8 @@ class CSR2D:
         self.statistics['mean_z'] = np.zeros(Nstep)
         self.statistics['mean_energy'] = np.zeros(Nstep)
 
+        # Fill the first step of statistics with the initial beam stats
         self.update_statistics(step = 0)
-
 
         self.inbend = False
         self.afterbend = False
@@ -137,6 +158,9 @@ class CSR2D:
         self.phi_rec = None
 
     def init_MPI(self):
+        """
+        Sets up for parallel processing
+        """
         self.parallel = True
         comm = MPI.COMM_WORLD
         self.rank = comm.Get_rank()
@@ -150,10 +174,12 @@ class CSR2D:
     def check_input_consistency(self, input):
         """
         Checks to make sure that the dictionary we are using for our configuration has the correct format
-        parameters - input: the dictionary in question
-        :return: returns nothing if the dictionary has the correct format, if not asserts what is wrong
+        Parameters:
+            input: the dictionary in question
+        Returns:
+            returns nothing if the dictionary has the correct format, if not asserts what is wrong
         """
-        # Todo: need modification if dipole_config.yaml format changed
+        # TODO: need modification if dipole_config.yaml format changed
         # Must be given a beam and a lattice
         self.required_inputs = ['input_beam', 'input_lattice']
 
@@ -845,6 +871,7 @@ class CSR2D:
             g2.create_dataset('x_grids', data = self.CSR_xmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('z_grids', data = self.CSR_zmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('xkicks', data = self.x_kick)
+
 #    @profile
     def update_statistics(self, step):
         twiss = self.beam.twiss
@@ -869,6 +896,7 @@ class CSR2D:
         self.statistics['mean_x'][step] = self.beam._mean_x
         self.statistics['mean_z'][step] = self.beam._mean_z
         self.statistics['mean_energy'][step] = self.beam.mean_energy
+
     def write_statistics(self):
 
         if self.parallel and self.rank != 0:
