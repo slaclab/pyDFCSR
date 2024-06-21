@@ -62,7 +62,8 @@ def openpmd_to_bmadx_particles(
         mc2 = mc2)
     return particle
 
-def bmadx_particles_to_openpmd(particle: Particle):
+
+def bmadx_particles_to_openpmd(particle: Particle, charge):
     """
     Transforms bmadx Particle to openPMD-beamphysics ParticleGroup.
 
@@ -111,7 +112,7 @@ def bmadx_particles_to_openpmd(particle: Particle):
     dat['t'] = (particle.s - z) / (C_LIGHT * beta)
 
     dat['status'] = np.ones_like(x, dtype=int)
-    dat['weight'] = np.ones_like(x) * E_CHARGE
+    dat['weight'] = np.ones_like(x) * charge/len(x)
 
     if np.isclose(particle.mc2, M_ELECTRON):
         dat['species'] = 'electron'

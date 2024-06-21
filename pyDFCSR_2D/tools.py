@@ -53,8 +53,8 @@ def plot_2D_contour(x, y, z, title = None):
     surf = ax.imshow(z, extent=(np.min(x)*1e6, np.max(x)*1e6, np.min(y)*1e6, np.max(y)*1e6), origin='lower',  cmap='seismic')
 
     fig.colorbar(surf, shrink=0.5, aspect=5)
-    plt.xlabel('y ($\mu m$)')
-    plt.ylabel('x ($\mu m$)')
+    plt.xlabel(r'y ($\mu m$)')
+    plt.ylabel(r'x ($\mu m$)')
     if title:
         plt.title(title)
     plt.show()
