@@ -62,7 +62,6 @@ def openpmd_to_bmadx_particles(
         mc2 = mc2)
     return particle
 
-
 def bmadx_particles_to_openpmd(particle: Particle, charge):
     """
     Transforms bmadx Particle to openPMD-beamphysics ParticleGroup.

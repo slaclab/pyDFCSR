@@ -27,11 +27,11 @@ class CSR2D:
     The main class to calculate 2D CSR
     """
 
-    def __init__(self, input_file=None, parallel = False):
+    def __init__(self, input_file, parallel = False):
         """
-        Creates an instance of the CSR2D class 
+        Creates an instance of the CSR2D class
         Parameters:
-            input_file: optional, assumed to be a configuration in YMAL file format that can be converted to dict
+            input_file: assumed to be a configuration in YMAL file format that can be converted to dict
             parallel: boolean, indicate if parallel processing should be used for computations
         Returns:
             instance of CSR2D
@@ -39,16 +39,15 @@ class CSR2D:
 
         self.timestamp = isotime()
 
-        # If given an input file, parse it into a dictionary and create instances of Beam, Lattice, DF_Tracker, 
+        # Given an input file, parse it into a dictionary and create instances of Beam, Lattice, DF_Tracker,
         # CSR_integration, and CSR_computation
-        if input_file:
-            self.parse_input(input_file)
-            self.input_file = input_file
-        
+        self.parse_input(input_file)
+        self.input_file = input_file
+
         self.formation_length = None
-        
+
         # 'process' the initial beam (just read the doctring for more info)
-        self.initialization()  
+        self.initialization()
 
         self.prefix = f'{self.CSR_params.write_name}-{self.timestamp}'
 
@@ -60,7 +59,7 @@ class CSR2D:
 
     def parse_input(self, input_file):
         """
-        Given an input_file, we parse it into a dictionary. Defines many class attributes and creates 
+        Given an input_file, we parse it into a dictionary. Defines many class attributes and creates
         instances of Beam, Lattice, DF_Tracker, CSR_integration, and CSR_computation.
         Parameters:
             input_file: configuration YAML file data, assumed to be either type string indicating
@@ -104,19 +103,19 @@ class CSR2D:
 
         # Give the DF_tracker our inital beam distribution so that it computes initial beam characteristics
         self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
-        
+
         # Log these initial beam characteristics to the DF_tracker log
         self.DF_tracker.append_DF()
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
                                            n_formation_length=self.integration_params.n_formation_length)
-                                           
+
         #Todo: add more flexible unit conversion, for both charge and energy
         self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
         self.init_statistics()
 
     def init_statistics(self):
         """
-        Initialize the statitics dictionary, a class attribute that stores the twiss of the beam at each 
+        Initialize the statitics dictionary, a class attribute that stores the twiss of the beam at each
         step (also a dictionary) and other various statistics. All statistics are a np array which have an
         element for each 'step' in the lattice.
         """
@@ -149,9 +148,10 @@ class CSR2D:
         self.statistics['mean_z'] = np.zeros(Nstep)
         self.statistics['mean_energy'] = np.zeros(Nstep)
 
-        # Fill the first step of statistics with the initial beam stats
+        # Populate first step of statistics with the initial beam stats
         self.update_statistics(step = 0)
 
+        # ??? Why are these here?
         self.inbend = False
         self.afterbend = False
         self.R_rec = None
@@ -159,7 +159,7 @@ class CSR2D:
 
     def init_MPI(self):
         """
-        Sets up for parallel processing
+        Set up for parallel processing
         """
         self.parallel = True
         comm = MPI.COMM_WORLD
@@ -185,7 +185,7 @@ class CSR2D:
 
         allowed_params = self.required_inputs + ['particle_deposition', 'distribution_interpolation', 'CSR_integration',
                                                  'CSR_computation']
-        
+
         # Make sure all keys in input are allowed
         for input_param in input:
             assert input_param in allowed_params, f'Incorrect param given to {self.__class__.__name__}.__init__(**kwargs): {input_param}\nAllowed params: {allowed_params}'
@@ -200,10 +200,19 @@ class CSR2D:
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
-    def get_bmadx_element(self, ele, type, DL, entrance = False, exit = False):
+    def get_bmadx_element(self, ele, DL, entrance = False, exit = False):
+        """
+        Creates a bmadx_element object from the given element parameters
+        Parameters:
+            ele: dictionary, a lattice element
+            DL: ?
+        Returns:
+            element: bmadx_element object
+        """
         L = self.lattice.lattice_config[ele]['L']
         type = self.lattice.lattice_config[ele]['type']
 
+        # For each element type bmadx has a different class
         if type == 'dipole':
             angle = self.lattice.lattice_config[ele]['angle']
             E1 = self.lattice.lattice_config[ele]['E1']
@@ -215,7 +224,6 @@ class CSR2D:
 
             elif entrance:
                 element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=E1, E2=0.0)
-
 
             elif exit:
                 element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=E2)
@@ -238,49 +246,59 @@ class CSR2D:
 
 #    @profile
     def run(self, stop_time = None, debug = False):
+        """
+        Computes the CSR wake using the configurations setup in __init__
+        :return:
+        """
 
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
 
-        step_count = 1
-
         DL = self.lattice.step_size
-        ele_count = 0
-        skip_ele = False
-        self.inbend = False
-        self.afterbend = False
-        self.formation_length = 0.0
 
+        # Define numerous loop variables:
+        step_count = 1          # current step, note that it starts at 1
+        ele_count = 0           # current element
+        skip_ele = False        # skip current element?
+        self.inbend = False     # does the current element have a bend in the reference trajectory?
+        self.afterbend = False  # did the previous element have a bend in the reference trajectory?
+        self.formation_length = 0.0 # ??? formulation length???
+
+        # Compute the CSR wake in each element of the lattice, ele is a dictionary representing a lattice element
         for ele in list(self.lattice.lattice_config.keys())[1:]:
 
+            # Update the lattice with the current element
             self.lattice.update(ele)
+
             # Todo: add sextupole, maybe Bmad Tracking?
             # -----------------------load current lattice params-----------------#
             # Pre-process the lattice params
-            L = self.lattice.lattice_config[ele]['L']
+            L = self.lattice.lattice_config[ele]['L']           # length of the lattice element
             type = self.lattice.lattice_config[ele]['type']
             steps = self.lattice.steps_per_element[ele_count]
-            R = float('inf')
+            R = float('inf')                                    # ???
 
             ####### A step over the boundary of the elements, deal with the part of the step in the previous element
             if (not skip_ele) and ele_count > 0:
-                DL_1 = self.lattice.distance[ele_count - 1] - self.beam.position   # The remaining distance in last element
-                #Todo: Bmadx seems to have some problems when DL is very
+                # The distance that remains in the previous element
+                DL_1 = self.lattice.distance[ele_count - 1] - self.beam.position
+
+                #Todo: Bmadx seems to have some problems when DL is very small
                 if DL_1 > 1.0e-6:
-                # calculate the part in the previous element
+                    # Create bmadx element object for the previous element
                     element = self.get_bmadx_element(ele=ele_prev, type=type_prev, DL=DL_1, exit=True)
                     self.beam.track(element, DL_1, update_step=False)
+
                 else:
                     DL_1 = 0.0
-            # If no steps inside an element
+
+            # If there are no steps inside an element
             if steps == 0:    #If one step over the whole element
                 skip_ele = True
                 element = self.get_bmadx_element(ele=ele, type=type, DL=L, exit=True, entrance = True)
                 self.beam.track(element, L, update_step=False)
 
-
-
-
+            #  Dipole case must be handled separately becuase of bend
             if type == 'dipole':
                 angle = self.lattice.lattice_config[ele]['angle']
                 R = L / angle
@@ -294,7 +312,7 @@ class CSR2D:
                 self.get_formation_length(R=R, sigma_z=5*self.beam.sigma_z, inbend = True)
 
 
-            else:  # If not in a bend
+            else:
                 self.inbend = False
 
                 if self.afterbend:
@@ -326,17 +344,21 @@ class CSR2D:
                     skip_ele = False    # Reset the flag
 
                 else:
+                    # Create bmadx element and propagate the beam through it for one step
                     element = self.get_bmadx_element(ele = ele, type = type, DL = DL)
-                    # Propagate beam for one step
                     self.beam.track(element, DL)
+
+                    # Record distance travelled
                     distance_in_current_ele += DL
 
-
+                # We compute the CSR
                 if debug or self.CSR_params.compute_CSR:
-                    # get the density functions
+                    # Input what what our beam looks like currently to get the density functions
                     self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
-                    # append the density functions to the log
+
+                    # Append the density functions to the log
                     self.DF_tracker.append_DF()
+
                     # append 3D matrix for interpolation with the new DFs by interpolation
                     #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
@@ -354,17 +376,19 @@ class CSR2D:
                 #else:
                 #    CSR_blocker = False
                 CSR_blocker = False
-                
-                
+
+                # ???
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
                     if step % self.lattice.nsep[ele_count] == 0:
                         # calculate CSR mesh given beam shape
                         self.get_CSR_mesh()
+
                         # Calculate CSR on the mesh
                         if self.parallel:
                             self.calculate_2D_CSR_parallel()
                         else:
                             self.calculate_2D_CSR()
+
                         # Apply CSR kick to the beam
                         if self.CSR_params.apply_CSR:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
@@ -376,7 +400,7 @@ class CSR2D:
                         if self.CSR_params.write_wakes:
                             self.write_wakes()
 
-                # recording statistics at each step
+                # Record statistics at each step
                 self.update_statistics(step = step_count)
 
                 if not self.parallel or self.rank == 0:
@@ -430,7 +454,7 @@ class CSR2D:
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
-    
+
 #    @profile
     def calculate_2D_CSR(self):
 
@@ -504,8 +528,8 @@ class CSR2D:
         x0 = (s-t)*self.beam._slope[0]
         xmean = self.beam._mean_x
 
-        
-        ######### For Debug ########################################################## 
+
+        ######### For Debug ##########################################################
         if np.abs(tan_theta) <= 1:  # if theta <45 degre, the chirp band can be ignored. theta is the angle in z-x plane
             ignore_vx = False
         else:
@@ -530,7 +554,7 @@ class CSR2D:
             if tan_theta > 0:
                 tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
                 d = (10 * sigma_x + xmean - x) / tan_alpha
-                
+
                 s4 = s + 3 * sigma_z
                 s3 = np.max((0, s - d))
                 s2 = s3 - 200 * sigma_z
@@ -538,7 +562,7 @@ class CSR2D:
                 # area 1
                 x1_l = x + 0.1 * sigma_x
                 x1_r = x + 10 * sigma_x
-        
+
                 # area 2
                 x2_l = x - 3 * sigma_x
                 x2_r = x1_l
@@ -554,7 +578,7 @@ class CSR2D:
             else:
                 tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
                 d = -(xmean - x - 10 * sigma_x) / tan_alpha
-                
+
                 s4 = s + 3 * sigma_z
                 s3 = np.max((0, s - d))
                 s2 = s3 - 200 * sigma_z
@@ -562,20 +586,20 @@ class CSR2D:
                 # area 1
                 x1_l = x - 10 * sigma_x
                 x1_r = x - 1 * sigma_x
-                
+
                 # area 2
                 x2_l = x1_r
                 x2_r = x + 3 *sigma_x
-  
+
                 # area 3
                 x3_l = x0 - 5 * sigma_x
                 x3_r = x0 + 5 * sigma_x
 
                 x4_l = x0 - 20 * sigma_x
                 x4_r = x0 + 20 * sigma_x
-        
+
         s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
-       
+
         if chirp_band:
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)
             sp2 = np.linspace(s2, s3, self.integration_params.zbins)
@@ -633,13 +657,13 @@ class CSR2D:
             CSR_integrand_z3, CSR_integrand_x3 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh3, sp=sp_mesh3, ignore_vx = ignore_vx)
             dE_dct3 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z3, x=xp_n, axis=0), x=sp3)
             x_kick3 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x3, x=xp_n, axis=0), x=sp3)
-            
+
             if debug:
                 return xp_w, xp_n,  sp1, sp2, sp3, CSR_integrand_z1, CSR_integrand_x1,CSR_integrand_z2, CSR_integrand_x2,CSR_integrand_z3, CSR_integrand_x3
             else:
                 return dE_dct1 + dE_dct2 + dE_dct3, x_kick1 + x_kick2 + x_kick3
-          
-          
+
+
     def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False):
 
         #vx = self.DF_tracker.F_vx([t, x, s - t])
@@ -917,22 +941,3 @@ class CSR2D:
             hf.create_dataset(name='n_vec', data=self.lattice.n_vec)
             hf.create_dataset(name='tau_vec', data=self.lattice.tau_vec)
             dict2hdf5(hf, self.statistics)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

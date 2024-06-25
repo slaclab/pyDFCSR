@@ -9,6 +9,7 @@ from bmadx import track_element
 from pmd_beamphysics import ParticleGroup
 #from line_profiler_pycharm import profile
 from .twiss import  twiss_from_bmadx_particles
+
 class Beam():
     """
     Beam class to initialize, track and apply wakes
@@ -30,7 +31,8 @@ class Beam():
         # Indicates how the beam settings are stored
         self.style = input_beam['style']
 
-        # There are 3 ways beam settings can be stored: 
+        # Create a bmadx Particle instance using beam settings
+        # There are 3 ways beam settings can be stored
         # 1: from a .dat file path inside the input_beam dictionary 
         # 2: from a YAML distgen file path inside the input_beam dictionary
         # 3: from a h5 file???
@@ -71,10 +73,11 @@ class Beam():
             self.particle = openpmd_to_bmadx_particles(pg, self._init_energy, 0.0, MC2)  # Bmad X particle
             #self.particleGroup = pg  # Particle Group
 
-            # unchanged, initial energy and gamma
+        # unchanged, initial energy and gamma
         self._init_gamma = self._init_energy/MC2
         #self._n_particle = self.particles.shape[0]
 
+        # Used during CSR wake computations
         self.position = 0
         self.step = 0
 
@@ -111,6 +114,9 @@ class Beam():
 
 #    @profile
     def update_status(self):
+        """
+        Updates the internal status attributes of the object based on the current state of other related attributes
+        """
         #self.particleGroup = bmadx_particles_to_openpmd(self.particle)
         self._sigma_x = self.sigma_x
         self._sigma_z = self.sigma_z
@@ -124,8 +130,20 @@ class Beam():
 
  #   @profile
     def track(self, element, step_size, update_step=True):
+        """
+        Moves the beam through a step in the lattice
+        Parameters:
+            element: bmadx element obj
+            step_size: the length of the step
+        """
+
+        # Use bmadx to move the particle object
         self.particle = track_element(self.particle, element)
+
+        # Update our current position
         self.position += step_size
+
+        # ??? Why would we do this
         if update_step:
             self.step += 1
         self.update_status()
