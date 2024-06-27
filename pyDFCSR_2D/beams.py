@@ -33,7 +33,7 @@ class Beam():
 
         # Create a bmadx Particle instance using beam settings
         # There are 3 ways beam settings can be stored
-        # 1: from a .dat file path inside the input_beam dictionary 
+        # 1: from a .dat file path inside the input_beam dictionary
         # 2: from a YAML distgen file path inside the input_beam dictionary
         # 3: from a h5 file???
 
@@ -94,7 +94,7 @@ class Beam():
         # The input_beam must have a style key, indicating in what format the beam parameters are stored in
         assert 'style' in input_beam, 'ERROR: input_beam must have keyword <style>'
 
-        # The beam parameters can be stored either in another YAML file, 
+        # The beam parameters can be stored either in another YAML file,
         if input_beam['style'] == 'from_file':
             self.required_inputs = ['style', 'beamfile', 'charge','energy']
         elif input_beam['style'] == 'distgen':
@@ -143,7 +143,7 @@ class Beam():
         # Update our current position
         self.position += step_size
 
-        # ??? Why would we do this
+        # When a step contains 2 lattice elements, we need to call this function twice, in this case we should not uopdate the step count
         if update_step:
             self.step += 1
         self.update_status()
@@ -163,7 +163,7 @@ class Beam():
             dxps = interp(np.array([self.x_transform, self.z]).T)
             #self.particle.px += dxps
             px_new = self.particle.px + dxps
-        
+
         else:
             px_new = self.particle.px
 
@@ -178,7 +178,7 @@ class Beam():
         # Todo: track half step, apply kicks, track another half step
         pass
 
-    ### Various properties of the beam ### 
+    ### Various properties of the beam ###
     @property
     def mean_x(self):
         return np.mean(self.particle.x)
@@ -241,13 +241,16 @@ class Beam():
 
     @property
     def slope(self):
+        """
+        :return: the slope of the line of best fit for each (x,z) point
+        """
         p = np.polyfit(self.z, self.x, deg=1)
         return p
 
     @property
     def x_transform(self):
         """
-        :return: x coordinates after removing the x-z chirp
+        :return: x coordinates after removing the x-z chirp (will make a tilted distribution virtical in x direction)
         """
         return self.x - np.polyval(self.slope, self.z)
 

@@ -5,9 +5,7 @@ import numpy as np
 import torch
 import sys
 
-
 # Modified from https://github.com/bmad-sim/Bmad-X
-
 
 from pmd_beamphysics import ParticleGroup
 def openpmd_to_bmadx_coords(
@@ -119,4 +117,3 @@ def bmadx_particles_to_openpmd(particle: Particle, charge):
         raise ValueError('only electrons are supported as of now')
 
     return ParticleGroup(data=dat)
-

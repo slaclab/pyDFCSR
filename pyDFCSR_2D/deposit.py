@@ -40,7 +40,6 @@ def histogram_cic_1d(q1, w, nbins, bins_start, bins_end):
 
     return (hist_data)
 
-
 @jit(nopython = True)
 def histogram_cic_2d(q1, q2, w,
                      nbins_1, bins_start_1, bins_end_1,
@@ -97,9 +96,11 @@ class DF_tracker:
     def __init__(self, input_dic={}):
         """
         Initializes the DF tracker
-        parameters - input_dic: optional, a dictionary mapping various optional parameters (keys) to 
-                                their values that can be specified if desired
-        :return:
+        Parameters:
+            input_dic: optional, a dictionary mapping various optional parameters (keys) to
+                       their values that can be specified if desired
+        Returns:
+            Instance of DF_Tracker
         """
 
         # Initalize the optional parameters
@@ -111,10 +112,16 @@ class DF_tracker:
         self.density = None
         self.density_x = None
         self.density_z = None
+
+        # Velocity and velcoity graident histograms
         self.vx = None
         self.vx_x = None
+
+        # Integration mesh coordinates
         self.x_grids = None
         self.z_grids = None
+
+        # Some timing variables
         self.start_time = 0.0
         self.t = 0.0
 
@@ -126,10 +133,10 @@ class DF_tracker:
         self.sigma_z_log = deque([])
         self.time_log = deque([])
 
-        #params for interpolant
+        # Params for interpolant
         self.sigma_x_interp = None
         self.sigma_z_interp = None
-        # Todo: Add chirp
+        # TODO: Add chirp
         self.time_interp = deque([])
         self.density_interp = deque([])
         self.density_x_interp = deque([])
@@ -148,95 +155,124 @@ class DF_tracker:
         Initalizes the optional parameters
         """
 
+        # Number of bins allocated for the histogram in x and z direction
         self.xbins = xbins
         self.zbins = zbins
+
+        # The number of standard deviations away from the mean (in both directions) for our histogram
         self.xlim = xlim
         self.zlim = zlim
+
+        # 1/(proportion of the highest occupied bin)
+        # TODO: make this a proportion
         self.velocity_threhold = velocity_threhold
 
-        self.filter_order = filter_order
-        self.filter_window = filter_window
+        # Savitzky-Golay filter settings
+        self.filter_order = filter_order # The order of the polynomial used to fit the samples
+        self.filter_window = filter_window # The length of the filter_window, must be positive and odd
+
+        # The maximum number of bins for
         self.upper_limit = upper_limit
 
     def get_DF(self, x, z, px, t):
         """
         Given the discrete data of the distribution function (in 2D), computes the beam characteristics
-        parameters - x: 
-                     y:
-                     px:
-                     t: int, the time at which the DF is shaped like this 
+        Parameters:
+            x: array, x position of each particle
+            z: array, z position of ...
+            px: array, px phase space position of ...
+            t: int, the time at which the DF is shaped like this
         """
-
-        # Todo: add filter, add different depositing type
-        sigma_x = np.std(x)
-        sigma_z = np.std(z)
-        self.sigma_x = sigma_x
-        self.sigma_z = sigma_z
+        # TODO: add filter, add different depositing type
+        # Compute basic beam characteristics
+        self.sigma_x = np.std(x)
+        self.sigma_z = np.std(z)
         self.xmean = np.mean(x)
         self.zmean = np.mean(z)
         npart = len(x)
 
-        #########test#######################
-        #Todo: coordinates transform for highly chirped case
-        slice_ind = np.argwhere(np.abs(z) < 0.1*sigma_z)
+        # The boundaries of the mesh (integration space)
+        x_min = self.xmean - self.xlim * self.sigma_x
+        x_max = self.xmean + self.xlim * self.sigma_x
+        z_min = self.zmean - self.zlim * self.sigma_z
+        z_max = self.zmean + self.zlim * self.sigma_z
+
+        # If the beam is highly tilted, we need to have a higer number of bins to have higher resolution
+        # TODO: coordinates transform for highly chirped case
+        # TODO: find the tilt of the beam a better way, use slide window?
+        # Find indices where the z coordinate is much smaller than the standard deviation (this will be a small slice of the beam)
+        slice_ind = np.argwhere(np.abs(z - self.xmean) < 0.1*self.sigma_z)
+
+        # Gets the standard deviation of the slice
         slice_sigX = np.std(x[slice_ind])
-        frac = sigma_x/slice_sigX
+
+        # The ratio of the std of the slice to the std of the overall beam distribution function
+        frac = self.sigma_x/slice_sigX
+
+        # If our fraction is large (high tilt) we need higher resolution
         if frac > 5:
             xbins_t = self.xbins
             zbins_t = self.zbins
             filter_window = self.filter_window
+
+        # If not, smaller resolution will do
         else:
             xbins_t = 100
             zbins_t = 100
             filter_window = 5
-            #print('frac', frac)
 
-        x_grids = np.linspace(self.xmean - self.xlim * sigma_x, self.xmean + self.xlim * sigma_x, xbins_t)
-        z_grids = np.linspace(self.zmean - self.zlim * sigma_z, self.zmean + self.zlim * sigma_z, zbins_t)
+        # The x and z position of each mesh point
+        x_grids = np.linspace(x_min, x_max, xbins_t)
+        z_grids = np.linspace(z_min, z_max, zbins_t)
+
+        # Create a 2D DF position density histogram
         density = histogram_cic_2d(q1=x, q2=z, w=np.ones(x.shape),
-                                   nbins_1=xbins_t, bins_start_1=self.xmean - self.xlim * sigma_x,
-                                   bins_end_1=self.xmean + self.xlim * sigma_x,
-                                   nbins_2= zbins_t, bins_start_2=self.zmean - self.zlim * sigma_z,
-                                   bins_end_2=self.zmean + self.zlim * sigma_z)
+                                    nbins_1 = xbins_t, bins_start_1 = x_min, bins_end_1 = x_max,
+                                    nbins_2 = zbins_t, bins_start_2 = z_min, bins_end_2 = z_max)
 
+        # Create a 2D DF velocity distribution histogram
         vx = histogram_cic_2d(q1=x, q2=z, w=px,
-                              nbins_1=xbins_t, bins_start_1=self.xmean - self.xlim * sigma_x,
-                              bins_end_1=self.xmean + self.xlim * sigma_x,
-                              nbins_2= zbins_t, bins_start_2=self.zmean - self.zlim * sigma_z,
-                              bins_end_2=self.zmean + self.zlim * sigma_z)
+                                    nbins_1 = xbins_t, bins_start_1 = x_min, bins_end_1 = x_max,
+                                    nbins_2 = zbins_t, bins_start_2 = z_min, bins_end_2 = z_max)
+
+        # The minimum particle number of particles in a bin for that bin to have non zero vx value
         threshold = np.max(density) / self.velocity_threhold
+
+        # Make each mesh element value be equal to the AVERAGE velocity of particles in said element
+        # Only for bins with particle density above the threshold
         vx[density > threshold] /= density[density > threshold]
 
-        # Add filter to density and vx
-        #vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)  # adding this seems to be wrong
-
-
-
-        # Add filter to density and vx
-        #Todo: Consider other 2D sgolay filter
-        #Todo: consider using the derivative in sgoaly filter
+        # Apply 2D Savitzky-Golay to both position density and velocity distribution histogram
+        #TODO: Consider other 2D sgolay filter
+        #TODO: consider using the derivative in sgoaly filter
         #density = sgolay2d(density, self.filter_window, self.filter_order, derivative=None)
         density = savgol_filter(x= savgol_filter(x = density, window_length=filter_window, polyorder=self.filter_order, axis = 0),
                                 window_length=filter_window, polyorder=self.filter_order, axis = 1)
 
+        #vx = sgolay2d(vx, self.filter_window, self.filter_order, derivative=None)  # adding this seems to be wrong
         vx = savgol_filter(x= savgol_filter(x = vx, window_length=filter_window, polyorder=self.filter_order, axis = 0),
                                 window_length=filter_window, polyorder=self.filter_order, axis = 1)
 
+        # Integrate the density function over the integration space using trapezoidal rule
         dsum = np.trapz(np.trapz(density, x_grids, axis=0), z_grids)
+
+        # Normalize the density distirbution historgram
         density /= dsum
 
+        # Set all bins in velocity distribution histogram with low particle count to zero
         vx[density <= threshold] = 0
 
-
-
-        # Todo: how to do it if apply coordiante tranformation?
-
+        # TODO: how to do it if apply coordiante tranformation?
+        # TODO: reanme density_x and other variables to gradient related name
+        # Calculate rate of change (gradient) values at each mesh point for both position and velocity histograms
         density_x, density_z = np.gradient(density, x_grids, z_grids)
         vx_x, vx_z = np.gradient(vx, x_grids, z_grids)
 
+        # Apply 2D Savitzky-Golay to position and velocity gradient histograms
         density_x = savgol_filter(
             x=savgol_filter(x=density_x, window_length=filter_window, polyorder=self.filter_order, axis=0),
             window_length=filter_window, polyorder=self.filter_order, axis=1)
+
         density_z = savgol_filter(
             x=savgol_filter(x=density_z, window_length=filter_window, polyorder=self.filter_order, axis=0),
             window_length=filter_window, polyorder=self.filter_order, axis=1)
@@ -245,18 +281,19 @@ class DF_tracker:
             x=savgol_filter(x=vx_x, window_length=filter_window, polyorder=self.filter_order, axis=0),
             window_length=filter_window, polyorder=self.filter_order, axis=1)
 
-
         #density_x, density_z = sgolay2d(density, self.filter_window, self.filter_order, derivative='both')
         #density_x /= np.mean(np.diff(x_grids))
         #density_z /= np.mean(np.diff(z_grids))
 
-        # Todo: set input for velocity filter
+        # Again filter out the low populated bins
+        # TODO: set input for velocity filter
         #vx_x, _ = sgolay2d(vx, self.filter_window, self.filter_order, derivative='both')
         threshold = np.max(density) / self.velocity_threhold * 8
         #vx_x[density < threshold] = 0
         vx_x[density < threshold] =  np.mean(vx_x[density > threshold])
         #vx_x /= np.mean(np.diff(x_grids))
 
+        # Update the current DF characteristics
         self.x_grids = x_grids
         self.z_grids = z_grids
         self.density = density
@@ -279,9 +316,11 @@ class DF_tracker:
 
     def pop_left_DF(self, new_start_time):
         """
-        pop history of DFs until new_start_time
-        :param new_start_time:
-        :return:
+        Pop history of DFs until new_start_time. Used to remove information about beam that is outside of the formation legnth
+        relative to the new beam position.
+        Parameters:
+            new_start_time: the point in time at which we begin to use past beam distribution functions from to compute CSR wake
+            at a later point in time
         """
         # remove outdated DF log
         while self.start_time < new_start_time:
@@ -303,8 +342,7 @@ class DF_tracker:
 
     def pop_right_DF(self):
         """
-        pop the newest DF from the log
-        :return:
+        Pop the newest DF from the log
         """
         self.DF_log.pop()
         self.time_log.pop()
@@ -313,6 +351,9 @@ class DF_tracker:
         self.end_time = self.time_log[-1]
 
     def DF_interp(self, DF, x_grid_interp = None, z_grid_interp = None, x_grids = None, z_grids = None, fill_value = 0.0):
+        """
+
+        """
         if x_grids is None:
             x_grids = self.x_grids
         if z_grids is None:
@@ -323,13 +364,20 @@ class DF_tracker:
             z_grid_interp = self.z_grid_interp
 
         X, Z = np.meshgrid(x_grid_interp, z_grid_interp, indexing = 'ij')
-        #Todo: check this 2D interpolation
+        #TODO: check this 2D interpolation
         interp = RegularGridInterpolator((x_grids, z_grids), DF, method='linear', fill_value = fill_value, bounds_error=False)
         return interp((X,Z))
 
-
     def append_interpolant(self, formation_length, n_formation_length):
+        """
+        Parameters:
+            formation_length: the formation length of the beam's distribution on the nominal path
+            n_formation_length: the number of formation length that we need to "look" back in time
+        """
+        # The furthest point back in time from which we will compute the CSR wake
         start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
+
+        # Remove all data from the DF logs earlier than start_point
         self.pop_left_DF(new_start_time=start_point)
 
         #xlim_interp = interpolation.xlim
@@ -342,6 +390,7 @@ class DF_tracker:
                     2 > self.sigma_z/self.sigma_z_interp > 1 / 2:
             # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
             self.time_interp.append(self.t)
+
             #self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
             #self.z_grid_interp = np.linspace(self.zmean-zlim_interp*self.sigma_z_interp, self.zmean + zlim_interp*self.sigma_z_interp, zbins)
             current_density_interp = self.DF_interp(DF = self.density)
@@ -349,6 +398,7 @@ class DF_tracker:
             current_density_z_interp = self.DF_interp(DF = self.density_z)
             current_vx_interp = self.DF_interp(DF = self.vx)
             current_vx_x_interp = self.DF_interp(DF = self.vx_x, fill_value=np.mean(self.vx_x))
+
             self.density_interp.append(current_density_interp)
             self.density_x_interp.append(current_density_x_interp)
             self.density_z_interp.append(current_density_z_interp)
@@ -356,7 +406,7 @@ class DF_tracker:
             self.vx_x_interp.append(current_vx_x_interp)
 
         else:
-            #Todo: hard code from matlab. Consider change in the future
+            #TODO: hard code from matlab. Consider change in the future
             print('start reinterpolation. number of slice', str(len(self.time_log)))
             #if self.sigma_x_interp:
             #    if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
@@ -364,6 +414,7 @@ class DF_tracker:
             #    else:
             #        xlim_interp = 10
 
+            # Find the maximum and minimum standard deviation of the distribution function at each time slice since the start_point
             max_sigma_x = np.max(self.sigma_x_log)
             min_sigma_x = np.min(self.sigma_x_log)
             max_sigma_z = np.max(self.sigma_z_log)
@@ -415,12 +466,12 @@ class DF_tracker:
         build interpolant for CSR intergration with the 3D matrix self.*_interp
         :return:
         """
-        #Todo: check fill value
-        #Todo: Important! consider faster 3D interpolation (Cython and parellel with prange, GIL release) https://github.com/jglaser/interp3d, https://ndsplines.readthedocs.io/en/latest/compare.html
-        #Todo: Probably accelerate trapz with jit (parallel) https://berkeley-stat159-f17.github.io/stat159-f17/lectures/09-intro-numpy/trapezoid..html
-        #Todo: Parallel cic with jit?
-        #Todo: Also think about accelerate all numpy with numba.https://towardsdatascience.com/supercharging-numpy-with-numba-77ed5b169240
-        #Todo: Also consider GPU acceleration of trapz and scipy regulargridinterpolant with Cupy
+        #TODO: check fill value
+        #TODO: Important! consider faster 3D interpolation (Cython and parellel with prange, GIL release) https://github.com/jglaser/interp3d, https://ndsplines.readthedocs.io/en/latest/compare.html
+        #TODO: Probably accelerate trapz with jit (parallel) https://berkeley-stat159-f17.github.io/stat159-f17/lectures/09-intro-numpy/trapezoid..html
+        #TODO: Parallel cic with jit?
+        #TODO: Also think about accelerate all numpy with numba.https://towardsdatascience.com/supercharging-numpy-with-numba-77ed5b169240
+        #TODO: Also consider GPU acceleration of trapz and scipy regulargridinterpolant with Cupy
         #self.F_density = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
         #                                         self.density_interp, fill_value= 0.0,bounds_error=False)
         #self.F_density_x = RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
@@ -442,9 +493,3 @@ class DF_tracker:
         self.data_density_x_interp = np.array(self.density_x_interp)
         self.data_vx_interp = np.array(self.vx_interp)
         self.data_vx_x_interp = np.array(self.vx_x_interp)
-
-
-
-
-
-

@@ -109,7 +109,7 @@ class CSR2D:
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
                                            n_formation_length=self.integration_params.n_formation_length)
 
-        #Todo: add more flexible unit conversion, for both charge and energy
+        #TODO: add more flexible unit conversion, for both charge and energy
         self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
         self.init_statistics()
 
@@ -195,6 +195,19 @@ class CSR2D:
             assert req in input, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
 
     def get_formation_length(self, R, sigma_z, phi = 0.0, inbend=True):
+        """
+        Computes the formation length of the nominal path
+        Parameters:
+            sigma_z: RMS beam size (in x direction)
+            R: distance from observation point to retarded point of emittance
+            phi: radius of the beam from origin (only used if in curve)
+            inbend: boolean, indicates if nominal path is bending
+        Returns:
+            Nothing... TODO change this?
+
+        See Fig 18.1 in Classical Mechanics and Electromagnetism
+        in Accelerator Physics for reference
+        """
         if inbend:
             self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
         else:
@@ -205,7 +218,9 @@ class CSR2D:
         Creates a bmadx_element object from the given element parameters
         Parameters:
             ele: dictionary, a lattice element
-            DL: ?
+            DL: distance of the element (if many steps in an element this may be smaller than the entire element)
+            entrance, exit: booleans, if the current slice of the lattice element contains an entrance or exit
+                            relevant only for dipoles
         Returns:
             element: bmadx_element object
         """
@@ -214,11 +229,17 @@ class CSR2D:
 
         # For each element type bmadx has a different class
         if type == 'dipole':
+            # The degree through which the dipole curves the nominal trajectory
             angle = self.lattice.lattice_config[ele]['angle']
+
+            # E1 and E2 are the entrance and exit angles respectively
             E1 = self.lattice.lattice_config[ele]['E1']
             E2 = self.lattice.lattice_config[ele]['E2']
+
+            # Radius of curvature
             G = angle/L
 
+            # If the dipole element we want to create includes an entrance and/or exit it is constructed slightly differently
             if entrance and exit:
                 element = SBend(L = DL, P0C = self.beam.init_energy, G = G, E1 = E1, E2 = E2)
 
@@ -259,10 +280,10 @@ class CSR2D:
         # Define numerous loop variables:
         step_count = 1          # current step, note that it starts at 1
         ele_count = 0           # current element
-        skip_ele = False        # skip current element?
+        skip_ele = False        # skip current element - occurs when entering a new element sometimes
         self.inbend = False     # does the current element have a bend in the reference trajectory?
         self.afterbend = False  # did the previous element have a bend in the reference trajectory?
-        self.formation_length = 0.0 # ??? formulation length???
+        self.formation_length = 0.0 # initialize formation length
 
         # Compute the CSR wake in each element of the lattice, ele is a dictionary representing a lattice element
         for ele in list(self.lattice.lattice_config.keys())[1:]:
@@ -270,88 +291,95 @@ class CSR2D:
             # Update the lattice with the current element
             self.lattice.update(ele)
 
-            # Todo: add sextupole, maybe Bmad Tracking?
-            # -----------------------load current lattice params-----------------#
+            # TODO: add sextupole, maybe Bmad Tracking?
+            # ---------------load current lattice paramaters--------------- #
             # Pre-process the lattice params
             L = self.lattice.lattice_config[ele]['L']           # length of the lattice element
-            type = self.lattice.lattice_config[ele]['type']
-            steps = self.lattice.steps_per_element[ele_count]
-            R = float('inf')                                    # ???
+            type = self.lattice.lattice_config[ele]['type']     # type of lattice element
+            steps = self.lattice.steps_per_element[ele_count]   # number of steps in this lattice element
+            R = float('inf')                                    # radius of curvature of nominal trajectory
 
-            ####### A step over the boundary of the elements, deal with the part of the step in the previous element
+            # When the current step is not in the same element as the previous, we must propagate the beam through the
+            # remainder of the previous element
             if (not skip_ele) and ele_count > 0:
                 # The distance that remains in the previous element
                 DL_1 = self.lattice.distance[ele_count - 1] - self.beam.position
 
-                #Todo: Bmadx seems to have some problems when DL is very small
+                #TODO: Bmadx seems to have some problems when DL is very small
                 if DL_1 > 1.0e-6:
                     # Create bmadx element object for the previous element
                     element = self.get_bmadx_element(ele=ele_prev, type=type_prev, DL=DL_1, exit=True)
+
+                    # Propagate
                     self.beam.track(element, DL_1, update_step=False)
 
                 else:
                     DL_1 = 0.0
 
-            # If there are no steps inside an element
-            if steps == 0:    #If one step over the whole element
+            # If there are no steps inside an element (one step over the whole element),
+            # we propagate the beam through it all at once
+            if steps == 0:
                 skip_ele = True
                 element = self.get_bmadx_element(ele=ele, type=type, DL=L, exit=True, entrance = True)
                 self.beam.track(element, L, update_step=False)
 
+            # ---------------initialize lattice element characteristic variables--------------- #
             #  Dipole case must be handled separately becuase of bend
             if type == 'dipole':
                 angle = self.lattice.lattice_config[ele]['angle']
-                R = L / angle
+                R = L / angle # In dipole this is finite
 
                 self.inbend = True
-
                 self.afterbend = True
+
                 self.R_rec = R
                 self.phi_rec = angle
 
                 self.get_formation_length(R=R, sigma_z=5*self.beam.sigma_z, inbend = True)
 
-
             else:
                 self.inbend = False
 
                 if self.afterbend:
-                    #Todo: Verify the formation length in the drift
+                    # TODO: Verify the formation length in the drift
                     #self.get_formation_length(R=self.R_rec, sigma_z=5*self.beam.sigma_z, phi = self.phi_rec, inbend=False)
                     self.get_formation_length(R=self.R_rec, sigma_z=5 * self.beam.sigma_z, inbend=True)
-
 
                 else:  # if it is the first drift in the lattice
                     self.formation_length += L
 
-
-
+            # ---------------CSR wake tracking--------------- #
             distance_in_current_ele = 0.0
-            # -----------------------tracking---------------------------------
+
+            # loop through all steps in the current element
             for step in range(steps):
                 time0  = time.time()
 
-                # Deal with boundary condition. A step over the boundary of two adjacent elements
+                # _______________Propagate the beam through the slice of the current element_______________ #
+                # For the first step we must propagate the beam only through the current element
+                # At this point, the beam has already been propagated through the entirety of the previous element
                 if (step == 0) and (ele_count > 0):
-                    # If enter a new element, split the step
-
+                    # Compute the length of the remainder of the step
                     DL_2 = self.lattice._positions_record[step_count] - self.lattice.distance[ele_count - 1]
 
-                    # calculate the part in the new element
-                    element = self.get_bmadx_element(ele = ele, type = type, DL = DL_2, entrance = True)
+                    # Propagate the beam through the first step
+                    element = self.get_bmadx_element(ele = ele, DL = DL_2, entrance = True)
                     self.beam.track(element, DL_2)
                     distance_in_current_ele += DL_2
-                    skip_ele = False    # Reset the flag
 
+                    # Reset the flag
+                    skip_ele = False
+
+                # For all steps after the first
                 else:
                     # Create bmadx element and propagate the beam through it for one step
-                    element = self.get_bmadx_element(ele = ele, type = type, DL = DL)
+                    element = self.get_bmadx_element(ele = ele, DL = DL)
                     self.beam.track(element, DL)
 
                     # Record distance travelled
                     distance_in_current_ele += DL
 
-                # We compute the CSR
+                # _______________Compute CSR Wakefield_______________ #
                 if debug or self.CSR_params.compute_CSR:
                     # Input what what our beam looks like currently to get the density functions
                     self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
@@ -363,11 +391,12 @@ class CSR2D:
                     #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
                                                        n_formation_length=self.integration_params.n_formation_length)
+
                     # build interpolant based on the 3D matrix
                     self.DF_tracker.build_interpolant()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
-                #Todo: formation length not correct here
+                #TODO: formation length not correct here
                 #if  self.afterbend and (not self.inbend) and distance_in_current_ele > 3*self.formation_length:
                 #    CSR_blocker = True
                 #    if (not self.parallel) or (self.rank == 0):
@@ -377,10 +406,14 @@ class CSR2D:
                 #    CSR_blocker = False
                 CSR_blocker = False
 
-                # ???
+                # Some debugging checks
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
+
+                    # If we should compute the CSR for this step (some elements are less important and we can skip
+                    # every nsep[ele_count] steps)
                     if step % self.lattice.nsep[ele_count] == 0:
-                        # calculate CSR mesh given beam shape
+
+                        # Calculate CSR mesh given beam shape
                         self.get_CSR_mesh()
 
                         # Calculate CSR on the mesh
@@ -422,34 +455,46 @@ class CSR2D:
 
     def get_CSR_mesh(self):
         """
-        calculating the mesh of observation points by taking linear transformation
+        Calculates the mesh of observation points. Achieves this by linearly transfering the particle distribution
+        to be virtical, creating a mesh on the transformed distribution, and the reversing the original transformation.
         (xmesh, zmesh) TWO 1D arrays representiong (x, z) coordinates on a linear transformed mesh
         :return:
         """
-
+        # Remove any xz tilt (chrip) from the dataset, (rotates the distirbution function to be virtical in x direction)
         x_transform = self.beam.x_transform
+
+        # The x/z slant of the beam distribution function
         p = self.beam.slope
 
+        # Compute the new std and mean of the transformed beam
         sig_x = np.std(x_transform)
         mean_x = np.mean(x_transform)
         sig_z = self.beam.sigma_z
         mean_z = self.beam.mean_z
+
+        # The number of std away from the mean to make the mesh
         xlim = self.CSR_params.xlim
         zlim = self.CSR_params.zlim
         xbins = self.CSR_params.xbins
         zbins = self.CSR_params.zbins
 
+        # Create 2 1D arrays which define the mesh boundaries
         zrange = np.linspace(mean_z - zlim * sig_z, mean_z + zlim * sig_z, zbins)
         xrange = np.linspace(mean_x - xlim * sig_x, mean_x + xlim * sig_x, xbins)
 
-        # Todo: check the order
+        # TODO: check the order
+        # Create mesh
         xmesh_transform, zmesh = np.meshgrid(xrange, zrange, indexing='ij')
 
+        # Make 2D arrays 1D. Once we reverse the transformation we won't really have a clear
+        # "left, right, up, down" view of the mesh from the indexing anymore
         xmesh_transform = xmesh_transform.flatten()
         zmesh = zmesh.flatten()
 
+        # Reverse the transformation made
         xmesh = xmesh_transform +  np.polyval(p, zmesh)
 
+        # Assign our computed variables to their respective class attribute
         self.CSR_xmesh = xmesh
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
@@ -757,7 +802,7 @@ class CSR2D:
                              delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
                              delta_z=self.DF_tracker.delta_z)
 
-        ## Todo: More accurate vx, maybe add vs
+        ## TODO: More accurate vx, maybe add vs
         vs = 1
         vs_ret = 1
         vs_s_ret = 0
@@ -789,7 +834,7 @@ class CSR2D:
 
         div_velocity = vs_s_ret + vx_x_ret  #???
 
-        # Todo: Consider using general form
+        # TODO: Consider using general form
         ## general form
         part1 = velocity_x * velocity_ret_x + velocity_y * velocity_ret_y
         CSR_numerator1 = scale_term * ((velocity_x - part1 * velocity_ret_x) * nabla_density_ret_x  + \
