@@ -101,10 +101,10 @@ class CSR2D:
         :return:
         """
 
-        # Give the DF_tracker our inital beam distribution so that it computes initial beam characteristics
+        # Give the DF_tracker the inital beam distribution so that it computes initial beam characteristics
         self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
 
-        # Log these initial beam characteristics to the DF_tracker log
+        # Log initial beam characteristics to the DF_tracker log
         self.DF_tracker.append_DF()
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
                                            n_formation_length=self.integration_params.n_formation_length)
@@ -409,7 +409,7 @@ class CSR2D:
                 # Some debugging checks
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
 
-                    # If we should compute the CSR for this step (some elements are less important and we can skip
+                    # If we should compute the CSR for this step (some elements require less precision and we can skip
                     # every nsep[ele_count] steps)
                     if step % self.lattice.nsep[ele_count] == 0:
 
@@ -427,9 +427,12 @@ class CSR2D:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count],
                                                   self.CSR_params.transverse_on)
+
+                        # Record data to file if requested
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
                             self.dump_beam(label = step_count)
+
                         if self.CSR_params.write_wakes:
                             self.write_wakes()
 
@@ -444,11 +447,13 @@ class CSR2D:
                 if stop_time and self.beam.position > stop_time:
                     return
 
+            # Redefine some loop variables for the next iteration
             ele_prev = ele
             type_prev = type
 
             ele_count += 1
 
+        # Record data to file
         self.dump_beam(label='end')
         self.write_statistics()
 
@@ -502,12 +507,20 @@ class CSR2D:
 
 #    @profile
     def calculate_2D_CSR(self):
+        """
 
+        """
+        # The total number of mesh elements
         N = self.CSR_params.xbins*self.CSR_params.zbins
+
+        # Initialize ?
         self.dE_dct = np.zeros((N,))
         self.x_kick = np.zeros((N,))
 
+        # Record the time for benchmarking
         start_time = time.time()
+
+        # Loop over all mesh elements
         for i in range(N):
 
             #if i == 210:
@@ -516,9 +529,11 @@ class CSR2D:
             #if i%int(N//10) == 0:
             #    print('Complete', str(np.round(i/N*100,2)), '%')
 
+            # Get the s and x position of the mesh element relative to the nominal path
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
 
+            # Compute the CSR_wake for the element's position
             self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x)
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
@@ -559,32 +574,36 @@ class CSR2D:
 
 #    @profile
     def get_CSR_wake(self, s, x, debug = False):
-
+        """
+        Computes the CSR wake at a specific position
+        Parameters:
+            s, x: position coordinates
+        """
+        # The current beam position
         t = self.beam.position
 
-        #if t >= 0.5:
-        #    print('')
-
+        # std of beam distribution in x and z
         sigma_z = self.beam._sigma_z
         sigma_x = self.beam._sigma_x
+
+        # The slope of the beam's distribution x/z
         tan_theta = self.beam._slope[0]
 
         #TODO： why?
         x0 = (s-t)*self.beam._slope[0]
         xmean = self.beam._mean_x
 
-
         ######### For Debug ##########################################################
         if np.abs(tan_theta) <= 1:  # if theta <45 degre, the chirp band can be ignored. theta is the angle in z-x plane
             ignore_vx = False
         else:
             ignore_vx = False
-
         ############################################################################
 
         chirp_band = False
 
-        if np.abs(tan_theta) <= 1:  # if chirp is small, the chirp band can be ignored. theta is the angle in z-x plane
+        # If the chip is "small" (x/z distribution slanted no more than 45 degree from virtical), ignore chirp band
+        if np.abs(tan_theta) <= 1:
             s2 = s - 500 * sigma_z
             s3 = s - 20*sigma_z
             s4 = s + 5 * sigma_z
@@ -596,6 +615,7 @@ class CSR2D:
 
         else:
             chirp_band = True
+
             if tan_theta > 0:
                 tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
                 d = (10 * sigma_x + xmean - x) / tan_alpha
@@ -618,7 +638,6 @@ class CSR2D:
 
                 x4_l = x0 - 20 * sigma_x
                 x4_r = x0 + 20 * sigma_x
-
 
             else:
                 tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
@@ -710,7 +729,9 @@ class CSR2D:
 
 
     def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False):
+        """
 
+        """
         #vx = self.DF_tracker.F_vx([t, x, s - t])
         vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
                              data=self.DF_tracker.data_vx_interp,
@@ -883,7 +904,6 @@ class CSR2D:
         #CSR_integrand_x = W1
         CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
         CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
-
 
 
         return CSR_integrand_z, CSR_integrand_x

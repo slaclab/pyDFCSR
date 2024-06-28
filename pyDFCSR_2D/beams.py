@@ -12,7 +12,7 @@ from .twiss import  twiss_from_bmadx_particles
 
 class Beam():
     """
-    Beam class to initialize, track and apply wakes
+    Beam class to initialize, track, and apply wakes
     """
     def __init__(self, input_beam):
         """
@@ -150,6 +150,9 @@ class Beam():
 
   #  @profile
     def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on):
+        """
+        Apply the CSR wake to the current position of the beam
+        """
         # Todo: add options for transverse or longitudinal kick only
         dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV
         interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
@@ -242,7 +245,9 @@ class Beam():
     @property
     def slope(self):
         """
-        :return: the slope of the line of best fit for each (x,z) point
+        Computers the line of best fit for (x,z) point distribution.
+        Returns:
+            p = [a,b] where f(x) = a*z + b
         """
         p = np.polyfit(self.z, self.x, deg=1)
         return p
