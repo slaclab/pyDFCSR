@@ -3,11 +3,9 @@ from distgen import Generator
 from .physical_constants import MC2
 from scipy.interpolate import RegularGridInterpolator
 from bmadx import Particle, M_ELECTRON
-#from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
 from .interfaces import  openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
 from bmadx import track_element
 from pmd_beamphysics import ParticleGroup
-#from line_profiler_pycharm import profile
 from .twiss import  twiss_from_bmadx_particles
 
 class Beam():
@@ -35,7 +33,7 @@ class Beam():
         # There are 3 ways beam settings can be stored
         # 1: from a .dat file path inside the input_beam dictionary
         # 2: from a YAML distgen file path inside the input_beam dictionary
-        # 3: from a h5 file???
+        # 3: from a h5 file in particlegroup format
 
         if self.style == 'from_file':
             filename = input_beam['beamfile']
@@ -83,12 +81,13 @@ class Beam():
 
         self.update_status()
 
-
     def check_inputs(self, input_beam):
         """
         Checks to make sure that the dictionary we are using for our inital beam settings has the correct format.
-        parameters - input_beam: the dictionary in question
-        :return: returns nothing if the dictionary has the correct format, if not asserts what is wrong
+        Parameters:
+            input_beam: the dictionary in question
+        Returns:
+            nothing if the dictionary has the correct format, if not asserts what is wrong
         """
 
         # The input_beam must have a style key, indicating in what format the beam parameters are stored in
@@ -121,7 +120,6 @@ class Beam():
         self._sigma_x = self.sigma_x
         self._sigma_z = self.sigma_z
         self._slope = self.slope
-        #self._sigma_x_transform = self.sigma_x_transform
         self._mean_x = self.mean_x
         self._mean_z = self.mean_z
         #self._twiss = self.twiss
@@ -152,24 +150,37 @@ class Beam():
     def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on):
         """
         Apply the CSR wake to the current position of the beam
+        Paramters:
+            dE_dct, x_kick: array corresponding to the energy and momentum change of each csr mesh element
+            xrange, zrange: flatted 2D mesh grid corresponding to the CSR mesh coordinates
+            step_size: the distance between the slices for which CSR is computed
+            transverse_only: booleans, indicates if the transverse wake should be applied
         """
-        # Todo: add options for transverse or longitudinal kick only
+        # TODO: add options for transverse or longitudinal kick only
+        # Convert energy from J/m to eV/init_energy
         dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV
+
+        # Create an interpolator that will transfer the CSR wake from the CSR mesh to the DF mesh
         interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
+
+        # Apply the interpolator to populate the DF mesh
         dE_Es = interp(np.array([self.x_transform, self.z]).T)
-        #self.particle.pz += dE_Es
+
+        # Apply longitudinal kick, note that since the electrons are moving at near the speed of light,
+        # change in momentum is roughly equal to change in energy
         pz_new = self.particle.pz + dE_Es
 
+        # Use the same process as above to apply the transverse wake
         if transverse_on:
             dxp = step_size * x_kick * 1e6 / self.init_energy
             interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0, bounds_error=False)
             dxps = interp(np.array([self.x_transform, self.z]).T)
-            #self.particle.px += dxps
             px_new = self.particle.px + dxps
 
         else:
             px_new = self.particle.px
 
+        # Update the particle object with the new energy and momentum values
         self.particle = Particle(self.particle.x, px_new,
                                  self.particle.y, self.particle.py,
                                  self.particle.z, pz_new,

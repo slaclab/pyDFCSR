@@ -4,17 +4,18 @@ from .yaml_parser import parse_yaml
 def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     """
     A function to get the reference trajectory of partices with given lattice configuration
-    :param lattice_config: dictionary
-           Nsample: the number of points in each element to calculate the traj
-           Ndim:  the dimension of the trajectory
-    :return:
-      s : longitudindal coordinates (Nsample,)
-      coords:  interpolant of coordinate of the trajectory, array (Nsample, Ndim). coord[:,0] = x, coord[:,1] = y
-      tau_vec, n_vec: interpolant of tangential and normal vectors along the trajectory, array (Nsamp, Ndim).
+    Parameters:
+        lattice_config: dictionary
+        Nsample: the number of points over the entire lattice to calculate the traj
+        Ndim:  the dimension of the trajectory
+    Returns:
+        s : longitudindal coordinates (Nsample,)
+        coords:  interpolant of coordinate of the trajectory, array (Nsample, Ndim). coord[:,0] = x, coord[:,1] = y
+        tau_vec, n_vec: interpolant of tangential and normal vectors along the trajectory, array (Nsamp, Ndim).
                         tau_vec[:, 0] x component. tau_vec[:, 1] y component
-      rho: bending radius (1/R) of the trajectory, array (Nsample,)
-      nsep: array, number of steps to compute CSR wake for each lattice element
-      distance: (Nelement,): distance[i] is the distance from the lattice entrance to the end of ith lattice element
+        rho: bending radius (1/R) of the trajectory, array (Nsample,)
+        nsep: array, number of steps to compute CSR wake for each lattice element
+        distance: (Nelement,): distance[i] is the distance from the lattice entrance to the end of ith lattice element
     """
 
     # The number of lattice elements
@@ -23,18 +24,22 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     # distance[i] is the distance between the entrance and the end of ith lattice element
     distance = np.zeros(Nelement)
 
+    # The effective radius of each lattice element
     rho = np.zeros(Nelement)
-    nsep = np.zeros(Nelement)
-    #s = np.zeros(Nelement*Nsample + 1)
 
-    # Loop through each lattice element (ie drift, quad, drift, etc)
-    for count, key in enumerate(list(lattice_config.keys())[1:]):
+    # Compute CSR at every nspep[i] slice in the ith element
+    nsep = np.zeros(Nelement)
+
+    # List of lattice elements
+    keys = list(lattice_config.keys())[1:]
+
+    # Loop through each lattice element (ie drift, quad, drift, etc) and pull charcteristics fom lattice_config
+    for count, key in enumerate(keys):
         current_element = lattice_config[key]
 
         # length of the current element
         L = current_element['L']
 
-        # Number of steps to compute CSR wake within current element
         nsep[count] = current_element['nsep']
 
         # Need to account for reference trajectory curving through dipole
@@ -53,48 +58,47 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
             #s[count*Nsample + 1: (count + 1)*Nsample + 1] = np.linspace(distance[count - 1], distance[count], Nsample + 1)[1:]
     #s[-1] = distance[-1]
 
-    #Todo: I change the definition of s to be equidistant. However, it cannot garanteed that the edge of each element is included.
-    # total length of the lattice 
+    # TODO: I change the definition of s to be equidistant. However, it cannot garanteed that the edge of each element is included.
+    # Total length of the lattice
     L_lattice = distance[-1]
 
-    # Initialize reference trajectory arrays
-    # coordinates along s to calculate the reference traj 
+    # Coordinates along s to calculate the reference traj
     s = np.linspace(0, L_lattice, Nsample)
+
+    # Distance between each slice
     interval = np.mean(np.diff(s))
+
+    # [x, y] pair value for each slice (lab frame)
     coords = np.zeros((Nsample, Ndim))
+
+    # Initalize reference trajectory vector arrays
     tau_vec = np.zeros((Nsample, Ndim))
     n_vec = np.zeros((Nsample, Ndim))
 
-    #rho = np.zeros(Nelement*Nsample + 1)
-
-    # Populate initial values for reference trajectory vectors
-    theta_0 = 0  # te angle between the traj tangential and x axis
+    # Populate 1st element of reference trajectory vectors
+    theta_0 = 0  # the angle between the traj tangential and x axis
     tau_vec[0, 0] = np.cos(theta_0)
     tau_vec[0, 1] = np.sin(theta_0)
     # Todo: High Priority! check the sign of n_vec
     n_vec[0, 0] = np.sin(theta_0)
     n_vec[0, 1] = -1 * np.cos(theta_0)
 
-    # All lattice elements
-    keys = list(lattice_config.keys())[1:]
-
-    # Define counter variables
-    element_infer = 0      # pointer to which element we are in
-    count = 1
+    # Pointer to which element we are in
+    element_infer = 0
 
     # For each reference trajectory point (RTP)
-    for st in s[1:]:
+    for count, st in enumerate(s[1:]):
         # Check to see if current RTP is outside current lattice element
         if st > distance[element_infer]:
             element_infer += 1
 
-        # Change in s from previous RTP (should be uniform rn)
+        # Change in s from previous RTP (should be uniform)
         delta_s = s[count] - s[count - 1]
-        
+
         # The name of the current lattice element
         ele_name = keys[element_infer]
 
-        # Populate the RTP depending on the type of the current element
+        # Populate the reference trajectory variables depending on the type of the current element
         # for dipole (account for curve)
         if lattice_config[ele_name]['type'] == 'dipole':
             L = lattice_config[ele_name]['L']
@@ -129,8 +133,6 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
         n_vec[count, 0] = np.sin(theta_0)
         n_vec[count, 1] = -1*np.cos(theta_0)
 
-        count += 1
-
     return s, rho, distance, nsep, coords, n_vec, tau_vec
 
 class Lattice():
@@ -153,11 +155,11 @@ class Lattice():
 
         # Create lattice dictionary from pathname.yaml
         lattice_config = parse_yaml(self.lattice_input_file)
-        
+
         # Verify that all necessary parameters are present in settings dictionary
         self.check_input(lattice_config)
         self.lattice_config = lattice_config
-        
+
         # Number of lattice elements
         self._Nelement = len(lattice_config) - 1
 
@@ -204,9 +206,9 @@ class Lattice():
         # Array with nth element containing the nth step position
         self._positions_record = np.arange(0, self.lattice_length + self.step_size/2, self.step_size)
         self._total_steps = len(self._positions_record)
-        
-        # ???
-        self._CSR_steps_index = np.array([])                   
+
+        # The indices of the steps which to compute the CSR wake at
+        self._CSR_steps_index = np.array([])
 
         # Initialize with Nelement zeros, records how many steps are inside each lattice element
         self.steps_per_element = np.zeros((self.Nelement,), dtype = int)
@@ -237,7 +239,7 @@ class Lattice():
 
             prev_ind = ind
 
-        # ???
+        # The number of steps at which the CSR wake will be computed
         self._CSR_steps_count = len(self._CSR_steps_index)
 
 
@@ -263,4 +265,3 @@ class Lattice():
 
     def update(self, ele_name):
         self.current_element = ele_name
-

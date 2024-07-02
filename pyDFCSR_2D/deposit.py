@@ -352,8 +352,10 @@ class DF_tracker:
 
     def DF_interp(self, DF, x_grid_interp = None, z_grid_interp = None, x_grids = None, z_grids = None, fill_value = 0.0):
         """
-
+        Creates a new scipy interpolator for a distribution function on a specified mesh
         """
+        # If the mesh is not specified, then we assume that the interpolator should follow the same mesh as the interpolators for
+        # the other slices
         if x_grids is None:
             x_grids = self.x_grids
         if z_grids is None:
@@ -363,15 +365,21 @@ class DF_tracker:
         if z_grid_interp is None:
             z_grid_interp = self.z_grid_interp
 
+        # Create meshgrid
         X, Z = np.meshgrid(x_grid_interp, z_grid_interp, indexing = 'ij')
         #TODO: check this 2D interpolation
+        # Create interpolator using scipy
         interp = RegularGridInterpolator((x_grids, z_grids), DF, method='linear', fill_value = fill_value, bounds_error=False)
         return interp((X,Z))
 
     def append_interpolant(self, formation_length, n_formation_length):
         """
+        In addition to the DF slices (which have their own mesh with not necesarily equal parameters such as bin size), we make an
+        'interpolation' mesh for each slice. The purpose of these meshes is so that the integration of the space between slices
+        can be done in O(1) time using a simple linear interpolation. Hence why all interpolation meshes need to have identical
+        meshes. This method creates a new interpolation mesh for the lastest slice.
         Parameters:
-            formation_length: the formation length of the beam's distribution on the nominal path
+            formation_length: the formation length of the beam's distribution on the nominal path on the current lattice element
             n_formation_length: the number of formation length that we need to "look" back in time
         """
         # The furthest point back in time from which we will compute the CSR wake
@@ -380,39 +388,33 @@ class DF_tracker:
         # Remove all data from the DF logs earlier than start_point
         self.pop_left_DF(new_start_time=start_point)
 
-        #xlim_interp = interpolation.xlim
-        #zlim_interp = interpolation.zlim
-        #xbins = interpolation.xbins
-        #zbins = interpolation.zbins
-
+        # This conditionial checks to see if the newest slice in the DF log has a beam profile that is significantly different from
+        # the other slices. If so, then we will need to reshape all interpolation meshes
         if self.sigma_x_interp and self.sigma_z_interp and \
                 2 > self.sigma_x/self.sigma_x_interp > 1/2 and \
                     2 > self.sigma_z/self.sigma_z_interp > 1 / 2:
+
             # Not too much change in beam size (and chirp in the future), just interp with current interp configuration
             self.time_interp.append(self.t)
 
-            #self.x_grid_interp = np.linspace(self.xmean-xlim_interp*self.sigma_x_interp, self.xmean + xlim_interp*self.sigma_x_interp, xbins)
-            #self.z_grid_interp = np.linspace(self.zmean-zlim_interp*self.sigma_z_interp, self.zmean + zlim_interp*self.sigma_z_interp, zbins)
+            # Create the scipy interpolator instances for the new slice
             current_density_interp = self.DF_interp(DF = self.density)
             current_density_x_interp = self.DF_interp(DF = self.density_x)
             current_density_z_interp = self.DF_interp(DF = self.density_z)
             current_vx_interp = self.DF_interp(DF = self.vx)
             current_vx_x_interp = self.DF_interp(DF = self.vx_x, fill_value=np.mean(self.vx_x))
 
+            # Add the interpolator instances to the various lists of interpolator slices
             self.density_interp.append(current_density_interp)
             self.density_x_interp.append(current_density_x_interp)
             self.density_z_interp.append(current_density_z_interp)
             self.vx_interp.append(current_vx_interp)
             self.vx_x_interp.append(current_vx_x_interp)
 
+        # If current DF slice is too different from the slices in the log, reshape all interpolate meshes
         else:
             #TODO: hard code from matlab. Consider change in the future
             print('start reinterpolation. number of slice', str(len(self.time_log)))
-            #if self.sigma_x_interp:
-            #    if self.sigma_x >= 0.9*self.sigma_x_interp:  # if the transverse size increase
-            #        xlim_interp = 5
-            #    else:
-            #        xlim_interp = 10
 
             # Find the maximum and minimum standard deviation of the distribution function at each time slice since the start_point
             max_sigma_x = np.max(self.sigma_x_log)
@@ -420,25 +422,28 @@ class DF_tracker:
             max_sigma_z = np.max(self.sigma_z_log)
             min_sigma_z = np.min(self.sigma_z_log)
 
+            # Compute the number of bins for the new mesh
             t_x = max_sigma_x / min_sigma_x
             t_z = max_sigma_z / min_sigma_z
-
             xbins = int(500 * t_x)
             zbins = int(500 * t_z)
 
+            # If there is an upper limit on the bin number defined by the user implement it here
             if isinstance(self.upper_limit, int):
                 xbins = min(xbins, self.upper_limit)
                 zbins = min(zbins, self.upper_limit)
 
             print("xbins =", xbins, " zbins = ", zbins)
 
+            # Redefine the max std for the meshes
             self.sigma_x_interp = max_sigma_x
             self.sigma_z_interp = max_sigma_z
 
+            # Make the new mesh
             self.x_grid_interp = np.linspace(self.xmean-5*self.sigma_x_interp, self.xmean + 5*self.sigma_x_interp, xbins)
             self.z_grid_interp = np.linspace(self.zmean -5* self.sigma_z_interp, self.zmean + 5* self.sigma_z_interp, zbins)
 
-            #clear interpolant and redo interpolation
+            # Clear interpolant meshes from pervious slices
             self.density_interp = deque([])
             self.density_x_interp = deque([])
             self.density_z_interp = deque([])
@@ -446,20 +451,21 @@ class DF_tracker:
             self.vx_x_interp = deque([])
             self.time_interp = self.time_log.copy()
 
+            # Loop through all the existing mesh slices and reconstruct thier mesh interpolants
             for x_grids, z_grids, density, vx, density_x, density_z, vx_x in self.DF_log:
+                # Create mesh interpolants
                 current_density_interp = self.DF_interp(DF=density, x_grids = x_grids, z_grids = z_grids)
                 current_density_x_interp = self.DF_interp(DF=density_x, x_grids = x_grids, z_grids = z_grids)
                 current_density_z_interp = self.DF_interp(DF=density_z, x_grids = x_grids, z_grids = z_grids)
                 current_vx_interp = self.DF_interp(DF=vx, x_grids = x_grids, z_grids = z_grids)
                 current_vx_x_interp = self.DF_interp(DF=vx_x, x_grids = x_grids, z_grids = z_grids, fill_value=np.mean(vx_x))
 
+                # Add them to the list of slice mesh interpolants
                 self.density_interp.append(current_density_interp)
                 self.density_x_interp.append(current_density_x_interp)
                 self.density_z_interp.append(current_density_z_interp)
                 self.vx_interp.append(current_vx_interp)
                 self.vx_x_interp.append(current_vx_x_interp)
-
-            #print('Re-interpolation finished!')
 
     def build_interpolant(self):
         """
@@ -482,12 +488,25 @@ class DF_tracker:
         #                                           self.vx_interp, fill_value= 0.0,bounds_error=False)
         #self.F_vx_x= RegularGridInterpolator((self.time_interp, self.x_grid_interp, self.z_grid_interp),
         #                                           self.vx_x_interp, fill_value= 0.0,bounds_error=False)
+
+        # TODO: rename these variables to make more intutive sense
+
+        # In our 3D matrix 'x' is time 'y' is x and 'z' is z
+        # The time range of interpolation meshes
         self.min_x, self.max_x = self.time_interp[0], self.time_interp[-1]
+
+        # The x and z range of interpolation meshes
         self.min_y, self.max_y = self.x_grid_interp[0], self.x_grid_interp[-1]
         self.min_z, self.max_z = self.z_grid_interp[0], self.z_grid_interp[-1]
+
+        # The change in t between each slice
         self.delta_x = (self.max_x - self.min_x) / (len(self.time_interp) - 1)
+
+        # The change in x and z between each mesh element
         self.delta_y = (self.max_y - self.min_y) / (self.x_grid_interp.shape[0] - 1)
         self.delta_z =  (self.max_z - self.min_z) / (self.z_grid_interp.shape[0] - 1)
+
+        # Convert the array type of interpolant meshes from deque to np array
         self.data_density_interp = np.array(self.density_interp)
         self.data_density_z_interp = np.array(self.density_z_interp)
         self.data_density_x_interp = np.array(self.density_x_interp)

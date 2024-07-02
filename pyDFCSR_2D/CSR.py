@@ -64,7 +64,6 @@ class CSR2D:
         Parameters:
             input_file: configuration YAML file data, assumed to be either type string indicating
                         file path or type stream
-        :return:
         """
 
         # Convert yaml data into dict
@@ -269,7 +268,6 @@ class CSR2D:
     def run(self, stop_time = None, debug = False):
         """
         Computes the CSR wake using the configurations setup in __init__
-        :return:
         """
 
         if (not self.parallel) or (self.rank == 0):
@@ -387,12 +385,12 @@ class CSR2D:
                     # Append the density functions to the log
                     self.DF_tracker.append_DF()
 
-                    # append 3D matrix for interpolation with the new DFs by interpolation
+                    # Append 3D matrix for interpolation with the new DFs by interpolation
                     #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
                                                        n_formation_length=self.integration_params.n_formation_length)
 
-                    # build interpolant based on the 3D matrix
+                    # Build interpolant based on the 3D matrix
                     self.DF_tracker.build_interpolant()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
@@ -463,7 +461,6 @@ class CSR2D:
         Calculates the mesh of observation points. Achieves this by linearly transfering the particle distribution
         to be virtical, creating a mesh on the transformed distribution, and the reversing the original transformation.
         (xmesh, zmesh) TWO 1D arrays representiong (x, z) coordinates on a linear transformed mesh
-        :return:
         """
         # Remove any xz tilt (chrip) from the dataset, (rotates the distirbution function to be virtical in x direction)
         x_transform = self.beam.x_transform
@@ -508,12 +505,13 @@ class CSR2D:
 #    @profile
     def calculate_2D_CSR(self):
         """
-
+        Computes the energy change (dE_kick) and the momentum change (x_kick) for each mesh element on the
+        CSR mesh.
         """
         # The total number of mesh elements
         N = self.CSR_params.xbins*self.CSR_params.zbins
 
-        # Initialize ?
+        # Initialize the energy and momenta change arrays
         self.dE_dct = np.zeros((N,))
         self.x_kick = np.zeros((N,))
 
@@ -522,13 +520,6 @@ class CSR2D:
 
         # Loop over all mesh elements
         for i in range(N):
-
-            #if i == 210:
-            #    print(i)
-
-            #if i%int(N//10) == 0:
-            #    print('Complete', str(np.round(i/N*100,2)), '%')
-
             # Get the s and x position of the mesh element relative to the nominal path
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
@@ -536,10 +527,14 @@ class CSR2D:
             # Compute the CSR_wake for the element's position
             self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x)
 
+        # Reshape csr arrarys to be 2D
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
 
     def calculate_2D_CSR_parallel(self):
+        """
+        Uses parallel processing to do what the calculate_2D_CSR method above does
+        """
         work_size= self.CSR_params.xbins * self.CSR_params.zbins
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
@@ -589,8 +584,10 @@ class CSR2D:
         # The slope of the beam's distribution x/z
         tan_theta = self.beam._slope[0]
 
-        #TODO： why?
+        # The virtical x distance from the point to the center line of the distribution
         x0 = (s-t)*self.beam._slope[0]
+
+        # Average x position of the DF
         xmean = self.beam._mean_x
 
         ######### For Debug ##########################################################
@@ -602,7 +599,8 @@ class CSR2D:
 
         chirp_band = False
 
-        # If the chip is "small" (x/z distribution slanted no more than 45 degree from virtical), ignore chirp band
+        # If the x/z distribution is slanted no more than 45 degree from virtical, ignore chirp band
+        # This is the result of isosceles triangle geometry... in this case we need to integrate over fewer regions
         if np.abs(tan_theta) <= 1:
             s2 = s - 500 * sigma_z
             s3 = s - 20*sigma_z
@@ -613,9 +611,15 @@ class CSR2D:
             x1_n = x0 - 10 * sigma_x
             x2_n = x0 + 10 * sigma_x
 
+        # If there is a chrip band then there are more integration regions we have to consider
         else:
             chirp_band = True
 
+            # Area 1: accounts for chirp band
+            # Area 2: accounts for region around singularity
+            # Area 3 and 4: accounts for main band
+
+            # Construct the integration regions in a way that depends on  which way the band is tiled
             if tan_theta > 0:
                 tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
                 d = (10 * sigma_x + xmean - x) / tan_alpha
@@ -662,9 +666,12 @@ class CSR2D:
                 x4_l = x0 - 20 * sigma_x
                 x4_r = x0 + 20 * sigma_x
 
+        # Make sure that we cap the smallest intergration bound at s=0, where the nominal path begins
         s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
 
+        # ------------------ Perform integration over all areas ------------------ #
         if chirp_band:
+            # Initalize the integration meshes with the desired number of bins
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)
             sp2 = np.linspace(s2, s3, self.integration_params.zbins)
             sp3 = np.linspace(s3, s4, self.integration_params.zbins)
@@ -678,6 +685,7 @@ class CSR2D:
             [xp_mesh3, sp_mesh3] = np.meshgrid(xp1, sp3, indexing='ij')
             [xp_mesh4, sp_mesh4] = np.meshgrid(xp2, sp3, indexing='ij')
 
+            # Compute integrands using trapedzoid integration
             CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh1, sp=sp_mesh1, ignore_vx = ignore_vx)
             dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp4, axis=0), x=sp1)
             x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp4, axis=0), x=sp1)
@@ -700,6 +708,7 @@ class CSR2D:
                 return dE_dct1 + dE_dct2 + dE_dct3 + dE_dct4, x_kick1 + x_kick2 + x_kick3 + x_kick4
 
         else:
+            # Initalize the integration meshes with the desired number of bins
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)
             sp2 = np.linspace(s2, s3, self.integration_params.zbins)
             sp3 = np.linspace(s3, s4, self.integration_params.zbins)
@@ -710,6 +719,7 @@ class CSR2D:
             [xp_mesh2, sp_mesh2] = np.meshgrid(xp_n, sp2, indexing='ij')
             [xp_mesh3, sp_mesh3] = np.meshgrid(xp_n, sp3, indexing='ij')
 
+            # Compute integrands using trapedzoid integration
             CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh1, sp=sp_mesh1, ignore_vx = ignore_vx)
             dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp_w, axis=0), x=sp1)
             x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp_w, axis=0), x=sp1)
@@ -727,12 +737,15 @@ class CSR2D:
             else:
                 return dE_dct1 + dE_dct2 + dE_dct3, x_kick1 + x_kick2 + x_kick3
 
-
-    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False):
+    def get_CSR_integrand(self, s, x, t, sp, xp, ignore_vx = False):
         """
-
+        Computes the integrand function for a specific point in the distribution function over the inputed integration area
+        Parameters:
+            s, x: the coordinate of the point for which to compute the integrand
+            t: the current time
+            sp, xp: the mesh grid of the integration
         """
-        #vx = self.DF_tracker.F_vx([t, x, s - t])
+        # Interpolate the velocity of the beam at this point
         vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
                              data=self.DF_tracker.data_vx_interp,
                              min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
@@ -740,10 +753,12 @@ class CSR2D:
                              delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
                              delta_z=self.DF_tracker.delta_z)[0]
 
+        # Flatten the meshgrid
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
-
+        # Get x & x prime and y & y prime in the lab frame
+        # the 'prime' variables are the integration mesh grid converted to lab frame coordinates
         X0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
                              delta_x = self.lattice.delta_x)[0]
         X0_sp = interpolate1D(xval = sp_flat, data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
@@ -752,6 +767,8 @@ class CSR2D:
                              delta_x = self.lattice.delta_x)[0]
         Y0_sp = interpolate1D(xval = sp_flat, data = self.lattice.coords[:, 1], min_x = self.lattice.min_x,
                               delta_x = self.lattice.delta_x)
+
+        # Do the same for the normal and tangential vectors
         n_vec_s_x = interpolate1D(xval = np.array([s]), data = self.lattice.n_vec[:, 0], min_x = self.lattice.min_x,
                                   delta_x = self.lattice.delta_x)[0]
         n_vec_sp_x =interpolate1D(xval = sp_flat, data = self.lattice.n_vec[:, 0], min_x = self.lattice.min_x,
@@ -769,28 +786,25 @@ class CSR2D:
         tau_vec_sp_y = interpolate1D(xval=sp_flat, data=self.lattice.tau_vec[:, 1], min_x=self.lattice.min_x,
                                    delta_x=self.lattice.delta_x)
 
-
+        # Comupte the magnitude of the different between r and rp (r prime) vectors
         r_minus_rp_x = X0_s - X0_sp + x * n_vec_s_x - xp_flat * n_vec_sp_x
         r_minus_rp_y = Y0_s - Y0_sp + x * n_vec_s_y - xp_flat * n_vec_sp_y
         r_minus_rp = np.sqrt(r_minus_rp_x**2 + r_minus_rp_y**2)
 
-
-        #rho_sp = self.lattice.F_rho(sp_flat)
+        # The effective radius from the lab frame origin for each lattice step
         rho_sp = np.zeros(sp_flat.shape)
+
+        # Populate rho_sp
         for count in range(self.lattice.Nelement):
             if count == 0:
                 rho_sp[sp_flat < self.lattice.distance[count]] = self.lattice.rho[count]
             else:
                 rho_sp[(sp_flat < self.lattice.distance[count]) & (sp_flat >= self.lattice.distance[count - 1])] = self.lattice.rho[count]
 
+        # Retarded time array for each point in meshgrid
         t_ret = t - r_minus_rp
 
-        #density_ret = self.DF_tracker.F_density(np.array([t_ret, xp_flat, sp_flat - t_ret]).T)
-        #density_x_ret = self.DF_tracker.F_density_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        #density_z_ret = self.DF_tracker.F_density_z(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        #vx_ret = self.DF_tracker.F_vx(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        #vx_x_ret = self.DF_tracker.F_vx_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-
+        # Compute various vector and scalar valued functions inside the integrand
         density_ret = interpolate3D(xval = t_ret, yval = xp_flat, zval = sp_flat - t_ret,
                                   data = self.DF_tracker.data_density_interp,
                                   min_x = self.DF_tracker.min_x, min_y = self.DF_tracker.min_y,  min_z = self.DF_tracker.min_z,
@@ -838,12 +852,12 @@ class CSR2D:
             vx_x_ret = 0
             vx_ret = 0
 
+        # Accounts for transfer to the lab frame
         scale_term =  1 + xp_flat*rho_sp
 
-
+        # Compute velocity in the lab frame for current time and retarded
         velocity_x = vs * tau_vec_s_x + vx * n_vec_s_x
         velocity_y = vs * tau_vec_s_y + vx * n_vec_s_y
-
         velocity_ret_x = vs_ret * tau_vec_sp_x + vx_ret * n_vec_sp_x
         velocity_ret_y = vs_ret * tau_vec_sp_y + vx_ret * n_vec_sp_y
 
@@ -853,11 +867,14 @@ class CSR2D:
         nabla_density_ret_x = density_x_ret  * n_vec_sp_x + density_z_ret / scale_term * tau_vec_sp_x
         nabla_density_ret_y = density_x_ret * n_vec_sp_y + density_z_ret / scale_term * tau_vec_sp_y
 
-        div_velocity = vs_s_ret + vx_x_ret  #???
+        div_velocity = vs_s_ret + vx_x_ret
 
         # TODO: Consider using general form
         ## general form
+        # part1: beta dot beta prime
         part1 = velocity_x * velocity_ret_x + velocity_y * velocity_ret_y
+
+        # Some numerators found in the longitudinal wake integrals
         CSR_numerator1 = scale_term * ((velocity_x - part1 * velocity_ret_x) * nabla_density_ret_x  + \
                           (velocity_y - part1 * velocity_ret_y)*nabla_density_ret_y)
         CSR_numerator2 = -scale_term * part1 * density_ret * div_velocity
@@ -868,25 +885,10 @@ class CSR2D:
         #self.CSR_integrand = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
         CSR_integrand_z = CSR_numerator1 /r_minus_rp + (CSR_numerator2) / r_minus_rp
 
-
-
-        #CSR_numerator1 = scale_term * (((n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y) +
-        #                                (vx - vx_ret) * (tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y)) * density_x_ret -
-        #                               vx_ret * (n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y)/scale_term * density_z_ret)
-
-        #CSR_numerator2 = -((tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y) +
-        #                   (vx - vx_ret) * (n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y)) * density_ret * vx_x_ret
-
-        #CSR_numerator3 = scale_term * density_ret * (velocity_partial_t_x * velocity_x + velocity_partial_t_y * velocity_y)
-
-        #CSR_denominator = r_minus_rp
-
-        #CSR_integrand_z = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
-
         n_minus_np_x = n_vec_s_x - n_vec_sp_x
         n_minus_np_y = n_vec_s_y - n_vec_sp_y
 
-        #part: (r-r')(n - n')
+        # part1: (r-r')(n - n')
         part1 = r_minus_rp_x * n_minus_np_x + r_minus_rp_y * n_minus_np_y
 
         #part2: n tau'
@@ -896,19 +898,21 @@ class CSR2D:
         partial_density = - (velocity_ret_x * nabla_density_ret_x + velocity_ret_y * nabla_density_ret_y) - \
                           density_ret * div_velocity
 
+        # Three integrands for logitudinal wake
         W1 = scale_term * part1 / (r_minus_rp * r_minus_rp * r_minus_rp) * density_ret
         W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
         W3 = -scale_term * part2 / r_minus_rp * partial_density
 
         CSR_integrand_x = W1 + W2 + W3
-        #CSR_integrand_x = W1
         CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
         CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
-
 
         return CSR_integrand_z, CSR_integrand_x
 
     def dump_beam(self, label):
+        """
+        Record beam in the particle_group format
+        """
         if self.parallel and self.rank != 0:
             return
 
@@ -924,7 +928,9 @@ class CSR2D:
         self.beam.particle_group.write(filename)
 
     def write_wakes(self):
-
+        """
+        Writes the CSR wake data for the current step to a h5 file
+        """
         if self.parallel and self.rank != 0:
             return
 
@@ -932,13 +938,11 @@ class CSR2D:
 
         filename = os.path.join(path, f'{self.prefix}-wakes.h5')
 
-
         if self.beam.step == 1:
             if os.path.isfile(filename):
                 os.remove(filename)
                 print("Existing file " + filename + " deleted.")
             print("Wakes written to ", filename)
-
 
         with h5py.File(filename, 'a') as hf:
             step = self.beam.step
@@ -963,6 +967,9 @@ class CSR2D:
 
 #    @profile
     def update_statistics(self, step):
+        """
+        Updates the statistics dictionary with the current step's beam characteristics
+        """
         twiss = self.beam.twiss
         self.statistics['twiss']['alpha_x'][step] = twiss['alpha_x']
         self.statistics['twiss']['beta_x'][step] = twiss['beta_x']
@@ -987,7 +994,9 @@ class CSR2D:
         self.statistics['mean_energy'][step] = self.beam.mean_energy
 
     def write_statistics(self):
-
+        """
+        Writes the statistics dictionary to a h5 file
+        """
         if self.parallel and self.rank != 0:
             return
 
