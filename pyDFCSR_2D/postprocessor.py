@@ -17,8 +17,7 @@ class DFCSR_postprocessor():
         self.wake_filename = os.path.join(path, f'{run_name}-wakes.h5')
         self.particle_prefix = os.path.join(path, f'{run_name}-particles')
         self.statistics_filename = os.path.join(path, f'{run_name}-statistics.h5')
-
-    def get_particles(self, step = None):
+def get_particles(self, step = None):
 
         if step is None:
             filename = self.particle_prefix + '-end.h5'
@@ -47,7 +46,6 @@ class DFCSR_postprocessor():
         else:
             unit = ""
 
-
         if show_plot:
             plt.figure()
             plt.plot(x, y)
@@ -58,7 +56,7 @@ class DFCSR_postprocessor():
         return x, y
 
     def parse_all_wakes(self):
-        
+
         with h5py.File(self.wake_filename, "r") as f:
             self.charge_list = []
             self.energy_list = []
@@ -74,7 +72,7 @@ class DFCSR_postprocessor():
                 self.step_list.append(f[step].attrs['step'])
                 self.position_list.append(f[step].attrs['position'])
                 self.element_list.append(f[step].attrs['element'])
-        
+
 
         with h5py.File(self.wake_filename, "r") as f:
             self.long_wake_list = []
@@ -105,20 +103,14 @@ class DFCSR_postprocessor():
                 self.z_grids_list.append(z_grids)
                 self.positions_list.append(position)
 
-
-
-
-
     # 'Cx', 'Cxp', 'R51', 'R52', 'R56', 'alphaX', 'alphaX_beam',
     # 'alphaX_minus_dispersion', 'betaX', 'betaX_beam',
     # 'betaX_minus_dispersion', 'coords', 'etaX', 'etaXp',
     # 'gemitX', 'gemitX_minus_dispersion', 'n_vec', 'sigE',
     # 'sigX', 'sigZ', 'slope', 'step_positions', 'tau_vec'
 
-
-
     def get_wakes(self, s, show_plot = True):
-        
+
         with h5py.File(self.wake_filename, "r") as f:
             self.charge_list = []
             self.energy_list = []
@@ -134,7 +126,7 @@ class DFCSR_postprocessor():
                 self.step_list.append(f[step].attrs['step'])
                 self.position_list.append(f[step].attrs['position'])
                 self.element_list.append(f[step].attrs['element'])
-        
+
         ind = find_nearest_ind(self.position_list, s)
 
         print("plot longitudinal wakes at nearest point s  = {} m, step count {}".format(self.position_list[ind],
@@ -194,11 +186,3 @@ class DFCSR_postprocessor():
 
         plot_2D_contour(x_grids,z_grids,dE_dct)
         plot_2D_contour(x_grids,z_grids,xkicks)
-
-
-
-
-
-
-
-

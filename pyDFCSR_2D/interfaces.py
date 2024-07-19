@@ -5,15 +5,13 @@ import numpy as np
 import torch
 import sys
 
-
 # Modified from https://github.com/bmad-sim/Bmad-X
-
 
 from pmd_beamphysics import ParticleGroup
 def openpmd_to_bmadx_coords(
         pmd_particle: ParticleGroup,
         p0c
-):
+    ):
     """
     Transforms openPMD-beamphysics ParticleGroup to
     bmad phase-space coordinates.
@@ -36,16 +34,16 @@ def openpmd_to_bmadx_coords(
     bmad_coords = (x, px, y, py, z, pz)
 
     return bmad_coords
+
 def openpmd_to_bmadx_particles(
         pmd_particle: ParticleGroup,
         p0c: float,
         s : float = 0.0,
         mc2 : float = M_ELECTRON
-        ):
+    ):
     """
     Transforms openPMD-beamphysics ParticleGroup to
     bmad phase-space Particle named tuple.
-
         Parameters:
             pmd_particle (pmd_beamphysics.ParticleGroup): openPMD-beamphysics ParticleGroup
             p0c (float): reference momentum in eV
@@ -61,18 +59,12 @@ def openpmd_to_bmadx_particles(
         mc2 = mc2)
     return particle
 
-
 def bmadx_particles_to_openpmd(particle: Particle, charge):
     """
     Transforms bmadx Particle to openPMD-beamphysics ParticleGroup.
-
-        Parameters
-        ----------
-        particle: bmax Particle
-            particle to transform.
-
-        Returns
-        -------
+    Parameters:
+        particle: bmax Particle particle to transform
+    Returns:
         pmd_beamphysics.ParticleGroup
     """
     lib = sys.modules[type(particle.x).__module__]
@@ -83,6 +75,7 @@ def bmadx_particles_to_openpmd(particle: Particle, charge):
         py = particle.py
         z = particle.z
         pz = particle.pz
+
     elif lib == torch:
         x = particle.x.detach().numpy()
         px = particle.px.detach().numpy()
@@ -90,6 +83,7 @@ def bmadx_particles_to_openpmd(particle: Particle, charge):
         py = particle.py.detach().numpy()
         z = particle.z.detach().numpy()
         pz = particle.pz.detach().numpy()
+
     else:
         raise ValueError('Only numpy and torch Particles are supported as of now')
 
@@ -119,4 +113,3 @@ def bmadx_particles_to_openpmd(particle: Particle, charge):
         raise ValueError('only electrons are supported as of now')
 
     return ParticleGroup(data=dat)
-
