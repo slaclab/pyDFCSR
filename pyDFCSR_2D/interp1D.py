@@ -12,12 +12,6 @@ spec = [
 
 @jit(nopython = True,  cache = True)
 def interpolate1D(xval, data, min_x, delta_x):
-    """
-    Quick interpolator for 1D values
-    Parameters:
-        xvals: np array of positions to interpolate values at
-        data: the
-    """
     result = np.zeros(xval.shape)
     x_size = data.shape[0]
     xval = (xval - min_x) / delta_x

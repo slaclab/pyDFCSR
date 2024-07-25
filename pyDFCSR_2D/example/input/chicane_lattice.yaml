@@ -13,6 +13,7 @@ B1:
   E2: 0.0483
   nsep: 1
 
+
 D1:     # can be arbitrary name
   type: drift
   L: 5.0058
@@ -26,10 +27,12 @@ B2:
   E2: 0.0
   nsep: 1
 
+
 D2:     # can be arbitrary name
   type: drift
   L: 1.0
   nsep: 1
+
 
 
 B3:
@@ -52,6 +55,7 @@ B4:
   E1: 0.0483
   E2: 0
   nsep: 1
+
 
 Df:     # can be arbitrary name
   type: drift
