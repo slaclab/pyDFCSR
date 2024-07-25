@@ -17,28 +17,11 @@ spec = [
 
 @jit(nopython = True,  cache = True)
 def interpolate3D(xval, yval, zval, data, min_x, min_y, min_z,  delta_x, delta_y, delta_z):
-    """
-    Given a 3D mesh with each element assigned a value, linearly interpolates a value for any point within the mesh.
-    Parameters:
-        xval, yval, zval: the coordinate of the point whose value we wish to approximate via interpolation,
-                          note that these coordinates are in an array if we wish to 3D interpolate multiple points at a time
-        data: the 'value' of the function at each node in the 3D mesh
-        delta_x, delta_y, delta_z: the bin size of the mesh for each dimension
-    Returns:
-        result: array of all interpolation values
-    """
-    # Initialize interpolation value array
     result = np.zeros(len(xval))
-
-    # Get dimension of data
     x_size, y_size, z_size = data.shape[0], data.shape[1], data.shape[2]
-
-    # Compute the slope between each mesh point in each dimension
     xval = (xval - min_x) / delta_x
     yval = (yval - min_y) / delta_y
     zval = (zval - min_z) / delta_z
-
-    # Loop over all points we wish to interpolate
     for i in range(len(xval)):
         x = xval[i]
         y = yval[i]
@@ -156,6 +139,8 @@ def interpolate_3d_vectorized(data, x, y, z, min_x, min_y, min_z,  delta_x, delt
 
     return output
 
+
+
 @jitclass(spec)
 class TrilinearInterpolator:
     def __init__(self, data, x, y, z):
@@ -172,6 +157,8 @@ class TrilinearInterpolator:
                            self.min_x, self.min_y, self.min_z,
                            self.delta_x, self.delta_y, self.delta_z)
 
+
+
 class TrilinearInterpolator_vec:
     def __init__(self, data, x, y, z):
         self.data = data
@@ -183,6 +170,6 @@ class TrilinearInterpolator_vec:
         self.delta_z = (self.max_z - self.min_z) / (z.shape[0] - 1)
 
     def interp(self, xval, yval, zval):
-        return interpolate_3d_vectorized(xval, yval, zval, self.data,
+        return interpolate3D_vec(xval, yval, zval, self.data,
                            self.min_x, self.min_y, self.min_z,
                            self.delta_x, self.delta_y, self.delta_z)
