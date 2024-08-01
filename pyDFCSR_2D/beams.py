@@ -73,7 +73,7 @@ class Beam():
         elif input_beam['style'] == 'distgen':
             self.required_inputs = ['style', 'distgen_input_file']
         elif input_beam['style'] == 'ParticleGroup':
-            self.required_inputs = ['style', 'particleGroup_h5']
+            self.required_inputs = ['style', 'ParticleGroup_h5']
         else:
             raise Exception("input beam parsing Error: invalid input style")
 
