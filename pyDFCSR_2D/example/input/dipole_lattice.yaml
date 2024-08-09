@@ -9,8 +9,19 @@ element_2:
   type: dipole
   L: 1.0
   angle: 1.0
+
+  #--OPTIONAL--#
   E1: 0
   E2: 0
+  FINT: 0.0
+  FINTX: 0.5
+  HGAP: 0.1
+  HGAPX: 0.0
+  FRINGE_AT: both_ends
+  FRINGE_TYPE: linear_edge
+  TILT: 0.0
+  #-----------#
+
   nsep: 1
 
 element_3:     # can be arbitrary name

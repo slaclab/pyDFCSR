@@ -6,7 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/pyDFCSR_2D/example/input" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pyDFCSR_2D/bmadx" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="pyDFCSR" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="pydfcsr" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

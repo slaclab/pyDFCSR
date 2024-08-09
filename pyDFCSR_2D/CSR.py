@@ -143,40 +143,52 @@ class CSR2D:
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
 
-    def get_bmadx_element(self, ele, type, DL, entrance = False, exit = False):
-        L = self.lattice.lattice_config[ele]['L']
-        type = self.lattice.lattice_config[ele]['type']
+    def get_bmadx_element(self, ele,  DL, entrance = False, exit = False):
+        input_dic = self.lattice.lattice_config[ele].copy()
+        input_dic.pop('nsep')
+        L = input_dic.pop('L')
+        type = input_dic.pop('type')
+
 
         if type == 'dipole':
-            angle = self.lattice.lattice_config[ele]['angle']
-            E1 = self.lattice.lattice_config[ele]['E1']
-            E2 = self.lattice.lattice_config[ele]['E2']
-            G = angle/L
+            angle = input_dic.pop('angle')
+            G = angle / L
+
+            if 'E1' in input_dic.keys():
+                E1 = input_dic.pop('E1')
+            else:
+                E1 = 0
+
+            if 'E2' in input_dic.keys():
+                E2 = input_dic.pop('E2')
+            else:
+                E2 = 0
+
 
             if entrance and exit:
-                element = SBend(L = DL, P0C = self.beam.init_energy, G = G, E1 = E1, E2 = E2)
+                element = SBend(L = DL, P0C = self.beam.init_energy, G = G, E1 = E1, E2 = E2, **input_dic)
 
             elif entrance:
-                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=E1, E2=0.0)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=E1, E2=0.0, **input_dic)
 
 
             elif exit:
-                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=E2)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=E2, **input_dic)
 
             else:
-                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=0.0)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=0.0, **input_dic)
 
         elif type == 'drift':
             element = Drift(L = DL)
 
         elif type == 'quad':
-            K1 = self.lattice.lattice_config[ele]['strength']
-            element = Quadrupole(L=DL, K1=K1)
+            K1 = input_dic.pop('K1')
+            element = Quadrupole(L=DL, K1=K1, **input_dic)
 
         elif type == 'sextupole':
-            K2 = self.lattice.lattice_config[ele]['strength']
-            element = Sextupole(L=DL, K2=K2)
-
+            K2 = input_dic.pop('K2')
+            element = Sextupole(L=DL, K2=K2, **input_dic)
+        print(element)
         return element
 
 #    @profile
@@ -211,14 +223,14 @@ class CSR2D:
                 #Todo: Bmadx seems to have some problems when DL is very
                 if DL_1 > 1.0e-6:
                 # calculate the part in the previous element
-                    element = self.get_bmadx_element(ele=ele_prev, type=type_prev, DL=DL_1, exit=True)
+                    element = self.get_bmadx_element(ele=ele_prev, DL=DL_1, exit=True)
                     self.beam.track(element, DL_1, update_step=False)
                 else:
                     DL_1 = 0.0
             # If no steps inside an element
             if steps == 0:    #If one step over the whole element
                 skip_ele = True
-                element = self.get_bmadx_element(ele=ele, type=type, DL=L, exit=True, entrance = True)
+                element = self.get_bmadx_element(ele=ele,  DL=L, exit=True, entrance = True)
                 self.beam.track(element, L, update_step=False)
 
 
@@ -263,13 +275,13 @@ class CSR2D:
                     DL_2 = self.lattice._positions_record[step_count] - self.lattice.distance[ele_count - 1]
 
                     # calculate the part in the new element
-                    element = self.get_bmadx_element(ele = ele, type = type, DL = DL_2, entrance = True)
+                    element = self.get_bmadx_element(ele = ele,  DL = DL_2, entrance = True)
                     self.beam.track(element, DL_2)
                     distance_in_current_ele += DL_2
                     skip_ele = False    # Reset the flag
 
                 else:
-                    element = self.get_bmadx_element(ele = ele, type = type, DL = DL)
+                    element = self.get_bmadx_element(ele = ele,  DL = DL)
                     # Propagate beam for one step
                     self.beam.track(element, DL)
                     distance_in_current_ele += DL
