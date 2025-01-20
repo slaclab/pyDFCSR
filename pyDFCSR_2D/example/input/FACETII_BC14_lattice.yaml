@@ -1,0 +1,139 @@
+step_size:  0.05  # unit step size for tracking and CSR computing (meter)
+
+BCX14720:         #686
+  type: dipole
+  L: 5.4916082e-01
+  G: -7.6334651e-02
+  angle: -4.1920000E-02
+  E1: 0.0
+  E2: 1.9985820e-03
+  FINT: 6.3300000e-01
+  FINTX: 6.3300000e-01
+  HGAP: 1.6675000e-02
+  HGAPX: 1.6675000e-02
+  nsep: 1
+
+
+DBQ2A:            #687
+  type: drift
+  L: 1.9266894e+0
+  nsep: 5
+
+CQ14738:          #688
+  type: quad
+  L: 1.7590000e-01
+  K1: -2.2876847e-03
+  nsep: 1
+
+  #----Optional----
+  X_OFFSET: 0.0
+  Y_OFFSET: 0.0
+  TILT: 0.0
+  #----------------
+
+D210A1:            #689
+  type: drift
+  L: 6.9146223e+00
+  nsep: 5
+
+#690 kicker off
+
+D210A2:            #691
+  type: drift
+  L: 8.5372605e-01
+  nsep: 5
+
+BCX14796:                #692
+  type: dipole
+  L: 5.4916082e-01
+  G: 7.6334651e-02
+  angle: 4.1920000E-02
+  E1: 4.1920000e-02
+  E2: 0.0
+  FINT: 6.3300000e-01
+  FINTX: 6.3300000e-01
+  HGAP: 1.6675000e-02
+  HGAPX: 1.6675000e-02
+  nsep: 1
+
+DDG21:            #693
+  type: drift
+  L: 3.6099471e-01
+  nsep: 2
+
+#694 monitor
+
+
+DDG22:            #695
+  type: drift
+  L: 1.4466600e-01
+  nsep: 2
+
+
+#696 monitor
+
+
+DDG23:            #697
+  type: drift
+  L: 5.8687672e-01
+  nsep: 2
+
+
+BCX14808:               #698
+  type: dipole
+  L: 5.4916082e-01
+  G: 7.6334651e-02
+  angle: 4.1920000e-02
+  E1: 0.0
+  E2: 4.1920000e-02
+  FINT: 6.3300000e-01
+  FINTX: 6.3300000e-01
+  HGAP: 1.6675000e-02
+  HGAPX: 1.6675000e-02
+  nsep: 1
+
+
+D210B1:            #699
+  type: drift
+  L: 9.6375882e-01
+  nsep: 2
+
+# 700 collimator
+
+D210B2:            #701
+  type: drift
+  L: 6.8697467e+00
+  nsep: 5
+
+
+CQ14866:          #702
+  type: quad
+  L: 1.7590000e-01
+  K1: -2.2876847e-03
+  nsep: 1
+
+  #----Optional----
+  X_OFFSET: 0.0
+  Y_OFFSET: 0.0
+  TILT: 0.0
+  #----------------
+
+DBQ2B:            #703
+  type: drift
+  L: 1.8615321e+00
+  nsep: 2
+
+BCX14883:              #704
+  type: dipole
+  L: 5.4916082e-01
+  G: -7.6334651e-02
+  angle: -4.1920000e-02
+  E1:  1.9985820e-03
+  E2: 0.0
+  FINT: 6.3300000e-01
+  FINTX: 6.3300000e-01
+  HGAP: 1.6675000e-02
+  HGAPX: 1.6675000e-02
+  nsep: 1
+
+

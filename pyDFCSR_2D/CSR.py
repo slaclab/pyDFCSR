@@ -151,8 +151,12 @@ class CSR2D:
 
 
         if type == 'dipole':
-            angle = input_dic.pop('angle')
-            G = angle / L
+            if 'angle' in input_dic.keys():
+                angle = input_dic.pop('angle')
+                G = angle / L
+
+            if 'G' in input_dic.keys():
+                G = input_dic.pop('G')
 
             if 'E1' in input_dic.keys():
                 E1 = input_dic.pop('E1')
@@ -164,19 +168,22 @@ class CSR2D:
             else:
                 E2 = 0
 
+            if 'FRINGE_AT' in input_dic.keys():
+                FRINGE_AT = input_dic.pop('FRINGE_AT')
+
 
             if entrance and exit:
-                element = SBend(L = DL, P0C = self.beam.init_energy, G = G, E1 = E1, E2 = E2, **input_dic)
+                element = SBend(L = DL, P0C = self.beam.init_energy, G = G, E1 = E1, E2 = E2, FRINGE_AT = FRINGE_AT, **input_dic)
 
             elif entrance:
-                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=E1, E2=0.0, **input_dic)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=E1, E2=0.0, FRINGE_AT = "entrance_end", **input_dic)
 
 
             elif exit:
-                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=E2, **input_dic)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=E2, FRINGE_AT = "exit_end", **input_dic)
 
             else:
-                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=0.0, **input_dic)
+                element = SBend(L=DL, P0C=self.beam.init_energy, G=G, E1=0.0, E2=0.0, FRINGE_AT = "no_end", **input_dic)
 
         elif type == 'drift':
             element = Drift(L = DL)

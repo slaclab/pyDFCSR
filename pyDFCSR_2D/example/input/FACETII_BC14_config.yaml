@@ -1,0 +1,40 @@
+input_beam:
+  style: ParticleGroup     # from_file or distgen
+  #distgen_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/chicane_init_beam.yaml
+  #istgen_input_file: input/chicane_init_beam.yaml
+  ParticleGroup_h5: input/particles/BEGBC14E.h5
+
+input_lattice:
+  #lattice_input_file: /sdf/group/ad/beamphysics/jytang/pyDFCSR/pyDFCSR_2D/example/input/chicane_lattice.yaml
+  lattice_input_file: input/FACETII_BC14_lattice.yaml
+
+particle_deposition:
+  xbins: 200         # number of grids in x for particle deposition
+  zbins: 200         # number of grids in y for particle deposition
+  xlim:  5           # range in x in the unit of sigma_x
+  zlim: 5            # range in z in the unit of sigma_z
+  filter_order: 1    # 0 for no filter
+  filter_window: 9
+  velocity_threhold : 1000
+  upper_limit: 2000   # upper limit for interpolation
+
+
+CSR_integration:
+  n_formation_length: 1
+  zbins: 100
+  xbins: 100
+
+
+CSR_computation:
+  compute_CSR: 1                # if zero, only track the beam
+  apply_CSR: 1                   # flag apply CSR to particles
+  transverse_on: 1               # flag include transverse wake
+  xbins: 10                    # The mesh on which CSR wake is computed
+  zbins: 20
+  xlim: 3
+  zlim: 3
+  write_beam: None
+  write_wakes: True
+  write_name: 'BC14'
+  #workdir: '/sdf/data/ad/ard/u/jytang/pyDFCSR/chicane_output/'
+  workdir: './output'
