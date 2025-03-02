@@ -1,0 +1,41 @@
+step_size:  0.1  # unit step size for tracking and CSR computing (meter)
+element_1:     # can be arbitrary name
+  type: drift
+  L: 0.1
+  nsep: 1
+
+element_2:
+  type: dipole
+  L: 1.0
+  angle: 1.0
+  E1: 0
+  E2: 0
+  nsep: 1
+
+element_3:     # can be arbitrary name
+  type: drift
+  L: 0.5
+  nsep: 1
+
+
+#element_3:     # can be arbitrary name
+#  type: drift
+#  L: 1.0
+#  nsep: 1
+
+#element_3:
+#  type: drift
+#  L: 0.5
+#  nsep: 1
+
+#element_4:
+#  type: quad
+#  L: 0.1
+#  strength: 0.1
+#  steps: 10
+# Todo: quad, sextupole
+# Todo: consider more general ways to define lattice
+
+
+
+

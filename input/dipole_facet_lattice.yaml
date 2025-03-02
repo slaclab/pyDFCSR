@@ -1,0 +1,44 @@
+#Todo：enforce the same time steps in all elements
+step_size:  0.05  # unit step size for tracking and CSR computing (meter)
+
+element_1:
+  type: drift
+  L: 0.1
+  nsep: 1
+
+
+element_2:
+  type: dipole
+  L: 1.06302259
+  angle: 0.022602
+  E1: 0.022602
+  E2: 0
+  nsep: 1
+
+#element_2:     # can be arbitrary name
+#  type: drift
+#  L: 0.2
+#  nsep: 1
+
+
+#element_3:     # can be arbitrary name
+#  type: drift
+#  L: 1.0
+#  nsep: 1
+
+#element_3:
+#  type: drift
+#  L: 0.5
+#  nsep: 1
+
+#element_4:
+#  type: quad
+#  L: 0.1
+#  strength: 0.1
+#  steps: 10
+# Todo: quad, sextupole
+# Todo: consider more general ways to define lattice
+
+
+
+

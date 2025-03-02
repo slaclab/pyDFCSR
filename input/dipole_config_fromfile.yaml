@@ -1,0 +1,56 @@
+input_beam:
+  style: from_file     # from_file or distgen
+  beamfile: input_beam/dipole_beam.dat #(x, xp, y, xp, z ,delta)
+  charge: 1.0e-9     # C
+  energy: 5.0e+9         # eV
+
+input_lattice:
+  lattice_input_file: input/dipole_lattice.yaml
+
+particle_deposition:
+  xbins: 200         # number of grids in x for particle deposition
+  zbins: 200         # number of grids in y for particle deposition
+  xlim: 5            # range in x in the unit of sigma_x
+  zlim: 5            # range in z in the unit of sigma_z
+  filter_order: 2    # 0 for no filter
+  filter_window: 5
+  velocity_threhold : 200
+
+distribution_interpolation:
+  xbins: 200
+  zbins: 200
+  xlim: 10
+  zlim: 10
+  re_interpolate_threshold: 2
+
+CSR_integration:
+  n_formation_length: 1.5
+  zbins: 200
+  xbins: 200
+
+CSR_computation:
+  compute_CSR: 1                 # if zero, only track the beam
+  apply_CSR: 1                   # flag apply CSR to particles
+  transverse_on: 1               # flag include transverse wake
+  xbins: 10                    # The mesh on which CSR wake is computed
+  zbins: 30
+  xlim: 3
+  zlim: 3
+  write_beam: True
+  write_wakes: True
+  write_name: 'dipole_fromfile'
+  workdir: './output'
+
+
+
+
+
+
+
+
+
+
+
+
+
+

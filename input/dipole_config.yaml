@@ -1,0 +1,33 @@
+input_beam:
+  style: distgen     # from_file or distgen or ParticleGroup
+  distgen_input_file: ./input//dipole_init_beam.yaml
+
+input_lattice:
+  lattice_input_file: input//dipole_lattice.yaml
+
+particle_deposition:
+  pbins: 100        # number of grids in parallel direction for particle deposition
+  obins: 100         # number of grids in orthogonal direction for particle deposition
+  plim: 5            # range in parallel in the unit of sigma_x
+  olim: 5            # range in orthogonal in the unit of sigma_z
+  filter_order: 2    # 0 for no filter
+  filter_window: 5
+  velocity_threshold : 4000
+
+CSR_integration:
+  n_formation_length: 1.5
+  zbins: 100
+  xbins: 100
+
+CSR_computation:
+  compute_CSR: 1                 # if zero, only track the beam
+  apply_CSR: 0                   # flag apply CSR to particles
+  transverse_on: 1               # flag include transverse wake
+  pbins: 30                    # The mesh on which CSR wake is computed
+  obins: 30
+  plim: 3
+  olim: 3
+  write_beam: None           # 'all',  None, [list of steps]
+  write_wakes: True
+  write_name: 'dipole'
+  workdir: './output'

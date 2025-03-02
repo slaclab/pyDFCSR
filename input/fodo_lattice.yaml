@@ -1,0 +1,48 @@
+step_size:  0.07
+
+Q1:
+  type: quad
+  L: 0.05
+  strength: 1.0
+  nsep: 1
+  
+
+D1:    
+  type: drift
+  L: 1.0
+  nsep: 1
+  
+
+Q2_1:
+  type: quad
+  L: 0.05
+  strength: -1.0
+  nsep: 1
+
+Q2_2:
+  type: quad
+  L: 0.05
+  strength: -1.0
+  nsep: 1
+
+
+D2:    
+  type: drift
+  L: 1.0
+  nsep: 1
+  
+  
+Q3:    
+  type: quad
+  L: 0.05
+  strength: 1.0          #1/m^2
+  nsep: 1
+  
+#S1:
+#  type: sextupole
+#  L: 0.05
+#  strength: 0.5         #1/m^3
+#  nsep: 1
+
+
+  
