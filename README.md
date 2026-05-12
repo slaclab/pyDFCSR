@@ -9,6 +9,7 @@ This branch contains modified `pyDFCSR_2D` scripts with checkpoint save/load sup
 pyDFCSR_2D/
 ├── CSR.py
 ├── deposit.py
+├── beams.py
 └── params.py
 example_configs/
 ├── config_beams_save_ckpt_debug.yaml
