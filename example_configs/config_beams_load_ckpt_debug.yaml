@@ -1,0 +1,43 @@
+CSR_computation:
+  apply_CSR: 1
+  compute_CSR: 1
+  transverse_on: 1
+  stop_step: 100
+  workdir: /sdf/data/ad/ard-online/CSR_NN_data/CSR_Modeling/CSR_sims_save_ckpt_debug
+  write_beam:
+  - 300
+  write_name: Beams_L1-22.009058392350603_L2-34.4365707187697_N1000000_BEGBC20
+  write_wakes: false
+  xbins: 24
+  xlim: 3
+  zbins: 32
+  zlim: 3
+  restart:
+    enabled: true
+    load: true
+    save: false
+    save_every_dipole: start,start+2,start+4
+    checkpoint_path: /sdf/data/ad/ard-online/CSR_NN_data/CSR_Modeling/CSR_sims_save_ckpt_debug/Beams_L1-22.009058392350603_L2-34.4365707187697_N1000000_BEGBC20-restart.h5
+    checkpoint_group: b1le_1_step5
+    save_wakes_range: 0
+    save_model: false
+    save_xpx: false
+    mode: physics
+CSR_integration:
+  n_formation_length: 1
+  xbins: 100
+  zbins: 100
+input_beam:
+  ParticleGroup_h5: /sdf/data/ad/ard-online/CSR_NN_data/CSR_Modeling/begbc20_beams/Optimized_beams_h5/Beams_L1-22.009058392350603_L2-34.4365707187697_N1000000_BEGBC20.h5
+  style: ParticleGroup
+input_lattice:
+  lattice_input_file: /sdf/data/ad/ard-online/CSR_NN_data/CSR_Modeling/datagen_config_lattice_files_multistep_train_step0.06/fixed_step_0.060000/lattice_files/bc20w_c_0.060000_000033.yaml
+particle_deposition:
+  filter_order: 1
+  filter_window: 9
+  upper_limit: 4000
+  velocity_threhold: 1000
+  xbins: 200
+  xlim: 5
+  zbins: 200
+  zlim: 5
