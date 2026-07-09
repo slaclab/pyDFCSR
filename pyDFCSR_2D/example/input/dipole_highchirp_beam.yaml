@@ -51,9 +51,13 @@ z_dist:
   type: gaussian
 
 transforms:
-  s:
+  s1:
     shear_coefficient:
       units: 'gigaelectron_volt/speed_of_light/meter'
       value: 80
     type: shear z:pz
-
+  s2:
+    shear_coefficient:
+      units: 'dimensionless'
+      value: 5.0
+    type: shear z:x

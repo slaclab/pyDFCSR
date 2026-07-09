@@ -1,0 +1,33 @@
+input_beam:
+  style: distgen
+  distgen_input_file: input//dipole_highchirp_beam.yaml
+
+input_lattice:
+  lattice_input_file: input//dipole_lattice.yaml
+
+particle_deposition:
+  xbins: 200
+  zbins: 200
+  xlim: 5
+  zlim: 5
+  filter_order: 2
+  filter_window: 5
+  velocity_threhold : 1000
+
+CSR_integration:
+  n_formation_length: 1.5
+  zbins: 100
+  xbins: 100
+
+CSR_computation:
+  compute_CSR: 1
+  apply_CSR: 1
+  transverse_on: 1
+  xbins: 10
+  zbins: 30
+  xlim: 3
+  zlim: 3
+  write_beam: [1, 2, 5, 9, 10, 11, 12, 15]
+  write_wakes: True
+  write_name: 'dipole_highchirp'
+  workdir: './output'

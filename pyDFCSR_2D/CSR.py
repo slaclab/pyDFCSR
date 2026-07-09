@@ -9,8 +9,9 @@ from mpi4py import MPI
 from .beams import Beam
 # from .deposit import histogram_cic_1d, histogram_cic_2d
 from .deposit import DF_tracker
+from .deposit_smooth import DF_tracker_smooth
 from .interp1D import interpolate1D
-from .interp3D import interpolate3D
+from .interp3D import interpolate3D, interpolate3D_transformed, get_poly_deriv_blended
 from .lattice import Lattice  # , get_referece_traj
 from .params import Integration_params, CSR_params
 # from .physical_constants import c, e, qe, me, MC2
@@ -53,9 +54,15 @@ class CSR2D:
         self.lattice = Lattice(input['input_lattice'])
 
         if 'particle_deposition' in input:
-            self.DF_tracker = DF_tracker(input['particle_deposition'])
+            deposition_config = input['particle_deposition']
+            method = deposition_config.get('method', 'legacy')
+            if method == 'bspline_fft':
+                self.DF_tracker = DF_tracker_smooth(deposition_config)
+            else:
+                self.DF_tracker = DF_tracker(deposition_config)
         else:
             self.DF_tracker = DF_tracker()
+        self.use_smooth_deposit = isinstance(self.DF_tracker, DF_tracker_smooth)
 
         if 'CSR_integration' in input:
             self.integration_params = Integration_params(input['CSR_integration'])
@@ -303,7 +310,6 @@ class CSR2D:
                     #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
                                                        n_formation_length=self.integration_params.n_formation_length)
-                    # build interpolant based on the 3D matrix
                     self.DF_tracker.build_interpolant()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
@@ -604,17 +610,23 @@ class CSR2D:
           
     def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False):
 
-        #vx = self.DF_tracker.F_vx([t, x, s - t])
-        vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
-                             data=self.DF_tracker.data_vx_interp,
-                             min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                             min_z=self.DF_tracker.min_z,
-                             delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                             delta_z=self.DF_tracker.delta_z)[0]
-
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
+        if self.use_smooth_deposit:
+            vx = interpolate3D_transformed(
+                xval=np.array([x]), zval=np.array([s - t]), tval=np.array([t]),
+                data=self.DF_tracker.data_vx_interp,
+                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
+                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
+                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)[0]
+        else:
+            vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
+                                 data=self.DF_tracker.data_vx_interp,
+                                 min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                                 min_z=self.DF_tracker.min_z,
+                                 delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                 delta_z=self.DF_tracker.delta_z)[0]
 
         X0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
                              delta_x = self.lattice.delta_x)[0]
@@ -647,7 +659,6 @@ class CSR2D:
         r_minus_rp = np.sqrt(r_minus_rp_x**2 + r_minus_rp_y**2)
 
 
-        #rho_sp = self.lattice.F_rho(sp_flat)
         rho_sp = np.zeros(sp_flat.shape)
         for count in range(self.lattice.Nelement):
             if count == 0:
@@ -657,43 +668,81 @@ class CSR2D:
 
         t_ret = t - r_minus_rp
 
-        #density_ret = self.DF_tracker.F_density(np.array([t_ret, xp_flat, sp_flat - t_ret]).T)
-        #density_x_ret = self.DF_tracker.F_density_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        #density_z_ret = self.DF_tracker.F_density_z(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        #vx_ret = self.DF_tracker.F_vx(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
-        #vx_x_ret = self.DF_tracker.F_vx_x(np.array([t_ret, xp_flat, sp_flat- t_ret]).T)
+        if self.use_smooth_deposit:
+            # Use transformed interpolation — query in physical (x, z) frame,
+            # transform to xi internally using per-timestep polynomials
+            z_ret = sp_flat - t_ret
 
-        density_ret = interpolate3D(xval = t_ret, yval = xp_flat, zval = sp_flat - t_ret,
-                                  data = self.DF_tracker.data_density_interp,
-                                  min_x = self.DF_tracker.min_x, min_y = self.DF_tracker.min_y,  min_z = self.DF_tracker.min_z,
-                                  delta_x = self.DF_tracker.delta_x, delta_y = self.DF_tracker.delta_y, delta_z = self.DF_tracker.delta_z)
+            density_ret = interpolate3D_transformed(
+                xval=xp_flat, zval=z_ret, tval=t_ret,
+                data=self.DF_tracker.data_density_interp,
+                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
+                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
+                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
 
-        density_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                  data=self.DF_tracker.data_density_x_interp,
-                                  min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y, min_z=self.DF_tracker.min_z,
-                                  delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                  delta_z=self.DF_tracker.delta_z)
+            density_x_ret = interpolate3D_transformed(
+                xval=xp_flat, zval=z_ret, tval=t_ret,
+                data=self.DF_tracker.data_density_x_interp,
+                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
+                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
+                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
 
-        density_z_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                    data=self.DF_tracker.data_density_z_interp,
-                                    min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                                    min_z=self.DF_tracker.min_z,
-                                    delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                    delta_z=self.DF_tracker.delta_z)
+            density_z_stored = interpolate3D_transformed(
+                xval=xp_flat, zval=z_ret, tval=t_ret,
+                data=self.DF_tracker.data_density_z_interp,
+                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
+                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
+                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
 
-        vx_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                    data=self.DF_tracker.data_vx_interp,
-                                    min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                                    min_z=self.DF_tracker.min_z,
-                                    delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                    delta_z=self.DF_tracker.delta_z)
+            # Chain rule already applied in deposit_smooth.py (density_z_stored is lab-frame)
+            density_z_ret = density_z_stored
 
-        vx_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                             data=self.DF_tracker.data_vx_x_interp,
-                             min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                             min_z=self.DF_tracker.min_z,
-                             delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                             delta_z=self.DF_tracker.delta_z)
+            vx_ret = interpolate3D_transformed(
+                xval=xp_flat, zval=z_ret, tval=t_ret,
+                data=self.DF_tracker.data_vx_interp,
+                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
+                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
+                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
+
+            vx_x_ret = interpolate3D_transformed(
+                xval=xp_flat, zval=z_ret, tval=t_ret,
+                data=self.DF_tracker.data_vx_x_interp,
+                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
+                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
+                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
+
+        else:
+            density_ret = interpolate3D(xval = t_ret, yval = xp_flat, zval = sp_flat - t_ret,
+                                      data = self.DF_tracker.data_density_interp,
+                                      min_x = self.DF_tracker.min_x, min_y = self.DF_tracker.min_y,  min_z = self.DF_tracker.min_z,
+                                      delta_x = self.DF_tracker.delta_x, delta_y = self.DF_tracker.delta_y, delta_z = self.DF_tracker.delta_z)
+
+            density_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                      data=self.DF_tracker.data_density_x_interp,
+                                      min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y, min_z=self.DF_tracker.min_z,
+                                      delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                      delta_z=self.DF_tracker.delta_z)
+
+            density_z_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                        data=self.DF_tracker.data_density_z_interp,
+                                        min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                                        min_z=self.DF_tracker.min_z,
+                                        delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                        delta_z=self.DF_tracker.delta_z)
+
+            vx_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                        data=self.DF_tracker.data_vx_interp,
+                                        min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                                        min_z=self.DF_tracker.min_z,
+                                        delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                        delta_z=self.DF_tracker.delta_z)
+
+            vx_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
+                                 data=self.DF_tracker.data_vx_x_interp,
+                                 min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
+                                 min_z=self.DF_tracker.min_z,
+                                 delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
+                                 delta_z=self.DF_tracker.delta_z)
 
         ## Todo: More accurate vx, maybe add vs
         vs = 1

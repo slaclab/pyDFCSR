@@ -1,0 +1,30 @@
+CSR_computation:
+  apply_CSR: 1
+  compute_CSR: 1
+  transverse_on: 1
+  workdir: ./output
+  write_beam:
+  - 1
+  write_name: dipole_tilt0
+  write_wakes: true
+  xbins: 10
+  xlim: 3
+  zbins: 30
+  zlim: 3
+CSR_integration:
+  n_formation_length: 1.5
+  xbins: 100
+  zbins: 100
+input_beam:
+  distgen_input_file: input/dipole_tilt0_beam.yaml
+  style: distgen
+input_lattice:
+  lattice_input_file: input/dipole_lattice.yaml
+particle_deposition:
+  filter_order: 2
+  filter_window: 5
+  velocity_threhold: 1000
+  xbins: 100
+  xlim: 5
+  zbins: 100
+  zlim: 5
