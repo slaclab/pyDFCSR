@@ -1,0 +1,19 @@
+step_size: 0.05
+
+D0:
+  type: drift
+  L: 0.5
+  nsep: 1
+
+B1:
+  type: dipole
+  L: 0.5002
+  angle: 0.0483
+  E1: 0.0
+  E2: 0.0483
+  nsep: 1
+
+D1:
+  type: drift
+  L: 1.0
+  nsep: 1

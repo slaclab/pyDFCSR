@@ -296,6 +296,77 @@ def interpolate3D_transformed(xval, zval, tval, data, poly_coeffs,
     return result
 
 
+@jit(nopython=True, cache=True)
+def interpolate3D_transformed_with_derivs(xval, zval, tval, data, poly_coeffs,
+                                           min_xi_arr, min_z_arr, min_t,
+                                           delta_xi_arr, delta_z_arr, delta_t):
+    """
+    Interpolate density AND compute spatial derivatives on-the-fly via
+    finite differences on the stored density grid.
+
+    Returns (rho, drho_dx, drho_dz) where:
+      - drho_dx = ∂ρ/∂x = ∂ρ/∂ξ (since ∂ξ/∂x = 1)
+      - drho_dz = ∂ρ/∂z|_x (lab frame, chain rule applied)
+    """
+    n_pts = len(xval)
+    rho = np.zeros(n_pts)
+    drho_dx = np.zeros(n_pts)
+    drho_dz = np.zeros(n_pts)
+
+    n_t = data.shape[0]
+    n_xi = data.shape[1]
+    n_z = data.shape[2]
+
+    for i in range(n_pts):
+        t_idx = (tval[i] - min_t) / delta_t
+        k = int(t_idx)
+        if k < 0:
+            k = 0
+        if k >= n_t - 1:
+            k = n_t - 2
+        alpha = t_idx - k
+        if alpha < 0.0:
+            alpha = 0.0
+        if alpha > 1.0:
+            alpha = 1.0
+
+        val_blend = 0.0
+        dxi_blend = 0.0
+        dz_blend = 0.0
+
+        for kk_idx in range(2):
+            kk = k + kk_idx
+            w = alpha if kk_idx == 1 else (1.0 - alpha)
+
+            poly_kk = poly_coeffs[kk]
+            xi = xval[i] - eval_poly(poly_kk, zval[i])
+            xi_idx = (xi - min_xi_arr[kk]) / delta_xi_arr[kk]
+            z_idx = (zval[i] - min_z_arr[kk]) / delta_z_arr[kk]
+
+            val = bilinear_single(data[kk], xi_idx, z_idx, n_xi, n_z)
+
+            val_xp = bilinear_single(data[kk], xi_idx + 1.0, z_idx, n_xi, n_z)
+            val_xm = bilinear_single(data[kk], xi_idx - 1.0, z_idx, n_xi, n_z)
+            dval_dxi = (val_xp - val_xm) / (2.0 * delta_xi_arr[kk])
+
+            val_zp = bilinear_single(data[kk], xi_idx, z_idx + 1.0, n_xi, n_z)
+            val_zm = bilinear_single(data[kk], xi_idx, z_idx - 1.0, n_xi, n_z)
+            dval_dz_xi = (val_zp - val_zm) / (2.0 * delta_z_arr[kk])
+
+            poly_prime = eval_poly_deriv(poly_kk, zval[i])
+            dval_dz_lab = dval_dz_xi - poly_prime * dval_dxi
+
+            val_blend += w * val
+            dxi_blend += w * dval_dxi
+            dz_blend += w * dval_dz_lab
+
+        rho[i] = val_blend
+        drho_dx[i] = dxi_blend
+        drho_dz[i] = dz_blend
+
+    return rho, drho_dx, drho_dz
+
+
 @jitclass(spec)
 class TrilinearInterpolator:
     def __init__(self, data, x, y, z):

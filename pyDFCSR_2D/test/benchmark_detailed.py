@@ -411,8 +411,8 @@ def run_chicane_benchmark(config_file, case_name):
 def main():
     os.makedirs(BENCHMARK_DIR, exist_ok=True)
 
-    # Chicane fine step
-    run_chicane_benchmark('input/chicane_config_fine.yaml', 'chicane_fine')
+    # Chicane with 300x300 integration
+    run_chicane_benchmark('input/chicane_config_highres.yaml', 'chicane_highres')
 
 
 if __name__ == '__main__':
