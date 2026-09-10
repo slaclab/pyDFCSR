@@ -2248,11 +2248,23 @@ measurable, precisely as thesis 4.4.2 says (the narrow band reaches far but is a
 and *non-monotonically*, which is a quadrature noise floor rather than a missing domain.
 
 **Read the PARTITION column as a spread, not an offset.** All four variants agree with each other to
-**1e-5** (0.00548 vs 0.00549). The common ~0.55% offset is a harness artifact: the seam loop recomputes the
-per-region cells at each observation point, while the reference used cells fixed at mid-z. The same artifact
-sets the floor for every number above — `fixed-cell vs default-node reference = 0.00576` for *identical*
-geometry, purely from `int(round(len/cell))` versus exactly 400 nodes. **Nothing below ~0.5% is resolvable
-by this test.**
+**1e-5** (0.00548 vs 0.00549), so the seam bookkeeping is exact. Their common ~0.55% offset is the floor
+described next, not a difference between variants.
+
+**What the floor is, and what it is not.** `fixed-cell vs default-node reference = 0.00576` compares the
+wake computed twice over *identical* geometry — same `s′` domain, same transverse bands — differing only in
+whether each region gets exactly `zbins` nodes or `round(length/cell_i)` nodes. At the calibration point
+these coincide by construction; elsewhere they diverge, because `d` depends on the observation `x` so region
+lengths vary column to column. Two legitimate discretizations of the same integral disagreeing by 0.58%
+**is a measurement of unconverged longitudinal quadrature, not an artifact of the harness.** An earlier
+draft of this section called it an artifact; that was wrong. It agrees with the independent resolution
+sweep: `zbins = 400` sits ~0.5% from converged at shear 20, and 4.3% at shear 50 where the floor reads
+5.96%.
+
+The consequence for reading this test is unchanged, and it is why the floor matters: the sweep *differences*
+configurations, so **any deviation below the floor cannot be attributed to the extent being swept** rather
+than to the discretization. Nothing below ~0.5% is resolvable here at shear 20, nothing below ~6% at
+shear 50.
 
 **The confounded first pass, and why it was wrong — for the third time in this investigation.** Sweeping the
 extents at fixed `zbins` gave 0.007 → 0.041 for `s4` and 0.017 → **0.152** for `d`, growing monotonically,
@@ -2278,13 +2290,163 @@ substantially.
 **Caveat.** One shear (20), one observation point. The extents involve `σ_x/σ_z` ratios that change with
 tilt, so this should be repeated at shear 2 and 50 before the multiples are called safe in general.
 
-![Longitudinal extent invariance](pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent.png)
+**Repeated at shear 50 (amplification 167×) — and there the test runs out of resolution.**
+
+```
+                                        shear 20   shear 50
+ floor (same geometry, 2 allocations)     0.00576    0.05961
+ s1 far edge                              0.00000    0.00000
+ s4 forward reach (worst)                 0.00650    0.08062
+ d chirp reach (worst)                    0.00076    0.02078
+ seams, spread between 4 variants           1e-05      1e-05
+```
+
+Only two conclusions survive at shear 50: `s1` is **exactly** invariant again, so the far edge is irrelevant
+at any tilt; and the four repartitioning variants still agree to **1e-5**, so the bookkeeping is exact
+independent of tilt. The `s4` (8.1%) and `d` (2.1%) numbers sit at or below the 5.96% floor, so **they are
+not resolvable — the extents at shear 50 are neither confirmed nor refuted.**
+
+**Why the floor blew up, measured not assumed.** `d` depends on the observation point `x`, and at shear 50
+the wake mesh spans `±3σ_z = ±4.1 mm` in `z`, so `x = x_transform + p(z)` sweeps ±6.19 mm against
+`10σ_x = 20.6 mm`. Measured directly, `d` varies **6.18 → 11.48 mm (86%)** across the mesh, so per-column
+node counts scatter far from 400. That only matters if 400 is unconverged, and it is:
+
+```
+Longitudinal resolution at shear 50, default geometry:
+   zbins   rel L2 vs 3200
+     200          0.10223
+     400          0.04307     <- the shipped default
+     800          0.00792
+    1600          0.00533
+```
+
+**`zbins = 400` carries 4.3% error at shear 50, against ~0.5% at shear 20 — the longitudinal resolution
+requirement scales with tilt, needing roughly 4× more nodes (1600 vs 400) for equal accuracy.** That is
+consistent with the 5.96% floor and it compounds with §6d, where `zbins = 200` was already 4× above the
+roughness floor at shear 20.
+
+So the honest state: extents verified adequate at shear 20; at shear 50 only `s1` and the seams are
+established. Settling `s4` and `d` there requires repeating the sweep at `zbins ≈ 1600`, i.e. 4× the cost.
+This also means **`CSR_integration: zbins` should scale with tilt rather than being a fixed default** — a
+finding worth more than the extent question that prompted it.
+
+![Longitudinal extent invariance, shear 50](pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear50.png)
+
+![Longitudinal extent invariance, shear 20](pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear20.png)
 
 **Files.** `pyDFCSR_2D/test/test_longitudinal_extent.py` (new).
 
 ```bash
 python pyDFCSR_2D/test/test_longitudinal_extent.py   # ~8 min
 ```
+
+#### 6k. What sets the longitudinal resolution — and a per-region fix (2026-09-10) ✅
+
+§6j left `zbins` needing to grow with tilt (0.5% error at shear 20, 4.3% at shear 50) but with no
+prescription. **Hypothesis:** the binding constraint is the near region `(s3, s4)`, which holds the
+singularity and the steep integrand. Its *length* grows with tilt as `d ~ Nσ_x/|tan 2α|`, but the scale the
+integrand varies on is the transverse support width `σ_ξ`, which is nearly tilt-independent (12.5 → 12.4 µm
+from shear 20 to 50). So the requirement should be a constant **near-region cell measured in `σ_ξ`**, and
+the node count should scale as the tilt amplification `σ_x/σ_ξ`.
+
+**Part 1 — confirmed, in the regime that matters.** Near-region cell at which each shear reaches 1%:
+
+```
+   shear     amp  zbins@1%    cell@1%   /sigma_z  /sigma_xi
+       2     1.3       200     4.17um     0.1427      0.058     <- unconstrained, see below
+      20    65.9       400    13.95um     0.0271      1.112
+      50   166.8       800    16.08um     0.0118      1.299
+```
+
+For the two chirped cases the `σ_ξ` column agrees to **17%** (1.11 vs 1.30) while the `σ_z` column spreads
+by **2.3×** — and across all three shears `σ_z` spreads by 12× against `σ_ξ`'s apparent 22×, which is why
+the plot matters more than the table. In the collapse plot the shear-20 and shear-50 curves lie on top of
+each other against `σ_ξ` and are clearly separated against `σ_z`. **The controlling scale is `σ_ξ`, and the
+requirement is a near-region cell of ~1 `σ_ξ`.**
+
+*The shear-2 row is not a counterexample, it is an unconstrained point, and the table overstates it.* Its
+error is already **2e-4 at the coarsest setting tested** (`zbins = 200`) and never approaches 1%, so
+"first `zbins` meeting 1%" returns the bottom of the ladder rather than a measurement. At amplification
+1.3× the two branches have merged, there is no extended chirp band, and the near region is short — a
+qualitatively different geometry. Its true requirement is coarser than anything probed here.
+
+![Longitudinal resolution collapse test](pyDFCSR_2D/test/benchmark_results/long_res/longitudinal_resolution.png)
+
+**Part 2 — per-region allocation replaces the magic number.** Give the near region a cell of `c·σ_ξ` and the
+two far regions a flat 200 nodes each (justified by §6j: the far edge `s1` is *exactly* invariant, so
+spending equal nodes there is waste). Accuracy against the same shear's `zbins = 3200` reference; cost as
+mean columns per wake point:
+
+```
+              shear 2            shear 20           shear 50
+    c     cols    rel L2      cols    rel L2      cols    rel L2
+ 2.00      406   0.00203       623   0.01964       922   0.01055
+ 1.00      412   0.00514       846   0.00584      1444   0.00662
+ 0.50      423   0.00060      1293   0.00101      2487   0.00476
+ 0.25      446   0.00039      2185   0.00139      4574   0.00183
+```
+
+| shear | flat `zbins` for 1% | columns | allocation `c` for 1% | columns | saving |
+|---|---|---|---|---|---|
+| 2 | 200 | 600 | 2.00 | 406 | 1.5× |
+| 20 | 400 | 1200 | 1.00 | 846 | 1.4× |
+| 50 | 800 | 2400 | 1.00 | 1444 | 1.7× |
+
+**The speedup is modest — 1.4–1.7× — and that is not the point.** The near region dominates the node budget
+(1044 of 1444 columns at shear 50), so redistributing the far regions can only buy so much. The real result
+is **parameter invariance**: a single `c ≈ 0.5–1.0` reaches 1% across amplification 1.3× → 167×, replacing a
+`zbins` that must be retuned per regime. That is exactly the failure mode this whole investigation was
+started to remove — §1 objected to "parameter band-aids, each of which trades one regime for another".
+
+Recommended default `c = 0.5`, not 1.0: at `c = 1.0` the errors are 0.5–0.7%, uncomfortably close to the 1%
+target, while `c = 0.5` gives 0.1–0.5% for about 1.7× the columns. Note the ~0.5% noise floor is visible
+again in the non-monotonic shear-2 column (0.002, 0.005, 0.0006, 0.0004).
+
+**Consequence for the branch-following rewrite.** This captures part of the rewrite's efficiency argument
+without touching the structure. What it does *not* capture is grading *within* the near region: nodes there
+are still uniform in `s′` while the integrand goes as `1/r`, so log-spaced nodes should do better still.
+That remains the strongest remaining argument for the rewrite, and it is now quantified rather than assumed.
+
+**Files.** `pyDFCSR_2D/test/test_longitudinal_resolution.py` (new).
+
+```bash
+python pyDFCSR_2D/test/test_longitudinal_resolution.py   # ~4 min, 3 shears
+```
+
+#### 6l. Per-region allocation wired into the code (2026-09-10) ✅ **shear-50 error 4.3% → 0.48%**
+
+Two new `CSR_integration` parameters, consumed by `CSR2D._region_node_counts`:
+
+- **`near_cell`** (default **0.5**) — target cell of the near region `(s3, s4)` in units of `σ_ξ`. Node
+  count is `round(length / (near_cell · σ_ξ))`, capped at `20·zbins`.
+- **`far_zbins`** (default **200**) — flat count for the two far regions.
+- **`near_cell = 0`** restores the historical flat-`zbins` behaviour exactly.
+
+**Measured through the production `get_CSR_wake` path**, against each shear's own `zbins = 3200` reference:
+
+| | shear 20 (66×) | shear 50 (167×) |
+|---|---|---|
+| `near_cell = 0`, `zbins = 400` (old default) | 0.00505 | **0.04307** |
+| `near_cell = 0.5`, `far_zbins = 200` (new default) | **0.00101** | **0.00476** |
+| `near_cell = 1.0` | 0.00584 | 0.00662 |
+| production vs the harness that validated the rule | 5.2e-06 | 0.0 |
+
+The old default's 0.04307 at shear 50 reproduces §6j's independently measured 4.3% exactly, so
+`near_cell = 0` is a faithful fallback. The new default cuts that **9×** to 0.48%, and improves shear 20 as
+well. `near_cell = 0.5` is preferred over 1.0 for the reason given in §6k — at 1.0 the error sits at
+0.6–0.7%, too close to the 1% target.
+
+**Regression.** Unit tests unchanged (13 pass, 1 pre-existing failure). The two-branch A/B returns
+**1.06466 / 0.40824** with roughness 0.01759 / 0.08777 — byte-identical to §6h and §6d.
+
+That last point required care. Every number reported by `test_xi_bands_converge.py`,
+`test_two_branch_bands.py` and `test_longitudinal_extent.py` was measured under flat `zbins`, so leaving
+them on the new default would silently shift the whole §6c–§6j record and look like a regression. All three
+now pin `near_cell = 0.0` in their `BASE`, with a comment saying why; the new allocation is characterised in
+`test_longitudinal_resolution.py` instead. **Changing a default means auditing every test that inherits it.**
+
+**Files.** `pyDFCSR_2D/params.py` (two parameters), `pyDFCSR_2D/CSR.py` (`_region_node_counts`, and
+`get_CSR_wake` now allocates per region), three tests pinned to the old behaviour.
 
 ### Step 7 — Remaining secondary fixes ⬜
 

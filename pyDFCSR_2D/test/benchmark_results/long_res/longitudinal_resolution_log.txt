@@ -1,0 +1,83 @@
+======================================================================================
+Longitudinal resolution: what sets it, and can per-region allocation fix it?
+======================================================================================
+
+--- shear z:x = 2   amp = 1.3x   sigma_z = 29 um   sigma_xi = 71.98 um ---
+    near region (s3,s4) length = 0.83 mm
+      zbins   near cell  /sigma_z  /sigma_xi  rel L2 vs 3200
+        200      4.17um    0.1427      0.058         0.00019
+        400      2.08um    0.0712      0.029         0.00008
+        800      1.04um    0.0355      0.014         0.00003
+       1600      0.52um    0.0178      0.007         0.00002
+       3200      0.26um    0.0089      0.004         0.00000
+
+--- shear z:x = 20   amp = 65.9x   sigma_z = 515 um   sigma_xi = 12.54 um ---
+    near region (s3,s4) length = 5.56 mm
+      zbins   near cell  /sigma_z  /sigma_xi  rel L2 vs 3200
+        200     27.96um    0.0542      2.230         0.02540
+        400     13.95um    0.0271      1.112         0.00506
+        800      6.96um    0.0135      0.556         0.00265
+       1600      3.48um    0.0068      0.278         0.00120
+       3200      1.74um    0.0034      0.139         0.00000
+
+--- shear z:x = 50   amp = 166.8x   sigma_z = 1362 um   sigma_xi = 12.37 um ---
+    near region (s3,s4) length = 12.85 mm
+      zbins   near cell  /sigma_z  /sigma_xi  rel L2 vs 3200
+        200     64.55um    0.0474      5.217         0.10223
+        400     32.19um    0.0236      2.602         0.04307
+        800     16.08um    0.0118      1.299         0.00792
+       1600      8.03um    0.0059      0.649         0.00533
+       3200      4.02um    0.0029      0.325         0.00000
+
+======================================================================================
+PART 1: what is the controlling scale?
+======================================================================================
+Interpolate the near-region cell at which each shear reaches 1% accuracy.
+
+   shear     amp  zbins@1%    cell@1%   /sigma_z  /sigma_xi
+       2     1.3       200     4.17um     0.1427      0.058
+      20    65.9       400    13.95um     0.0271      1.112
+      50   166.8       800    16.08um     0.0118      1.299
+
+If the /sigma_xi column is roughly constant while /sigma_z is not, the
+requirement is set by the transverse support width, and the node count must
+scale as (near length)/sigma_xi ~ tilt amplification.
+
+======================================================================================
+PART 2: per-region allocation vs a flat zbins
+======================================================================================
+Near region gets cell = c * sigma_xi; far regions get 200 nodes each
+(section 6j: the far edge is exactly invariant, so equal nodes there is waste).
+Accuracy is measured against the SAME shear's zbins=3200 reference, and
+cost as the mean total column count per wake point -- flat zbins=3200 is 9600.
+
+--- shear 2 (amp 1x) ---
+   c (cell/sigma_xi)  mean columns  rel L2 vs 3200
+                2.00           406         0.00203
+                1.00           412         0.00514
+                0.50           423         0.00060
+                0.25           446         0.00039
+
+--- shear 20 (amp 66x) ---
+   c (cell/sigma_xi)  mean columns  rel L2 vs 3200
+                2.00           623         0.01964
+                1.00           846         0.00584
+                0.50          1293         0.00101
+                0.25          2185         0.00139
+
+--- shear 50 (amp 167x) ---
+   c (cell/sigma_xi)  mean columns  rel L2 vs 3200
+                2.00           922         0.01055
+                1.00          1444         0.00662
+                0.50          2487         0.00476
+                0.25          4574         0.00183
+
+======================================================================================
+SUMMARY
+======================================================================================
+   shear   flat zbins for 1%    cols |  alloc c for 1%    cols   saving
+       2                 200     600 |            2.00     406     1.5x
+      20                 400    1200 |            1.00     846     1.4x
+      50                 800    2400 |            1.00    1444     1.7x
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/long_res/longitudinal_resolution.png

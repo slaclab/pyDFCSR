@@ -1,0 +1,55 @@
+==================================================================================
+Longitudinal integration extent: invariance sweep
+==================================================================================
+s = 0.700000 m, shear z:x = 50, slope = -1.5154
+sigma_z = 1361.9 um, sigma_x = 2063.8 um, sigma_xi = 12.37 um
+L_f = 546.7 mm, history built with n_fl = 24 (8 snapshots)
+
+self-check: wake_from_bounds vs get_CSR_wake = 0.00e+00   (must be ~0, else the harness does not reproduce the code)
+per-region longitudinal cells held fixed at the default values: 1050.0 um, 682.7 um, 32.2 um
+fixed-cell reference vs default-node reference: 0.05961 (should be ~0; both are the default geometry)
+
+--- s1 far edge (n_fl x L_f)  [DOMAIN]   (longitudinal cell held FIXED) ---
+       value  dE vs default  xk vs default
+         1.5        0.00000        0.00000
+           3        0.00000        0.00000
+           6        0.00000        0.00000
+          12        0.00000        0.00000
+
+--- s4 forward reach (sigma_z)  [DOMAIN]   (longitudinal cell held FIXED) ---
+       value  dE vs default  xk vs default
+           3        0.00000        0.00000
+           5        0.08062        0.00496
+          10        0.05424        0.00536
+          20        0.06965        0.00723
+
+--- d chirp reach (sigma_x)  [DOMAIN]   (longitudinal cell held FIXED) ---
+       value  dE vs default  xk vs default
+          10        0.00000        0.00000
+          20        0.01311        0.00618
+          40        0.01563        0.00818
+          80        0.02078        0.00867
+
+--- interior seams s2, s3  [PARTITION] ---
+These are seams between regions that all run identical logic, so moving
+them repartitions the same domain. Any deviation is a seam bug.
+Longitudinal cell held FIXED, so region count does not change resolution.
+                       variant  dE vs default
+             default 3 regions        0.05406
+          merge far, keep near        0.05406
+        seam moved to midpoint        0.05406
+               5 equal regions        0.05407
+
+--- verdict ---
+  s1 far edge (n_fl x L_f)     DOMAIN     worst dE deviation 0.00000
+  s4 forward reach (sigma_z)   DOMAIN     worst dE deviation 0.08062
+  d chirp reach (sigma_x)      DOMAIN     worst dE deviation 0.02078
+  default 3 regions            PARTITION  0.05406
+  merge far, keep near         PARTITION  0.05406
+  seam moved to midpoint       PARTITION  0.05406
+  5 equal regions              PARTITION  0.05407
+
+A DOMAIN axis reading ~0 means the default extent is already big enough.
+A PARTITION axis must read ~0 or the region bookkeeping is wrong.
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear50.png

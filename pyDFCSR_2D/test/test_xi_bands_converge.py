@@ -57,7 +57,13 @@ POLY_DEGREE = 1 if METHOD == 'bspline_comoving' else 3
 
 # the setting every axis perturbs away from
 BASE = dict(xbins=200, zbins=200, xi_band_margin=2.0,
-            near_patch=5.0, near_patch_nr=100, near_patch_nphi=180)
+            near_patch=5.0, near_patch_nr=100, near_patch_nphi=180,
+            # near_cell = 0 pins the OLD flat-zbins allocation. Every number
+            # this test has ever reported was measured that way, so pinning it
+            # keeps those comparisons valid now that the production default is
+            # near_cell = 0.5. The new allocation is characterised in
+            # test_longitudinal_resolution.py instead.
+            near_cell=0.0)
 
 
 def write_inputs():

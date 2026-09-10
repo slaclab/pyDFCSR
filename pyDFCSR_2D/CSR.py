@@ -849,6 +849,27 @@ class CSR2D:
             return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
         return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
 
+    def _region_node_counts(self, bounds):
+        """
+        Longitudinal node count for each s' region, near region last.
+
+        A flat count per region is wrong once the regions differ in length by ~100x.
+        The near region sets the requirement: its cell must be ~sigma_xi (measured to
+        collapse across tilt amplification 66x and 167x), while its length grows with
+        tilt, so its node count scales as sigma_x/sigma_xi. The far regions need far
+        fewer nodes -- the far edge is invariant to machine precision there.
+
+        near_cell = 0 restores the historical behaviour of `zbins` everywhere.
+        """
+        ip = self.integration_params
+        if not ip.near_cell:
+            return [ip.zbins] * len(bounds)
+        target = ip.near_cell * self.beam._sigma_x_transform
+        counts = [ip.far_zbins] * len(bounds)
+        a, b = bounds[-1]
+        counts[-1] = int(np.clip(round(abs(b - a) / target), 3, 20 * ip.zbins))
+        return counts
+
     def _near_patch_radii(self, s, s3, s4):
         """
         (R1, R2) of the polar near-field patch, or None if it is disabled.
@@ -992,8 +1013,9 @@ class CSR2D:
             # change. The chirp case's regions 3 and 4 tiled x' over the *same* s'
             # range (sp3), so once both are replaced by the same ribbon they must be
             # merged into one region or the ribbon would be counted twice.
-            nz = self.integration_params.zbins
-            sps = [np.linspace(a, b, nz) for a, b in ((s1, s2), (s2, s3), (s3, s4))]
+            bnds = ((s1, s2), (s2, s3), (s3, s4))
+            sps = [np.linspace(a, b, n) for (a, b), n
+                   in zip(bnds, self._region_node_counts(bnds))]
 
             # Only the last region straddles s' = s, so only it owns the 1/|r-r'|
             # singularity and gets the polar patch.

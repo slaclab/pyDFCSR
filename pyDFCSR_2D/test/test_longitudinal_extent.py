@@ -42,13 +42,19 @@ from pyDFCSR_2D.CSR import CSR2D
 RESULT_DIR = os.path.join(os.path.dirname(__file__), 'benchmark_results', 'long_extent')
 EXAMPLE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'example'))
 
-SHEAR = 20.0
+SHEAR = float(sys.argv[1]) if len(sys.argv) > 1 else 20.0
 STOP_S = 0.60
 DEP_BINS = 200
 N_PARTICLE = 200000
 HIST_NFL = 24.0            # deep history so s1 sweeps are never truncation-limited
 BASE = dict(xbins=200, zbins=400, xi_band_margin=2.0,
-            near_patch=5.0, near_patch_nr=100, near_patch_nphi=180)
+            near_patch=5.0, near_patch_nr=100, near_patch_nphi=180,
+            # near_cell = 0 pins the OLD flat-zbins allocation. Every number
+            # this test has ever reported was measured that way, so pinning it
+            # keeps those comparisons valid now that the production default is
+            # near_cell = 0.5. The new allocation is characterised in
+            # test_longitudinal_resolution.py instead.
+            near_cell=0.0)
 
 
 def write_inputs():
@@ -69,11 +75,11 @@ def write_inputs():
                                                     'value': float(SHEAR)},
                               'type': 'shear z:x'}},
     }
-    with open(os.path.join(EXAMPLE_DIR, 'input/le_beam.yaml'), 'w') as f:
+    with open(os.path.join(EXAMPLE_DIR, f'input/le_beam_s{SHEAR:g}.yaml'), 'w') as f:
         yaml.dump(beam, f, default_flow_style=False, sort_keys=False)
     config = {
         'input_beam': {'style': 'distgen',
-                       'distgen_input_file': 'input/le_beam.yaml'},
+                       'distgen_input_file': f'input/le_beam_s{SHEAR:g}.yaml'},
         'input_lattice': {'lattice_input_file': 'input/dipole_lattice.yaml'},
         'particle_deposition': {'method': 'bspline_comoving',
                                 'xbins': DEP_BINS, 'zbins': DEP_BINS,
@@ -86,7 +92,7 @@ def write_inputs():
                             'write_beam': [], 'write_wakes': False,
                             'write_name': 'le', 'workdir': './output'},
     }
-    with open(os.path.join(EXAMPLE_DIR, 'input/le_config.yaml'), 'w') as f:
+    with open(os.path.join(EXAMPLE_DIR, f'input/le_config_s{SHEAR:g}.yaml'), 'w') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
@@ -208,7 +214,7 @@ def main():
     os.makedirs(RESULT_DIR, exist_ok=True)
     write_inputs()
     os.chdir(EXAMPLE_DIR)
-    csr = CSR2D(input_file='input/le_config.yaml')
+    csr = CSR2D(input_file=f'input/le_config_s{SHEAR:g}.yaml')
     csr.run(stop_time=STOP_S, debug=True)
     csr.get_CSR_mesh()
     ip = csr.integration_params
@@ -346,12 +352,12 @@ def main():
     fig.suptitle('Longitudinal integration extent: does the answer depend on the '
                  'hand-tuned s\' limits?', fontsize=12)
     plt.tight_layout()
-    p = os.path.join(RESULT_DIR, 'longitudinal_extent.png')
+    p = os.path.join(RESULT_DIR, f'longitudinal_extent_shear{SHEAR:g}.png')
     plt.savefig(p, dpi=130)
     plt.close()
     emit('')
     emit(f'Plot saved: {p}')
-    with open(os.path.join(RESULT_DIR, 'longitudinal_extent_log.txt'), 'w') as f:
+    with open(os.path.join(RESULT_DIR, f'longitudinal_extent_log_shear{SHEAR:g}.txt'), 'w') as f:
         f.write('\n'.join(lines))
 
 
