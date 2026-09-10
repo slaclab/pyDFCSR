@@ -1,0 +1,52 @@
+==================================================================================
+Longitudinal integration extent: invariance sweep
+==================================================================================
+s = 0.700000 m, shear z:x = 20, slope = -1.6034
+sigma_z = 515.4 um, sigma_x = 826.6 um, sigma_xi = 12.54 um
+L_f = 395.5 mm, history built with n_fl = 24 (8 snapshots)
+
+self-check: wake_from_bounds vs get_CSR_wake = 0.00e+00   (must be ~0, else the harness does not reproduce the code)
+
+--- s1 far edge (n_fl x L_f)  [DOMAIN] ---
+       value  dE vs default  xk vs default
+         1.5        0.00000        0.00000
+           3        0.00010        0.00000
+           6        0.00010        0.00000
+          12        0.00010        0.00000
+
+--- s4 forward reach (sigma_z)  [DOMAIN] ---
+       value  dE vs default  xk vs default
+           3        0.00000        0.00000
+           5        0.00686        0.00039
+          10        0.01147        0.00301
+          20        0.04116        0.01003
+
+--- d chirp reach (sigma_x)  [DOMAIN] ---
+       value  dE vs default  xk vs default
+          10        0.00000        0.00000
+          20        0.01738        0.00305
+          40        0.06765        0.02386
+          80        0.15209        0.07057
+
+--- interior seams s2, s3  [PARTITION] ---
+These are seams between regions that all run identical logic, so moving
+them repartitions the same domain. Any deviation is a seam bug.
+                       variant  dE vs default
+             default 3 regions        0.00000
+      single region (no seams)        1.17287
+        seam moved to midpoint        0.00038
+               5 equal regions        0.00013
+
+--- verdict ---
+  s1 far edge (n_fl x L_f)     DOMAIN     worst dE deviation 0.00010
+  s4 forward reach (sigma_z)   DOMAIN     worst dE deviation 0.04116
+  d chirp reach (sigma_x)      DOMAIN     worst dE deviation 0.15209
+  default 3 regions            PARTITION  0.00000
+  single region (no seams)     PARTITION  1.17287
+  seam moved to midpoint       PARTITION  0.00038
+  5 equal regions              PARTITION  0.00013
+
+A DOMAIN axis reading ~0 means the default extent is already big enough.
+A PARTITION axis must read ~0 or the region bookkeeping is wrong.
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent.png

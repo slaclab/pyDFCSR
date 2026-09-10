@@ -9,9 +9,10 @@ from mpi4py import MPI
 from .beams import Beam
 # from .deposit import histogram_cic_1d, histogram_cic_2d
 from .deposit import DF_tracker
-from .deposit_smooth import DF_tracker_smooth
+from .deposit_smooth import DF_tracker_smooth, DF_tracker_comoving
 from .interp1D import interpolate1D
-from .interp3D import interpolate3D, interpolate3D_transformed, get_poly_deriv_blended
+from .interp3D import (interpolate3D, interpolate3D_transformed,
+                       interpolate3D_comoving_fields, get_poly_deriv_blended)
 from .lattice import Lattice  # , get_referece_traj
 from .params import Integration_params, CSR_params
 # from .physical_constants import c, e, qe, me, MC2
@@ -56,13 +57,19 @@ class CSR2D:
         if 'particle_deposition' in input:
             deposition_config = input['particle_deposition']
             method = deposition_config.get('method', 'legacy')
-            if method == 'bspline_fft':
+            if method == 'bspline_comoving':
+                self.DF_tracker = DF_tracker_comoving(deposition_config)
+            elif method == 'bspline_fft':
                 self.DF_tracker = DF_tracker_smooth(deposition_config)
             else:
                 self.DF_tracker = DF_tracker(deposition_config)
         else:
             self.DF_tracker = DF_tracker()
-        self.use_smooth_deposit = isinstance(self.DF_tracker, DF_tracker_smooth)
+        self.use_comoving = isinstance(self.DF_tracker, DF_tracker_comoving)
+        # both B-spline paths deposit in the tilt-removed frame, so both need the
+        # xi-following integration bands rather than the sigma_x-wide rectangles
+        self.use_smooth_deposit = (isinstance(self.DF_tracker, DF_tracker_smooth)
+                                   or self.use_comoving)
 
         if 'CSR_integration' in input:
             self.integration_params = Integration_params(input['CSR_integration'])
@@ -149,6 +156,29 @@ class CSR2D:
             self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
         else:
             self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
+
+    def _refresh_formation_length(self, R):
+        """
+        Recompute L_f from the CURRENT bunch length. Returns False only in the
+        pre-first-bend drift, where formation_length is an accumulated drift length
+        rather than a function of sigma_z and must not be recomputed.
+
+        Must be called every step, not just on element entry. sigma_z can grow by an
+        order of magnitude inside a single bend at high tilt (57 um -> 1362 um at
+        shear 50 here), and L_f ~ sigma_z^(1/3) sets both the integration reach
+        s1 = s2 - n_formation_length*L_f and the history truncation in
+        append_interpolant. Pinning it to the entrance bunch length left the retained
+        history several times too short and the wake 12.9% off at shear 20.
+        """
+        if self.inbend:
+            self.get_formation_length(R=R, sigma_z=5 * self.beam.sigma_z,
+                                      inbend=True)
+            return True
+        if self.afterbend:
+            self.get_formation_length(R=self.R_rec, sigma_z=5 * self.beam.sigma_z,
+                                      inbend=True)
+            return True
+        return False
 
     def get_bmadx_element(self, ele,  DL, entrance = False, exit = False):
         input_dic = self.lattice.lattice_config[ele].copy()
@@ -260,19 +290,17 @@ class CSR2D:
                 self.R_rec = R
                 self.phi_rec = angle
 
-                self.get_formation_length(R=R, sigma_z=5*self.beam.sigma_z, inbend = True)
+                self._refresh_formation_length(R)
 
 
             else:  # If not in a bend
                 self.inbend = False
 
-                if self.afterbend:
-                    #Todo: Verify the formation length in the drift
-                    #self.get_formation_length(R=self.R_rec, sigma_z=5*self.beam.sigma_z, phi = self.phi_rec, inbend=False)
-                    self.get_formation_length(R=self.R_rec, sigma_z=5 * self.beam.sigma_z, inbend=True)
-
-
-                else:  # if it is the first drift in the lattice
+                #Todo: Verify the formation length in the drift. The phi-dependent
+                # out-of-bend form in get_formation_length is not used; the in-bend
+                # expression with the recorded R is used instead.
+                if not self._refresh_formation_length(R):
+                    # first drift in the lattice, before any bend
                     self.formation_length += L
 
 
@@ -301,13 +329,17 @@ class CSR2D:
                     distance_in_current_ele += DL
 
 
+                # sigma_z evolves within the element, so L_f has to be refreshed here
+                # and not only on element entry -- it truncates the history below and
+                # sets the integration reach in get_CSR_wake.
+                self._refresh_formation_length(R)
+
                 if debug or self.CSR_params.compute_CSR:
                     # get the density functions
                     self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
                     # append the density functions to the log
                     self.DF_tracker.append_DF()
                     # append 3D matrix for interpolation with the new DFs by interpolation
-                    #self.get_formation_length(R=R, sigma_z=self.beam.sigma_z)
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
                                                        n_formation_length=self.integration_params.n_formation_length)
                     self.DF_tracker.build_interpolant()
@@ -456,6 +488,417 @@ class CSR2D:
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
 
+    def _lattice_at(self, sval):
+        """(X0, Y0, n_x, n_y) of the reference orbit at arc length(s) sval."""
+        lat = self.lattice
+        return tuple(interpolate1D(xval=sval, data=d, min_x=lat.min_x, delta_x=lat.delta_x)
+                     for d in (lat.coords[:, 0], lat.coords[:, 1],
+                               lat.n_vec[:, 0], lat.n_vec[:, 1]))
+
+    def _retarded_xi_band(self, s, x, t, sp, n_iter=3):
+        """
+        Locate the retarded density support in lab x' for each s' column.
+
+        Returns (lo, hi), both shaped like sp: the lab-x' interval spanned by the
+        deposition grid at the retarded time of that column.
+
+        The integrand is proportional to the retarded density and its derivatives,
+        which the interpolant returns as exactly 0.0 outside the deposition grid.
+        Restricting the transverse domain to that grid is therefore exact, not an
+        approximation -- it discards only nodes that were contributing hard zeros.
+
+        t_ret depends on x' through |r - r'|, and the x' where the density lives
+        depends on t_ret through the frame polynomial, so this is a fixed point.
+        |r - r'| varies slowly with x' (transverse offsets are small compared with
+        the retarded distance), so a few passes converge.
+
+        Two snapshots straddle each t_ret and the interpolant blends them in the
+        LAB frame, so at large tilt-rate the "support" really is the union of two
+        shear-displaced ribbons (the ghosting of interp3D). The band has to cover
+        both. Once the time blend is made co-moving the two collapse onto each
+        other and these bands tighten by themselves.
+        """
+        tr = self.DF_tracker
+        n_t = tr.data_density_interp.shape[0]
+
+        X0_s, Y0_s, n_s_x, n_s_y = (v[0] for v in self._lattice_at(np.array([s])))
+        X0_sp, Y0_sp, n_sp_x, n_sp_y = self._lattice_at(sp)
+
+        xp = np.full(sp.shape, x, dtype=float)
+        lo = hi = dead = None
+        for _ in range(n_iter):
+            dx = X0_s - X0_sp + x * n_s_x - xp * n_sp_x
+            dy = Y0_s - Y0_sp + x * n_s_y - xp * n_sp_y
+            t_ret = t - np.sqrt(dx * dx + dy * dy)
+            z_ret = sp - t_ret
+
+            t_idx = (t_ret - tr.min_x) / tr.delta_x
+            k = np.clip(np.floor(t_idx).astype(int), 0, max(n_t - 2, 0))
+            k1 = np.minimum(k + 1, n_t - 1)
+
+            if self.use_comoving:
+                # The co-moving interpolant places the density in the single
+                # BLENDED frame, so the band is one interval. Mirror its blending
+                # exactly -- linear in the poly and the means, log-linear in the
+                # sigmas -- or the band will not sit where the density is.
+                a = np.clip(t_idx - k, 0.0, 1.0)
+                b = 1.0 - a
+                p_a = (b * self._eval_poly_rows(tr.poly_coeffs_interp[k], z_ret)
+                       + a * self._eval_poly_rows(tr.poly_coeffs_interp[k1], z_ret))
+                xi_bar = b * tr.xi_bar_arr[k] + a * tr.xi_bar_arr[k1]
+                z_bar = b * tr.z_bar_arr[k] + a * tr.z_bar_arr[k1]
+                s_xi = np.exp(b * np.log(tr.sigma_xi_arr[k])
+                              + a * np.log(tr.sigma_xi_arr[k1]))
+                s_z = np.exp(b * np.log(tr.sigma_z_arr[k])
+                             + a * np.log(tr.sigma_z_arr[k1]))
+                w = (z_ret - z_bar) / s_z
+                in_z = (w >= tr.w_start) & (w < tr.w_end)
+                centre = p_a + xi_bar
+                lo = np.where(in_z, centre + tr.u_start * s_xi, np.inf)
+                hi = np.where(in_z, centre + tr.u_end * s_xi, -np.inf)
+            else:
+                # The lab-frame blend evaluates each snapshot in its OWN frame and
+                # adds them, so the support is the union of two shear-displaced
+                # ribbons. The band has to cover both.
+                lo = np.full(sp.shape, np.inf)
+                hi = np.full(sp.shape, -np.inf)
+                for kk in (k, k1):
+                    xi_lo, xi_hi, z_lo, z_hi = self._grid_extents(kk)
+                    # a snapshot whose z grid does not reach z_ret contributes
+                    # nothing, so it must not widen the band either
+                    in_z = (z_ret >= z_lo) & (z_ret < z_hi)
+                    base = self._eval_poly_rows(tr.poly_coeffs_interp[kk], z_ret)
+                    lo = np.where(in_z, np.minimum(lo, base + xi_lo), lo)
+                    hi = np.where(in_z, np.maximum(hi, base + xi_hi), hi)
+
+            dead = ~np.isfinite(lo)
+            lo = np.where(dead, x, lo)
+            hi = np.where(dead, x, hi)
+            xp = 0.5 * (lo + hi)
+
+        mid = 0.5 * (lo + hi)
+        half = 0.5 * (hi - lo) * self.integration_params.xi_band_margin
+        # A dead column's z_ret is off the deposition z grid, so the density and
+        # all its derivatives are exactly 0 there and the column contributes
+        # nothing whatever band we give it. Give it a normal width rather than
+        # zero, so no degenerate mesh reaches the 1/|r-r'| kernel.
+        if dead.any():
+            fallback = half[~dead].max() if (~dead).any() else np.abs(x) + 1e-6
+            half = np.where(dead, fallback, half)
+        return mid - half, mid + half
+
+    def _grid_extents(self, kk):
+        """
+        (xi_lo, xi_hi, z_lo, z_hi) of each snapshot in the index array kk, in the
+        tilt-removed frame.
+
+        The two B-spline trackers describe the same support with different
+        metadata: DF_tracker_smooth stores a physical grid origin and spacing per
+        snapshot, DF_tracker_comoving stores one shared normalized grid plus each
+        snapshot's (mean, sigma).
+        """
+        tr = self.DF_tracker
+        if self.use_comoving:
+            s_xi = tr.sigma_xi_arr[kk]
+            s_z = tr.sigma_z_arr[kk]
+            return (tr.xi_bar_arr[kk] + tr.u_start * s_xi,
+                    tr.xi_bar_arr[kk] + tr.u_end * s_xi,
+                    tr.z_bar_arr[kk] + tr.w_start * s_z,
+                    tr.z_bar_arr[kk] + tr.w_end * s_z)
+
+        n_xi, n_z = tr.data_density_interp.shape[1:]
+        # bilinear_single needs int(idx) <= n - 2, so the usable extent stops one
+        # cell short of the last node
+        return (tr.min_xi_arr[kk],
+                tr.min_xi_arr[kk] + (n_xi - 1) * tr.delta_xi_arr[kk],
+                tr.min_z_arr[kk],
+                tr.min_z_arr[kk] + (n_z - 1) * tr.delta_z_arr[kk])
+
+    @staticmethod
+    def _eval_poly_rows(coeffs, z):
+        """Evaluate a different polynomial per element of z. coeffs: (n, deg+1)."""
+        out = np.zeros_like(z)
+        for j in range(coeffs.shape[1]):
+            out = out * z + coeffs[:, j]
+        return out
+
+    def _comoving_frame_at(self, t_ret):
+        """
+        The blended co-moving frame at each element of t_ret.
+
+        Mirrors interpolate3D_comoving_fields exactly -- linear in the polynomial
+        and the means, log-linear in the sigmas. A band located with a different
+        blend than the interpolant uses will not sit where the density is.
+
+        Returns (poly, xi_bar, z_bar, sigma_xi, sigma_z); poly is (n, deg+1) with
+        the highest power first, matching np.polyfit and _eval_poly_rows.
+        """
+        tr = self.DF_tracker
+        n_t = tr.poly_coeffs_interp.shape[0]
+        t_idx = (t_ret - tr.min_x) / tr.delta_x
+        k = np.clip(np.floor(t_idx).astype(int), 0, max(n_t - 2, 0))
+        k1 = np.minimum(k + 1, n_t - 1)
+        a = np.clip(t_idx - k, 0.0, 1.0)
+        b = 1.0 - a
+        poly = (b[:, None] * tr.poly_coeffs_interp[k]
+                + a[:, None] * tr.poly_coeffs_interp[k1])
+        return (poly,
+                b * tr.xi_bar_arr[k] + a * tr.xi_bar_arr[k1],
+                b * tr.z_bar_arr[k] + a * tr.z_bar_arr[k1],
+                np.exp(b * np.log(tr.sigma_xi_arr[k])
+                       + a * np.log(tr.sigma_xi_arr[k1])),
+                np.exp(b * np.log(tr.sigma_z_arr[k])
+                       + a * np.log(tr.sigma_z_arr[k1])))
+
+    @staticmethod
+    def _eq424(T, nq, q2, tau, b, sign):
+        """
+        Vectorized thesis Eq 4.24, in the form corrected in Step 4f.
+
+            Tb  = T - b/tau
+            rad = (tau^2 - 1)(Tb^2 - q2) + (nq*tau + Tb)^2
+            x'  = tau [ Tb + nq*tau +- sqrt(rad) ] / (tau^2 - 1)
+
+        where the beam axis is x' = tau*z' + b and l = |r - r'| = Tb + x'/tau.
+
+        Returns (x', rad); x' is nan where the branch does not exist. Every guard
+        below is load-bearing:
+
+          |tau| ~ 0   the axis is the horizontal line x' = b, independent of l, so
+                      there is a single root and no squaring was involved.
+          |tau| ~ 1   (tau^2 - 1) -> 0. This is the alpha = +-pi/4 degeneracy the
+                      thesis flags and the origin of the code's |tan theta| <= 1
+                      branch switch; the quadratic collapses to a linear equation.
+          rad < 0     the light cone and the beam axis do not meet at this s', so
+                      the branch is genuinely absent.
+          l <= 0      SPURIOUS ROOT. The derivation squares l = Tb + x'/tau, which
+                      admits l < 0, i.e. t_ret > t -- a source point in the future.
+                      Omitting this guard puts quadrature nodes where the integrand
+                      is identically zero (Step 5d found this the hard way).
+        """
+        flat = np.abs(tau) < 1e-9
+        tau_s = np.where(flat, 1.0, tau)
+        deg = (~flat) & (np.abs(np.abs(tau_s) - 1.0) < 1e-9)
+        Tb = T - b / tau_s
+
+        rad = (tau_s ** 2 - 1.0) * (Tb ** 2 - q2) + (nq * tau_s + Tb) ** 2
+        gen = (~flat) & (~deg) & (rad >= 0.0)
+        xp = np.where(gen,
+                      tau_s * (Tb + nq * tau_s
+                               + sign * np.sqrt(np.maximum(rad, 0.0)))
+                      / np.where(gen, tau_s ** 2 - 1.0, 1.0),
+                      np.nan)
+
+        Bc = -2.0 * T / tau_s - 2.0 * nq
+        lin = deg & (Bc != 0.0)
+        xp = np.where(lin, -(q2 - T ** 2) / np.where(lin, Bc, 1.0), xp)
+        xp = np.where(flat, b, xp)
+
+        # the l > 0 guard does not apply where no squaring took place
+        l = np.where(flat, 1.0, Tb + xp / tau_s)
+        return np.where(np.isfinite(xp) & (l > 0.0), xp, np.nan), rad
+
+    def _retarded_xi_bands(self, s, x, t, sp, n_iter=12):
+        """
+        Locate EVERY branch of the retarded density support in lab x': one (lo, hi)
+        interval per branch per s' column.
+
+        _retarded_xi_band runs a single fixed point started at x' = x, so it
+        converges to one root of "light cone meets beam axis" and never covers the
+        other. Step 4e measured the branch it misses at up to 67% of a column's
+        contribution. Here BOTH roots of the corrected Eq 4.24 are taken, each
+        refined by the same fixed point, each given its own sub-band.
+
+        The roots are deliberately NOT labelled narrow/chirp. Which sign is which
+        flips as tau^2 crosses 1, and at low tilt they merge into a single ridge
+        (Step 5d), so they are treated symmetrically and any overlap is removed by
+        _disjoint_bands.
+
+        Eq 4.24 assumes one straight beam axis, so this applies only to the
+        co-moving interpolant at poly_degree 1. Everything else falls back to the
+        single-band locator, leaving 'legacy' and 'bspline_fft' untouched.
+        """
+        tr = self.DF_tracker
+        if not (self.use_comoving and getattr(tr, 'poly_degree', None) == 1):
+            return [self._retarded_xi_band(s, x, t, sp)]
+
+        X0_s, Y0_s, n_s_x, n_s_y = (v[0] for v in self._lattice_at(np.array([s])))
+        X0_sp, Y0_sp, n_sp_x, n_sp_y = self._lattice_at(sp)
+
+        qx = X0_s - X0_sp + x * n_s_x
+        qy = Y0_s - Y0_sp + x * n_s_y
+        nq = n_sp_x * qx + n_sp_y * qy
+        q2 = qx * qx + qy * qy
+        T = t - sp
+        margin = self.integration_params.xi_band_margin
+
+        bands, diag = [], []
+        for sign in (-1.0, +1.0):
+            xp = np.full(sp.shape, float(x))
+            live = np.ones(sp.shape, dtype=bool)
+            rad = np.zeros(sp.shape)
+            for _ in range(n_iter):
+                dx = qx - xp * n_sp_x
+                dy = qy - xp * n_sp_y
+                poly, xi_bar, _, _, _ = self._comoving_frame_at(
+                    t - np.sqrt(dx * dx + dy * dy))
+                new, rad = self._eq424(T, nq, q2, poly[:, 0],
+                                       poly[:, -1] + xi_bar, sign)
+                ok = np.isfinite(new)
+                xp = np.where(ok, new, xp)
+                live &= ok
+
+            # the width and the z support come from the frame at the converged root
+            dx = qx - xp * n_sp_x
+            dy = qy - xp * n_sp_y
+            r_phys = np.sqrt(dx * dx + dy * dy)
+            z_ret = sp - (t - r_phys)
+            poly, xi_bar, z_bar, s_xi, s_z = self._comoving_frame_at(t - r_phys)
+            w = (z_ret - z_bar) / s_z
+            live &= (w >= tr.w_start) & (w < tr.w_end)
+
+            centre = self._eval_poly_rows(poly, z_ret) + xi_bar
+            half = 0.5 * (tr.u_end - tr.u_start) * s_xi * margin
+            # A dead branch carries no density whatever band it is given, so it gets
+            # zero width and _integrate_xi_region drops its contribution outright.
+            # Its position still has to be finite and sane: on a dead column the
+            # fixed point had no root to converge to and can wander (45 m has been
+            # observed), which contributes nothing but produces absurd node
+            # coordinates in debug output and risks landing on the 1/|r-r'| pole.
+            # Park it a few band widths off the observation point instead: finite,
+            # in a zero-density region, and never exactly at r = 0.
+            parked = x + 4.0 * half
+            bands.append((np.where(live, centre - half, parked),
+                          np.where(live, centre + half, parked)))
+            diag.append({'rad': rad, 'live': live, 'xp': xp, 'r': r_phys,
+                         'centre': centre, 'half': half})
+
+        self._branch_diag = {'sp': sp, 'branches': diag}
+        return bands
+
+    @staticmethod
+    def _disjoint_bands(bands):
+        """
+        Make per-column intervals mutually disjoint by SUBTRACTION.
+
+        The bands all have the same width, so two of them can only overlap
+        one-sidedly: whichever starts first covers [lo1, hi1], and the part of the
+        other not already covered is [hi1, hi2]. Clipping to that is exact, and a
+        band fully inside another collapses to zero width.
+
+        Deliberately not a union. Replacing two overlapping bands by their union is
+        also exact, but it spreads the same xbins nodes over up to twice the width,
+        doubling the transverse cell size precisely where the integrand peaks --
+        which would undo Step 4. Subtraction never widens a band.
+
+        NOTE: the returned bands are ordered by position PER COLUMN, so band j here
+        is not branch j of _retarded_xi_bands -- the two swap wherever lo_B < lo_A.
+        Aliveness must therefore be tested as (hi > lo) on the returned bands, never
+        by pairing them with _branch_diag['branches'][j]['live'], which is recorded
+        before this reordering.
+        """
+        if len(bands) < 2:
+            return bands
+        if len(bands) > 2:
+            raise NotImplementedError('subtraction is exact for two bands only')
+        (loA, hiA), (loB, hiB) = bands
+        a_first = loA <= loB
+        lo1 = np.where(a_first, loA, loB)
+        hi1 = np.where(a_first, hiA, hiB)
+        lo2 = np.where(a_first, loB, loA)
+        hi2 = np.where(a_first, hiB, hiA)
+        return [(lo1, hi1), (np.minimum(np.maximum(lo2, hi1), hi2), hi2)]
+
+    def _integrate_xi_region(self, s, x, t, sp, ignore_vx, taper=None):
+        """
+        Integrate one s' region with the transverse nodes riding the density ribbon.
+
+        Each localization branch gets its own set of x' nodes per s' column, so the
+        inner trapezoid rule needs a per-column spacing. For a uniform grid
+        trapz(y, dx=h) = h * trapz(y, dx=1), so the unit-spacing result is simply
+        scaled by each column's dx.
+        """
+        bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp))
+        nx = self.integration_params.xbins
+        frac = np.linspace(0.0, 1.0, nx)
+
+        dE = xk = 0.0
+        meshes = []
+        for lo, hi in bands:
+            width = hi - lo
+            alive = width > 0.0
+            if not alive.any():
+                continue
+            xp_mesh = lo[None, :] + frac[:, None] * width[None, :]
+            sp_mesh = np.broadcast_to(sp[None, :], xp_mesh.shape).copy()
+            dxp = width / (nx - 1)
+
+            gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
+                                            ignore_vx=ignore_vx, taper=taper)
+            # A zero-width column has dxp = 0 and contributes nothing. Select it out
+            # rather than multiplying by zero, so a degenerate node that landed on
+            # the 1/|r-r'| pole cannot turn the whole region into a nan.
+            iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp, 0.0)
+            ix = np.where(alive, np.trapz(y=gx, axis=0) * dxp, 0.0)
+            dE += -self.CSR_scaling * np.trapz(y=iz, x=sp)
+            xk += self.CSR_scaling * np.trapz(y=ix, x=sp)
+            meshes.append((xp_mesh, sp_mesh, gz, gx))
+
+        if not meshes:
+            z = np.zeros((nx, len(sp)))
+            return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
+        return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
+
+    def _near_patch_radii(self, s, s3, s4):
+        """
+        (R1, R2) of the polar near-field patch, or None if it is disabled.
+
+        R2 is clipped so the disc stays strictly inside the s' region that owns it,
+        which keeps the partition of unity exact: the Cartesian piece carries weight
+        w, the disc carries 1 - w, and 1 - w vanishes for |r - r'| > R2.
+        """
+        n_sig = self.integration_params.near_patch
+        if not n_sig:
+            return None
+        R2 = n_sig * self.beam._sigma_x_transform
+        R2 = min(R2, 0.4 * (s4 - s), 0.4 * (s - s3))
+        if R2 <= 0:
+            return None
+        return 0.5 * R2, R2
+
+    def _integrate_near_patch(self, s, x, t, R1, R2, ignore_vx):
+        """
+        Integrate the near field on a polar mesh centred on x' = x, s' = s.
+
+        The integrand diverges as 1/|r - r'| there. Verified numerically: along rays
+        out of that point, integrand * |r - r'| is constant over four decades. The
+        polar area element r dr dphi cancels that factor exactly, leaving a bounded
+        smooth integrand -- which is what the trapezoid rule needs. A uniform
+        Cartesian mesh instead accumulates equal contributions per decade of r and
+        never converges.
+
+        Radial nodes sit at cell midpoints so r = 0 is never evaluated. phi is
+        periodic, so a plain sum is already the trapezoid rule.
+        """
+        nr = self.integration_params.near_patch_nr
+        nphi = self.integration_params.near_patch_nphi
+
+        dr = R2 / nr
+        r = (np.arange(nr) + 0.5) * dr
+        dphi = 2.0 * np.pi / nphi
+        phi = np.arange(nphi) * dphi
+
+        xp_mesh = x + r[:, None] * np.cos(phi)[None, :]
+        sp_mesh = s + r[:, None] * np.sin(phi)[None, :]
+
+        gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
+                                        ignore_vx=ignore_vx,
+                                        taper=(R1, R2, True))
+        jac = r[:, None] * dr * dphi
+        dE = -self.CSR_scaling * np.sum(gz * jac)
+        xk = self.CSR_scaling * np.sum(gx * jac)
+        return dE, xk, xp_mesh, sp_mesh, gz, gx
+
 #    @profile
     def get_CSR_wake(self, s, x, debug = False):
 
@@ -543,7 +986,35 @@ class CSR2D:
                 x4_r = x0 + 20 * sigma_x
         
         s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
-       
+
+        if self.use_smooth_deposit and self.integration_params.xi_bands:
+            # The s' decomposition above is kept as-is; only the transverse extents
+            # change. The chirp case's regions 3 and 4 tiled x' over the *same* s'
+            # range (sp3), so once both are replaced by the same ribbon they must be
+            # merged into one region or the ribbon would be counted twice.
+            nz = self.integration_params.zbins
+            sps = [np.linspace(a, b, nz) for a, b in ((s1, s2), (s2, s3), (s3, s4))]
+
+            # Only the last region straddles s' = s, so only it owns the 1/|r-r'|
+            # singularity and gets the polar patch.
+            radii = self._near_patch_radii(s, s3, s4)
+            tapers = [None, None, None if radii is None else (*radii, False)]
+
+            parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp)
+                     for spk, tp in zip(sps, tapers)]
+            if radii is not None:
+                parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
+
+            if debug:
+                return {'mode': 'xi_bands',
+                        'near_patch_radii': radii,
+                        'sp': list(sps),
+                        'xp_mesh': [p[2] for p in parts],
+                        'sp_mesh': [p[3] for p in parts],
+                        'integrand_z': [p[4] for p in parts],
+                        'integrand_x': [p[5] for p in parts]}
+            return sum(p[0] for p in parts), sum(p[1] for p in parts)
+
         if chirp_band:
             sp1 = np.linspace(s1, s2, self.integration_params.zbins)
             sp2 = np.linspace(s2, s3, self.integration_params.zbins)
@@ -608,12 +1079,37 @@ class CSR2D:
                 return dE_dct1 + dE_dct2 + dE_dct3, x_kick1 + x_kick2 + x_kick3
           
           
-    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False):
+    def _comoving_fields(self, xval, zval, tval):
+        """
+        (rho, drho/dx, drho/dz|_x, vx, dvx/dx) from the co-moving history, in
+        physical units. Thin binding of the tracker's metadata onto the numba
+        kernel; see interp3D.interpolate3D_comoving_fields.
+        """
+        tr = self.DF_tracker
+        return interpolate3D_comoving_fields(
+            xval, zval, tval,
+            tr.data_density_interp, tr.data_density_u_interp,
+            tr.data_density_w_interp, tr.data_vx_interp, tr.data_vx_u_interp,
+            tr.poly_coeffs_interp, tr.xi_bar_arr, tr.sigma_xi_arr,
+            tr.z_bar_arr, tr.sigma_z_arr,
+            tr.u_start, tr.delta_u, tr.w_start, tr.delta_w,
+            tr.min_x, tr.delta_x)
+
+    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None):
+        """
+        taper: (R1, R2, keep_inner) — multiply the integrands by a radial partition
+        function of |r - r'|. With keep_inner False the weight rises 0 -> 1 across
+        [R1, R2], removing the neighbourhood of the r' -> r singularity; with True
+        it is the complement. The two pieces sum to the untapered integral exactly.
+        """
 
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
-        if self.use_smooth_deposit:
+        if self.use_comoving:
+            vx = self._comoving_fields(np.array([x]), np.array([s - t]),
+                                       np.array([t]))[3][0]
+        elif self.use_smooth_deposit:
             vx = interpolate3D_transformed(
                 xval=np.array([x]), zval=np.array([s - t]), tval=np.array([t]),
                 data=self.DF_tracker.data_vx_interp,
@@ -668,7 +1164,16 @@ class CSR2D:
 
         t_ret = t - r_minus_rp
 
-        if self.use_smooth_deposit:
+        if self.use_comoving:
+            # One pass returns all five fields: they share the frame construction
+            # and the stencil indices, so five separate calls would redo that work.
+            # The chain rule for d rho/dz is applied inside, with the time-blended
+            # p', which the pre-baked per-snapshot version could not do.
+            z_ret = sp_flat - t_ret
+            (density_ret, density_x_ret, density_z_ret,
+             vx_ret, vx_x_ret) = self._comoving_fields(xp_flat, z_ret, t_ret)
+
+        elif self.use_smooth_deposit:
             # Use transformed interpolation — query in physical (x, z) frame,
             # transform to xi internally using per-timestep polynomials
             z_ret = sp_flat - t_ret
@@ -823,6 +1328,17 @@ class CSR2D:
 
         CSR_integrand_x = W1 + W2 + W3
         #CSR_integrand_x = W1
+
+        if taper is not None:
+            R1, R2, keep_inner = taper
+            u = np.clip((r_minus_rp - R1) / (R2 - R1), 0.0, 1.0)
+            # C2 smootherstep, so the tapered integrand has no curvature jump
+            w = u * u * u * (u * (6.0 * u - 15.0) + 10.0)
+            if keep_inner:
+                w = 1.0 - w
+            CSR_integrand_z = CSR_integrand_z * w
+            CSR_integrand_x = CSR_integrand_x * w
+
         CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
         CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
 

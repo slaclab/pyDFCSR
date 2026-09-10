@@ -315,3 +315,233 @@ class DF_tracker_smooth:
 
         # Polynomial coefficients per timestep: shape (n_t, poly_degree+1)
         self.poly_coeffs_interp = np.array([entry[7] for entry in self.DF_log])
+
+
+class DF_tracker_comoving:
+    """
+    Density tracker for the co-moving (Lagrangian) history interpolant.
+
+    Difference from DF_tracker_smooth
+    ---------------------------------
+    DF_tracker_smooth stores each snapshot on its own PHYSICAL xi grid, and the
+    interpolant then evaluates each snapshot in its own tilted frame and averages
+    the results. That lab-frame blend is a superposition of two shear-displaced
+    copies of the beam, and is O(1) wrong once
+    G = |dp'| sigma_z / sigma_xi >~ 1.
+
+    Here each snapshot is stored on a NORMALIZED grid,
+
+        u = (xi - xi_bar)/sigma_xi ,   xi = x - p(z)
+        w = (z  - z_bar )/sigma_z
+
+    which is the same for every snapshot, so index (i, j) refers to the same
+    material point of the beam at all times. Blending at fixed (u, w) is then
+    exact for any affine evolution -- shear plus scaling -- i.e. exact for linear
+    optics between history steps.
+
+    The shared grid is shared in INDEX space only. Snapshot k's physical cell is
+    still delta_xi_k = 2*xlim*sigma_xi_k/xbins, identical to DF_tracker_smooth,
+    so no transverse resolution is traded away for the shared labelling.
+
+    Also note the z-derivative is stored in the NORMALIZED frame. The chain rule
+    d rho/dz|_x = d rho/dz|_xi - p'(z) d rho/dxi is applied at query time with the
+    time-blended p', which is the consistent thing to do and which the old path
+    could not do because it baked p'_k in per snapshot.
+    """
+
+    def __init__(self, input_dic={}):
+        self.configure_params(**input_dic)
+
+        self.sigma_xi = None
+        self.sigma_z = None
+        self.start_time = 0.0
+        self.t = 0.0
+        self.end_time = 0.0
+
+        self.DF_log = deque([])
+        self.time_log = deque([])
+        self.sigma_xi_log = deque([])
+        self.sigma_z_log = deque([])
+        self.poly_coeffs_log = deque([])
+        self.clipped_log = deque([])
+
+        # The normalized grid, fixed once and shared by every snapshot.
+        # Registration matches histogram_bspline_2d: nodes sit at BIN CENTRES,
+        # spacing (end - start)/nbins, not the (n-1) spacing np.linspace gives.
+        self.u_start = -float(self.xlim)
+        self.u_end = float(self.xlim)
+        self.w_start = -float(self.zlim)
+        self.w_end = float(self.zlim)
+        self.delta_u = (self.u_end - self.u_start) / self.xbins
+        self.delta_w = (self.w_end - self.w_start) / self.zbins
+        self.u_grids = self.u_start + (np.arange(self.xbins) + 0.5) * self.delta_u
+        self.w_grids = self.w_start + (np.arange(self.zbins) + 0.5) * self.delta_w
+
+    def configure_params(self, method='bspline_comoving', xbins=128, zbins=128,
+                         xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
+                         velocity_threhold=5, upper_limit=None,
+                         filter_order=0, filter_window=0, fit_zlim=3.0,
+                         clip_warn=1e-3):
+        self.method = method
+        self.xbins = xbins
+        self.zbins = zbins
+        self.xlim = xlim
+        self.zlim = zlim
+        self.smoothing_sigma = smoothing_sigma
+        # deg 1 by default: a higher-degree fit is extrapolated to +-zlim*sigma_z
+        # where there are no particles, and p(z), p'(z) blow up in the z tails.
+        # Degree 1 also matches the transform the wake mesh and the integration
+        # bands use, and makes the localization branches of thesis Eq 4.24 exact.
+        self.poly_degree = poly_degree
+        self.velocity_threhold = velocity_threhold
+        self.upper_limit = upper_limit
+        # restrict the tilt fit to the core, so tail particles cannot lever it
+        self.fit_zlim = fit_zlim
+        self.clip_warn = clip_warn
+
+    def get_DF(self, x, z, px, t):
+        zmean = np.mean(z)
+        zstd = np.std(z)
+
+        # --- tilt removal, fitted on the core only ---
+        core = np.abs(z - zmean) < self.fit_zlim * zstd
+        if core.sum() < 10 * (self.poly_degree + 1):
+            core = np.ones(len(z), dtype=bool)
+        poly_coeffs = np.polyfit(z[core], x[core], deg=self.poly_degree)
+        xi = x - np.polyval(poly_coeffs, z)
+
+        xi_bar = np.mean(xi)
+        z_bar = zmean
+        sigma_xi = np.std(xi)
+        sigma_z = zstd
+
+        # --- normalized coordinates ---
+        u = (xi - xi_bar) / sigma_xi
+        w = (z - z_bar) / sigma_z
+
+        npart = len(u)
+        density = histogram_bspline_2d(
+            q1=u, q2=w, w=np.ones(npart),
+            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
+            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        vx_weighted = histogram_bspline_2d(
+            q1=u, q2=w, w=px,
+            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
+            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+
+        # --- exact, grid-independent normalization ---
+        # The old path used trapz of the deposited field and divided by it, which
+        # renormalizes clipped charge back to 1 and lets the clipped fraction
+        # (different every snapshot) leak in as temporal jitter. Dividing by the
+        # known particle count and cell area instead makes the clipping visible.
+        norm = npart * self.delta_u * self.delta_w
+        density /= norm
+        vx_weighted /= norm
+        captured = density.sum() * self.delta_u * self.delta_w
+        self.clipped = 1.0 - captured
+        if self.clipped > self.clip_warn:
+            print(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the '
+                  f'charge fell outside the +-{self.xlim}/{self.zlim} sigma grid at t = {t:.4f}')
+
+        # --- smoothing and derivatives, in the NORMALIZED frame ---
+        density_smooth, density_du, density_dw = smooth_and_differentiate(
+            density, self.delta_u, self.delta_w, self.smoothing_sigma)
+
+        rho_vx_smooth, _, _ = smooth_and_differentiate(
+            vx_weighted, self.delta_u, self.delta_w, self.smoothing_sigma)
+
+        # snapshot-independent velocity floor: scale by the peak of a normalized
+        # Gaussian on this grid, a fixed number, instead of this snapshot's own
+        # peak density. Otherwise the floor and the mask below breathe with the
+        # beam and inject temporal inconsistency into the W2 / div(v) term.
+        rho_hat_ref = 1.0 / (2.0 * np.pi)
+        epsilon = rho_hat_ref / self.velocity_threhold
+        vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+
+        _, vx_du, _ = smooth_and_differentiate(
+            vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma)
+        vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+
+        self.density = density_smooth
+        self.density_u = density_du
+        self.density_w = density_dw          # normalized frame, NO chain rule baked in
+        self.vx = vx_smooth
+        self.vx_u = vx_du
+
+        self.poly_coeffs = poly_coeffs
+        self.xi_bar = xi_bar
+        self.z_bar = z_bar
+        self.sigma_xi = sigma_xi
+        self.sigma_z = sigma_z
+        self.t = t
+
+        # physical cell sizes, for diagnostics and for locating the lab-frame
+        # support of this snapshot
+        self.delta_xi_phys = self.delta_u * sigma_xi
+        self.delta_z_phys = self.delta_w * sigma_z
+
+    def append_DF(self):
+        self.DF_log.append((
+            self.density, self.density_u, self.density_w, self.vx, self.vx_u,
+            self.poly_coeffs, self.xi_bar, self.sigma_xi, self.z_bar, self.sigma_z))
+        self.time_log.append(self.t)
+        self.sigma_xi_log.append(self.sigma_xi)
+        self.sigma_z_log.append(self.sigma_z)
+        self.poly_coeffs_log.append(self.poly_coeffs)
+        self.clipped_log.append(self.clipped)
+        self.end_time = self.t
+
+    def pop_left_DF(self, new_start_time):
+        while self.start_time < new_start_time:
+            self.DF_log.popleft()
+            self.time_log.popleft()
+            self.sigma_xi_log.popleft()
+            self.sigma_z_log.popleft()
+            self.poly_coeffs_log.popleft()
+            self.clipped_log.popleft()
+            self.start_time = self.time_log[0]
+
+    def append_interpolant(self, formation_length, n_formation_length):
+        start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
+        self.pop_left_DF(new_start_time=start_point)
+        self.build_interpolant()
+
+    def build_interpolant(self):
+        """
+        Stack the history. Because the normalized grid never changes there is no
+        per-timestep grid metadata and no re-gridding: this permanently retires
+        the 'reinterpolate all history when sigma changes by 2x' path.
+        """
+        n_t = len(self.DF_log)
+        times = list(self.time_log)
+
+        self.min_x = times[0]
+        self.max_x = times[-1]
+        self.delta_x = (self.max_x - self.min_x) / (n_t - 1) if n_t > 1 else 1.0
+
+        self.data_density_interp = np.array([e[0] for e in self.DF_log])
+        self.data_density_u_interp = np.array([e[1] for e in self.DF_log])
+        self.data_density_w_interp = np.array([e[2] for e in self.DF_log])
+        self.data_vx_interp = np.array([e[3] for e in self.DF_log])
+        self.data_vx_u_interp = np.array([e[4] for e in self.DF_log])
+
+        self.poly_coeffs_interp = np.array([e[5] for e in self.DF_log])
+        self.xi_bar_arr = np.array([e[6] for e in self.DF_log])
+        self.sigma_xi_arr = np.array([e[7] for e in self.DF_log])
+        self.z_bar_arr = np.array([e[8] for e in self.DF_log])
+        self.sigma_z_arr = np.array([e[9] for e in self.DF_log])
+
+    # ------------------------------------------------------------------
+    # Lab-frame support of a snapshot, used by CSR.get_CSR_wake to place the
+    # transverse integration nodes on the density rather than on a sigma_x-wide
+    # rectangle. Mirrors the metadata DF_tracker_smooth exposes directly.
+    # ------------------------------------------------------------------
+    def xi_extent(self, k):
+        """(xi_lo, xi_hi) of snapshot k's grid, in the tilt-removed frame."""
+        return (self.xi_bar_arr[k] + self.u_start * self.sigma_xi_arr[k],
+                self.xi_bar_arr[k] + self.u_end * self.sigma_xi_arr[k])
+
+    def z_extent(self, k):
+        """(z_lo, z_hi) of snapshot k's grid."""
+        return (self.z_bar_arr[k] + self.w_start * self.sigma_z_arr[k],
+                self.z_bar_arr[k] + self.w_end * self.sigma_z_arr[k])

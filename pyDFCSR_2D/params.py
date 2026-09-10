@@ -17,10 +17,31 @@ class Integration_params:
     def __init__(self, input_dic = {}):
         self.configure_params(**input_dic)
 
-    def configure_params(self, n_formation_length = 4, zbins = 200, xbins = 200):
+    def configure_params(self, n_formation_length = 4, zbins = 200, xbins = 200,
+                         xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
+                         near_patch_nr = 100, near_patch_nphi = 180):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
+        # Place the transverse integration nodes on the retarded density ribbon
+        # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
+        # Only meaningful for the bspline_fft deposition, whose grid is sized by
+        # sigma_xi while the legacy x' bands are sized by sigma_x -- at high tilt
+        # those differ by sigma_x/sigma_xi and the quadrature misses the beam.
+        self.xi_bands = xi_bands
+        # Widen the located ribbon by this factor, to absorb the error in the
+        # single-pass estimate of where t_ret places the beam.
+        self.xi_band_margin = xi_band_margin
+        # Radius (in sigma_xi) of the polar patch used for the near field around
+        # the singular point x' = x, s' = s, where the integrand goes as 1/|r-r'|.
+        # 0 disables the patch. See Stupakov, PRAB 25, 014401 (2022) Sec. IV, which
+        # splits out the same |s'-s| < ds region analytically.
+        self.near_patch = near_patch
+        # Patch resolution is deliberately independent of xbins/zbins: the patch is a
+        # different geometry, and coupling them would make it impossible to refine
+        # the Cartesian mesh and the patch separately when checking convergence.
+        self.near_patch_nr = near_patch_nr
+        self.near_patch_nphi = near_patch_nphi
 
 
 class CSR_params:

@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from numba import jit
 from numba.experimental import jitclass
@@ -399,3 +401,224 @@ class TrilinearInterpolator_vec:
         return interpolate3D_vec(xval, yval, zval, self.data,
                            self.min_x, self.min_y, self.min_z,
                            self.delta_x, self.delta_y, self.delta_z)
+
+# ---------------------------------------------------------------------------
+# Co-moving (Lagrangian) interpolation of the density history.
+#
+# The lab-frame blend used by interpolate3D_transformed evaluates each snapshot
+# in its OWN tilted frame and then averages the two results. That is a
+# superposition of two shear-displaced copies of the beam, so for a beam whose
+# tilt rate changes by dp' between snapshots it returns two peaks where there is
+# one, separated by G*sigma_xi with G = |dp'|*sigma_z/sigma_xi. It is O(1) wrong
+# once G >~ 1, which a chicane reaches easily.
+#
+# Here the FRAME is interpolated in time instead of the field. Every snapshot
+# stores its shape on the same normalized grid u = (xi - xi_bar)/sigma_xi,
+# w = (z - z_bar)/sigma_z, so index (i, j) refers to the same material point of
+# the beam at every snapshot. Blending at fixed (u, w) is then exact for any
+# affine evolution of the beam -- shear plus scaling -- which is what linear
+# optics does between history steps.
+#
+# Note the normalized grid is shared in INDEX space only. Each snapshot's
+# physical cell is still delta_xi_k = 2*xlim*sigma_xi_k/nbins, exactly as
+# 'bspline_fft' does today, so no transverse resolution is given up.
+# ---------------------------------------------------------------------------
+
+
+@jit(nopython=True, cache=True)
+def cubic_bspline_w(x):
+    """Cubic B-spline basis B3(x), support [-2, 2]. Matches deposit_smooth."""
+    ax = abs(x)
+    if ax >= 2.0:
+        return 0.0
+    elif ax >= 1.0:
+        return (2.0 - ax) ** 3 / 6.0
+    else:
+        return (4.0 - 6.0 * ax * ax + 3.0 * ax * ax * ax) / 6.0
+
+
+@jit(nopython=True, cache=True)
+def bspline_eval_single(data2d, u_cell, w_cell, n_u, n_w):
+    """
+    Evaluate a 2D field with the same cubic B-spline kernel used to deposit it.
+
+    C2 continuous, so the integrand it feeds has no derivative jumps on the cell
+    lattice -- unlike bilinear_single, whose first derivative jumps at every cell
+    boundary and degrades the outer trapezoid rule to 1st order.
+
+    u_cell, w_cell are positions in BIN-CENTRE units, i.e.
+        u_cell = (u - u_start)/delta_u - 0.5
+    which is exactly the convention histogram_bspline_2d deposits with.
+
+    Out-of-range stencil entries are treated as zero, again as the deposition
+    does, so the result tapers smoothly to 0 outside the grid instead of
+    stepping. math.floor (not int()) because int() truncates toward zero, which
+    silently turns indices in (-1, 0) into extrapolation with negative weights.
+    """
+    i0 = int(math.floor(u_cell)) - 1
+    j0 = int(math.floor(w_cell)) - 1
+
+    if i0 + 3 < 0 or i0 >= n_u or j0 + 3 < 0 or j0 >= n_w:
+        return 0.0
+
+    out = 0.0
+    for di in range(4):
+        i = i0 + di
+        if i < 0 or i >= n_u:
+            continue
+        wi = cubic_bspline_w(u_cell - i)
+        if wi == 0.0:
+            continue
+        for dj in range(4):
+            j = j0 + dj
+            if j < 0 or j >= n_w:
+                continue
+            out += data2d[i, j] * wi * cubic_bspline_w(w_cell - j)
+    return out
+
+
+@jit(nopython=True, cache=True)
+def interpolate3D_comoving_fields(xval, zval, tval,
+                                  data_rho, data_rho_u, data_rho_w,
+                                  data_vx, data_vx_u,
+                                  poly_coeffs, xi_bar_arr, sigma_xi_arr,
+                                  z_bar_arr, sigma_z_arr,
+                                  u_start, delta_u, w_start, delta_w,
+                                  min_t, delta_t):
+    """
+    Interpolate the density history in a co-moving affine frame.
+
+    All five fields the CSR integrand needs are returned from ONE pass, because
+    they share the frame construction and the stencil indices. get_CSR_integrand
+    previously made five separate interpolate3D_transformed calls, each redoing
+    that work.
+
+    Returns (rho, rho_x, rho_z, vx, vx_x) with
+        rho    = density in the lab frame
+        rho_x  = d rho / dx at fixed z
+        rho_z  = d rho / dz at fixed x   (chain rule applied with the BLENDED p')
+        vx     = transverse velocity
+        vx_x   = d vx / dx
+
+    Frame blending: the polynomial and the means are linear in alpha; the sigmas
+    are blended log-linearly so they stay positive and so that a beam growing
+    exponentially (which is what a drift does to a diverging beam) is tracked
+    smoothly rather than with a kink.
+    """
+    n = len(xval)
+    rho = np.zeros(n)
+    rho_x = np.zeros(n)
+    rho_z = np.zeros(n)
+    vx = np.zeros(n)
+    vx_x = np.zeros(n)
+
+    n_t = data_rho.shape[0]
+    n_u = data_rho.shape[1]
+    n_w = data_rho.shape[2]
+
+    for i in range(n):
+        t_idx = (tval[i] - min_t) / delta_t
+        k = int(math.floor(t_idx))
+        if k < 0:
+            k = 0
+        if k >= n_t - 1:
+            k = n_t - 2
+        a = t_idx - k
+        if a < 0.0:
+            a = 0.0
+        if a > 1.0:
+            a = 1.0
+        b = 1.0 - a
+
+        z = zval[i]
+
+        # --- blend the frame, not the field ---
+        # eval_poly is linear in the coefficients, so blending its value is the
+        # same as blending the coefficients and evaluating.
+        p_a = b * eval_poly(poly_coeffs[k], z) + a * eval_poly(poly_coeffs[k + 1], z)
+        dp_a = b * eval_poly_deriv(poly_coeffs[k], z) + a * eval_poly_deriv(poly_coeffs[k + 1], z)
+
+        xi_bar = b * xi_bar_arr[k] + a * xi_bar_arr[k + 1]
+        z_bar = b * z_bar_arr[k] + a * z_bar_arr[k + 1]
+        s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
+        s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
+
+        # --- map the query point into the shared normalized frame ---
+        xi = xval[i] - p_a
+        u = (xi - xi_bar) / s_xi
+        w = (z - z_bar) / s_z
+
+        u_cell = (u - u_start) / delta_u - 0.5
+        w_cell = (w - w_start) / delta_w - 0.5
+
+        # --- evaluate both snapshots at the SAME (u, w), then blend ---
+        rho_h = (b * bspline_eval_single(data_rho[k], u_cell, w_cell, n_u, n_w)
+                 + a * bspline_eval_single(data_rho[k + 1], u_cell, w_cell, n_u, n_w))
+        rho_hu = (b * bspline_eval_single(data_rho_u[k], u_cell, w_cell, n_u, n_w)
+                  + a * bspline_eval_single(data_rho_u[k + 1], u_cell, w_cell, n_u, n_w))
+        rho_hw = (b * bspline_eval_single(data_rho_w[k], u_cell, w_cell, n_u, n_w)
+                  + a * bspline_eval_single(data_rho_w[k + 1], u_cell, w_cell, n_u, n_w))
+        vx_h = (b * bspline_eval_single(data_vx[k], u_cell, w_cell, n_u, n_w)
+                + a * bspline_eval_single(data_vx[k + 1], u_cell, w_cell, n_u, n_w))
+        vx_hu = (b * bspline_eval_single(data_vx_u[k], u_cell, w_cell, n_u, n_w)
+                 + a * bspline_eval_single(data_vx_u[k + 1], u_cell, w_cell, n_u, n_w))
+
+        # --- back to physical units ---
+        # the shear xi = x - p(z) has unit Jacobian, so the area element is
+        # only the sigma scaling: dx dz = s_xi * s_z du dw
+        jac = s_xi * s_z
+        rho[i] = rho_h / jac
+        rho_x[i] = rho_hu / (s_xi * jac)
+        # d rho/dz|_x = d rho/dz|_xi - p'(z) d rho/dxi, with the BLENDED p'
+        rho_z[i] = (rho_hw / s_z - dp_a * rho_hu / s_xi) / jac
+        vx[i] = vx_h
+        vx_x[i] = vx_hu / s_xi
+
+    return rho, rho_x, rho_z, vx, vx_x
+
+
+@jit(nopython=True, cache=True)
+def interpolate3D_comoving(xval, zval, tval, data,
+                           poly_coeffs, xi_bar_arr, sigma_xi_arr,
+                           z_bar_arr, sigma_z_arr,
+                           u_start, delta_u, w_start, delta_w,
+                           min_t, delta_t):
+    """
+    Co-moving interpolation of a single normalized field, WITHOUT any Jacobian
+    scaling. Used by the acceptance test (test_ghosting.py) to compare the frame
+    interpolation on its own; production code should call
+    interpolate3D_comoving_fields, which returns physical quantities.
+    """
+    n = len(xval)
+    out = np.zeros(n)
+    n_t = data.shape[0]
+    n_u = data.shape[1]
+    n_w = data.shape[2]
+
+    for i in range(n):
+        t_idx = (tval[i] - min_t) / delta_t
+        k = int(math.floor(t_idx))
+        if k < 0:
+            k = 0
+        if k >= n_t - 1:
+            k = n_t - 2
+        a = t_idx - k
+        if a < 0.0:
+            a = 0.0
+        if a > 1.0:
+            a = 1.0
+        b = 1.0 - a
+
+        z = zval[i]
+        p_a = b * eval_poly(poly_coeffs[k], z) + a * eval_poly(poly_coeffs[k + 1], z)
+        xi_bar = b * xi_bar_arr[k] + a * xi_bar_arr[k + 1]
+        z_bar = b * z_bar_arr[k] + a * z_bar_arr[k + 1]
+        s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
+        s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
+
+        u_cell = ((xval[i] - p_a - xi_bar) / s_xi - u_start) / delta_u - 0.5
+        w_cell = ((z - z_bar) / s_z - w_start) / delta_w - 0.5
+
+        out[i] = (b * bspline_eval_single(data[k], u_cell, w_cell, n_u, n_w)
+                  + a * bspline_eval_single(data[k + 1], u_cell, w_cell, n_u, n_w))
+    return out

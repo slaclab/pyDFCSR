@@ -90,7 +90,7 @@ class Beam():
         self._sigma_x = self.sigma_x
         self._sigma_z = self.sigma_z
         self._slope = self.slope
-        #self._sigma_x_transform = self.sigma_x_transform
+        self._sigma_x_transform = self.sigma_x_transform
         self._mean_x = self.mean_x
         self._mean_z = self.mean_z
         #self._twiss = self.twiss

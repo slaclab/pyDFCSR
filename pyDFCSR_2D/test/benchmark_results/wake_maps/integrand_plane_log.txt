@@ -1,0 +1,77 @@
+======================================================================================
+CSR integrand in band-relative coordinates v = (x' - centre_k) / half_k
+======================================================================================
+v = 0 is the located branch; |v| <= 1 is the band the quadrature covers.
+"inside" is the fraction of total |integrand| magnitude at |v| <= 1, over
+the sampled strip |v| <= 3. It should be close to 1 for a live branch.
+
+--- shear z:x = 0   dx/dz = -0.3715   amp = 1.1x ---
+  region  branch   live %   inside |v|<=1 |  UNION coverage
+     sp1       0    55.7%          1.0000 |         1.00000
+     sp1       1     0.0%          1.0000
+     sp2       0   100.0%          1.0000 |         1.00000
+     sp2       1     0.0%          1.0000
+     sp3       0    88.3%          1.0000 |         1.00000
+     sp3       1     0.0%          1.0000
+
+  UNION coverage = fraction of |integrand| over a 40-half-width window
+  that lies inside the union of the located bands. This is the number
+  that matters: a low per-branch "inside" is harmless if the other band
+  covers it, but low UNION coverage means real support is being missed.
+
+  formation length L_f = 190.4 mm  (branch 0 panel spans s'-s from -190.4 mm)
+  tan(2 alpha) = 2 tau / (1 - tau^2) = -0.8620  -> chirp band angle -40.76 deg from the s' axis
+
+--- shear z:x = 2   dx/dz = -2.0695   amp = 1.3x ---
+  region  branch   live %   inside |v|<=1 |  UNION coverage
+     sp1       0    60.0%          1.0000 |         1.00000
+     sp1       1     0.0%          0.0132
+     sp2       0   100.0%          1.0000 |         1.00000
+     sp2       1     0.0%          0.0013
+     sp3       0    89.3%          1.0000 |         0.98018
+     sp3       1    28.7%          0.7643
+
+  UNION coverage = fraction of |integrand| over a 40-half-width window
+  that lies inside the union of the located bands. This is the number
+  that matters: a low per-branch "inside" is harmless if the other band
+  covers it, but low UNION coverage means real support is being missed.
+
+  formation length L_f = 151.9 mm  (branch 0 panel spans s'-s from -151.9 mm)
+  tan(2 alpha) = 2 tau / (1 - tau^2) = +1.2608  -> chirp band angle +51.58 deg from the s' axis
+
+--- shear z:x = 20   dx/dz = -1.6034   amp = 65.9x ---
+  region  branch   live %   inside |v|<=1 |  UNION coverage
+     sp1       0    41.7%          1.0000 |         1.00000
+     sp1       1     0.0%             nan
+     sp2       0   100.0%          1.0000 |         1.00000
+     sp2       1     0.0%             nan
+     sp3       0    72.3%          0.9397 |         0.99751
+     sp3       1    37.3%          0.9126
+
+  UNION coverage = fraction of |integrand| over a 40-half-width window
+  that lies inside the union of the located bands. This is the number
+  that matters: a low per-branch "inside" is harmless if the other band
+  covers it, but low UNION coverage means real support is being missed.
+
+  formation length L_f = 395.5 mm  (branch 0 panel spans s'-s from -395.5 mm)
+  tan(2 alpha) = 2 tau / (1 - tau^2) = +2.0413  -> chirp band angle +63.90 deg from the s' axis
+
+--- shear z:x = 50   dx/dz = -1.5154   amp = 166.8x ---
+  region  branch   live %   inside |v|<=1 |  UNION coverage
+     sp1       0    46.7%          1.0000 |         1.00000
+     sp1       1     6.7%             nan
+     sp2       0   100.0%          1.0000 |         1.00000
+     sp2       1     0.0%             nan
+     sp3       0    68.3%          0.9728 |         0.99994
+     sp3       1    37.0%          0.9534
+
+  UNION coverage = fraction of |integrand| over a 40-half-width window
+  that lies inside the union of the located bands. This is the number
+  that matters: a low per-branch "inside" is harmless if the other band
+  covers it, but low UNION coverage means real support is being missed.
+
+  formation length L_f = 546.7 mm  (branch 0 panel spans s'-s from -546.7 mm)
+  tan(2 alpha) = 2 tau / (1 - tau^2) = +2.3379  -> chirp band angle +66.84 deg from the s' axis
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_band_relative.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_lab_geometry.png

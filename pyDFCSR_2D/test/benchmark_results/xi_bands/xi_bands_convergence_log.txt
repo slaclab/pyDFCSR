@@ -1,0 +1,80 @@
+==============================================================================
+xi_bands convergence, one axis at a time
+==============================================================================
+s = 0.7000 m, shear z:x = 20.0, |slope| = 1.603
+sigma_x = 826.57 um, sigma_xi = 12.54 um, amplification = 65.9 x
+base setting: {'xbins': 200, 'zbins': 200, 'xi_band_margin': 2.0, 'near_patch': 5.0, 'near_patch_nr': 100, 'near_patch_nphi': 180}
+
+--- A. transverse DOMAIN at fixed cell size (INVARIANCE) ---
+margin m with xbins = 100*m, so dx is constant and the added nodes fall
+where the density is zero. Compare with the earlier confounded sweep,
+which held xbins fixed and therefore coarsened dx as it widened.
+
+   margin   xbins   rough(dE)   dE vs m=1   xk vs m=1
+      1.0     100     0.20278     0.00000     0.00000
+      2.0     200     0.49161     0.88307     0.60443
+      4.0     400     1.14932     1.01656     0.72287
+      8.0     800     1.25706     1.01527     0.73154
+
+  For contrast, the SAME margin sweep at fixed xbins=200 (confounded):
+   margin   xbins   rough(dE)   dE vs m=1
+      1.0     200     0.18032     0.00000
+      2.0     200     0.49161     0.88338
+      4.0     200     2.34236     1.01761
+      8.0     200     1.00430     1.38241
+
+--- B. transverse RESOLUTION at fixed domain (CONVERGENCE) ---
+    xbins   cell/s_xi   rough(dE)   dE vs 800   xk vs 800
+      100       0.200     0.84020     0.23611     0.08402
+      200       0.100     0.49161     0.09473     0.02004
+      400       0.050     0.45845     0.01776     0.00696
+      800       0.025     0.47425     0.00000     0.00000
+
+--- C. longitudinal RESOLUTION (CONVERGENCE) ---
+    zbins   rough(dE)   dE vs 800   xk vs 800
+      100     0.40454     0.13396     0.06287
+      200     0.49161     0.01130     0.00723
+      400     0.48148     0.00489     0.00151
+      800     0.47872     0.00000     0.00000
+
+--- D. near-patch RADIUS (INVARIANCE) ---
+w(r) + (1 - w(r)) = 1 identically, so the total cannot depend on where
+the Cartesian/polar crossover sits. Any dependence means the partition
+is wrong or one of the two pieces is unresolved.
+
+   R2/s_xi   rough(dE)  dE vs 5 s_xi  xk vs 5 s_xi
+       2.0     0.48765       0.01140       0.03669
+       3.0     0.48904       0.00629       0.02011
+       5.0     0.49161       0.00000       0.00000
+       8.0     0.48989       0.00544       0.01841
+      12.0     0.49086       0.00579       0.02785
+
+--- E. near-patch RESOLUTION (CONVERGENCE) ---
+      nr   nphi   rough(dE)  dE vs finest  xk vs finest
+      50     90     0.49161       0.00001       0.00001
+     100    180     0.49161       0.00000       0.00000
+     200    360     0.49161       0.00000       0.00000
+     400    720     0.49161       0.00000       0.00000
+     800   1440     0.49161       0.00000       0.00000
+
+--- F. patch ON vs OFF, both well resolved (INVARIANCE) ---
+The patch is only a better quadrature of the same integral, so at high
+resolution the two must agree. If they do not, the patch is double
+counting or dropping part of the domain.
+
+    xbins   dE off vs on   xk off vs on   rough off    rough on
+      200        0.04157        0.08822     0.51791     0.49161
+      400        0.04205        0.08787     0.47399     0.45845
+      800        0.04221        0.08784     0.48826     0.47425
+
+--- verdict ---
+  A domain (fixed dx)    INVARIANCE   worst dE deviation = 1.01656
+  B transverse res       CONVERGENCE  worst dE deviation = 0.23611
+  C longitudinal res     CONVERGENCE  worst dE deviation = 0.13396
+  D patch radius         INVARIANCE   worst dE deviation = 0.01140
+  E patch res            CONVERGENCE  worst dE deviation = 0.00001
+
+An invariance axis should read ~0. A convergence axis should fall toward 0
+as the reference is approached.
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence.png

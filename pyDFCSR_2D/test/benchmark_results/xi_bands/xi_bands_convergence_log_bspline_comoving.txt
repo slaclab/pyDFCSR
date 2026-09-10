@@ -1,0 +1,81 @@
+==============================================================================
+xi_bands convergence, one axis at a time
+==============================================================================
+method = bspline_comoving (poly_degree 1)
+s = 0.7000 m, shear z:x = 20.0, |slope| = 1.603
+sigma_x = 826.57 um, sigma_xi = 12.54 um, amplification = 65.9 x
+base setting: {'xbins': 200, 'zbins': 200, 'xi_band_margin': 2.0, 'near_patch': 5.0, 'near_patch_nr': 100, 'near_patch_nphi': 180}
+
+--- A. transverse DOMAIN at fixed cell size (INVARIANCE) ---
+margin m with xbins = 100*m, so dx is constant and the added nodes fall
+where the density is zero. Compare with the earlier confounded sweep,
+which held xbins fixed and therefore coarsened dx as it widened.
+
+   margin   xbins   rough(dE)   dE vs m=1   xk vs m=1
+      1.0     100     0.08615     0.00000     0.00000
+      2.0     200     0.08134     0.05487     0.10988
+      4.0     400     0.08119     0.05657     0.11076
+      8.0     800     0.08119     0.05657     0.11076
+
+  For contrast, the SAME margin sweep at fixed xbins=200 (confounded):
+   margin   xbins   rough(dE)   dE vs m=1
+      1.0     200     0.08618     0.00000
+      2.0     200     0.08134     0.05488
+      4.0     200     0.07746     0.10457
+      8.0     200     0.39453     3.04135
+
+--- B. transverse RESOLUTION at fixed domain (CONVERGENCE) ---
+    xbins   cell/s_xi   rough(dE)   dE vs 800   xk vs 800
+      100       0.200     0.07740     0.09009     0.00297
+      200       0.100     0.08134     0.00030     0.00001
+      400       0.050     0.08142     0.00021     0.00000
+      800       0.025     0.08142     0.00000     0.00000
+
+--- C. longitudinal RESOLUTION (CONVERGENCE) ---
+    zbins   rough(dE)   dE vs 800   xk vs 800
+      100     0.28028     0.10396     0.04256
+      200     0.08134     0.02330     0.00344
+      400     0.02133     0.00508     0.00019
+      800     0.02048     0.00000     0.00000
+
+--- D. near-patch RADIUS (INVARIANCE) ---
+w(r) + (1 - w(r)) = 1 identically, so the total cannot depend on where
+the Cartesian/polar crossover sits. Any dependence means the partition
+is wrong or one of the two pieces is unresolved.
+
+   R2/s_xi   rough(dE)  dE vs 5 s_xi  xk vs 5 s_xi
+       2.0     0.24361       0.08470       0.02108
+       3.0     0.12737       0.03980       0.01054
+       5.0     0.08134       0.00000       0.00000
+       8.0     0.03803       0.03204       0.00643
+      12.0     0.02323       0.02091       0.00225
+
+--- E. near-patch RESOLUTION (CONVERGENCE) ---
+      nr   nphi   rough(dE)  dE vs finest  xk vs finest
+      50     90     0.08134       0.00006       0.00001
+     100    180     0.08134       0.00001       0.00000
+     200    360     0.08134       0.00000       0.00000
+     400    720     0.08134       0.00000       0.00000
+     800   1440     0.08134       0.00000       0.00000
+
+--- F. patch ON vs OFF, both well resolved (INVARIANCE) ---
+The patch is only a better quadrature of the same integral, so at high
+resolution the two must agree. If they do not, the patch is double
+counting or dropping part of the domain.
+
+    xbins   dE off vs on   xk off vs on   rough off    rough on
+      200        0.21968        0.05717     0.64001     0.08134
+      400        0.21966        0.05717     0.63999     0.08142
+      800        0.21967        0.05717     0.64002     0.08142
+
+--- verdict ---
+  A domain (fixed dx)    INVARIANCE   worst dE deviation = 0.05657
+  B transverse res       CONVERGENCE  worst dE deviation = 0.09009
+  C longitudinal res     CONVERGENCE  worst dE deviation = 0.10396
+  D patch radius         INVARIANCE   worst dE deviation = 0.08470
+  E patch res            CONVERGENCE  worst dE deviation = 0.00006
+
+An invariance axis should read ~0. A convergence axis should fall toward 0
+as the reference is approached.
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence_bspline_comoving.png

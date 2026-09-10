@@ -1,0 +1,54 @@
+================================================================================
+Two-branch band location (Step 6) vs single-branch, same interpolant
+================================================================================
+s = 0.7000 m, shear z:x = 20.0, slope = -1.6034
+sigma_x = 826.57 um, sigma_xi = 12.54 um, amplification = 65.9 x
+method = bspline_comoving (poly_degree 1) in BOTH columns, so the only
+difference is how many localization branches the band locator finds.
+
+--- Axis A: transverse DOMAIN at fixed cell size (must be INVARIANT) ---
+margin m with xbins = 100*m, so the cell size is constant and every
+added node lands where the density is zero. Deviations are vs m = 1.
+
+                  margin   xbins   rough(dE)   dE vs m=1   xk vs m=1
+  single-branch      1.0     100     0.01717     0.00000     0.00000
+  single-branch      2.0     200     0.01759     0.55839     0.17787
+  single-branch      4.0     400     0.18460     0.83687     0.29796
+  single-branch      8.0     800     0.63419     0.97179     0.38916
+
+  two-branch         1.0     100     0.09362     0.00000     0.00000
+  two-branch         2.0     200     0.08777     0.06025     0.10979
+  two-branch         4.0     400     0.08759     0.06212     0.11066
+  two-branch         8.0     800     0.08759     0.06212     0.11066
+
+--- Absolute effect on the wake at the base setting ---
+  dE     single -> two branch : rel L2 change 1.06466
+  x_kick single -> two branch : rel L2 change 0.40824
+  roughness dE  single 0.01759  two 0.08777
+
+--- rad < 0 incidence vs |r - r'|, the guard section 6b asked to check ---
+The worry: inside the polar radius R2 a spurious rad < 0 is harmless
+(the disc covers it and the taper kills the Cartesian piece), but in the
+annulus R2 < r < ~20 sigma_xi the taper is already 1 and the branches are
+still merged, so dropping a branch there would lose real support.
+
+  R2 = 62.7 um = 5 sigma_xi
+      r / sigma_xi   columns    rad<0     frac     live                   zone
+        1 -      2        40        0   0.0000   1.0000      inside polar disc
+        2 -      5       120        0   0.0000   0.3333      inside polar disc
+        5 -     10       120        0   0.0000   0.3333    ANNULUS (taper = 1)
+       10 -     20       280        0   0.0000   0.4286    ANNULUS (taper = 1)
+       20 -     50       760        0   0.0000   0.4737     branches separated
+       50 - 1000000000     14680        0   0.0000   0.4837     branches separated
+
+  ANNULUS R2 < r < 20 sigma_xi : 400 columns, 0 with rad < 0 (0.00%)
+  VERDICT: guard is safe in the annulus
+
+--- verdict ---
+  axis A, single-branch  worst dE dev 0.97179   change over the last doubling 0.13492
+  axis A, two-branch     worst dE dev 0.06212   change over the last doubling 0.00000
+
+An invariance axis must not move. "Change over the last doubling" is the
+honest number: it says whether the domain has stopped mattering.
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/two_branch_bands.png

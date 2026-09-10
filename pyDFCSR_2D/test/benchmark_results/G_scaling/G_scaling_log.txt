@@ -1,0 +1,27 @@
+==============================================================================
+Step 2: wake roughness vs history step size at FIXED tilt
+==============================================================================
+shear z:x = 20.0, wake compared at s ~ 0.6 m, apply_CSR = 0 (identical beam evolution)
+wake mesh 5x40, integration 100^2, deposition 200^2
+
+G is measured between the two history snapshots bracketing the query,
+at the compared position. It should scale linearly with step_size.
+
+method          step        G   |slope|   s_xi/um   rough(dE)   rough(xk)   s_cmp
+---------------------------------------------------------------------------------
+bspline_fft    0.100   30.042     2.043      9.58     2.26924     2.10021   0.600
+bspline_fft    0.050   13.246     2.043      9.58     2.44714     2.72745   0.600
+bspline_fft    0.025    6.258     2.043      9.58     2.19550     2.53075   0.600
+legacy         0.100   30.042     2.043      9.58     0.54196     0.05689   0.600
+legacy         0.050   13.246     2.043      9.58     0.67776     0.05724   0.600
+legacy         0.025    6.258     2.043      9.58     0.36648     0.05666   0.600
+
+Scaling of roughness with G (ghosting predicts ~G^2, i.e. 4x per halving):
+  bspline_fft:
+    G 30.042 -> 13.246 (2.27x) : roughness 2.26924 -> 2.44714 (0.93x)  => effective power -0.09
+    G 13.246 -> 6.258 (2.12x) : roughness 2.44714 -> 2.19550 (1.11x)  => effective power 0.14
+  legacy:
+    G 30.042 -> 13.246 (2.27x) : roughness 0.54196 -> 0.67776 (0.80x)  => effective power -0.27
+    G 13.246 -> 6.258 (2.12x) : roughness 0.67776 -> 0.36648 (1.85x)  => effective power 0.82
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/G_scaling/roughness_vs_G.png

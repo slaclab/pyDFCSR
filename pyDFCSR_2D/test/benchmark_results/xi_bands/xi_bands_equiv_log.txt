@@ -1,0 +1,35 @@
+==============================================================================
+xi_bands falsification test: do old and new bands agree where the old
+bands are well sampled?
+==============================================================================
+
+Each mode is refined independently. "old vs new" compares the two at
+their finest common grid (800^2). At low tilt the old bands resolve the
+density and the two MUST agree; disagreement there falsifies the fix.
+
+
+--- shear = 0, |slope| = 0.372, tilt amplification = 1.1 x ---
+    grid   rough old   rough new  old self-conv  new self-conv   old vs new
+     100     0.02938     0.02937        0.00131        0.00077      0.00136
+     200     0.02937     0.02937        0.00107        0.00088      0.00119
+     400     0.02936     0.02936        0.00115        0.00068      0.00131
+     800     0.02934     0.02935        0.00000        0.00000      0.00035
+  old vs new at 800^2: dE 0.00035, x_kick 0.00235
+
+--- shear = 2, |slope| = 2.069, tilt amplification = 1.3 x ---
+    grid   rough old   rough new  old self-conv  new self-conv   old vs new
+     100     0.03197     0.03197        0.00120        0.00213      0.00181
+     200     0.03196     0.03206        0.00043        0.00107      0.00096
+     400     0.03195     0.03196        0.00016        0.00055      0.00031
+     800     0.03195     0.03197        0.00000        0.00000      0.00036
+  old vs new at 800^2: dE 0.00036, x_kick 0.00348
+
+--- shear = 20, |slope| = 1.603, tilt amplification = 65.9 x ---
+    grid   rough old   rough new  old self-conv  new self-conv   old vs new
+     100     2.33626     0.73034      144.17239        0.27512     35.58114
+     200     1.84767     0.51791       68.38680        0.10434     16.89162
+     400     1.47434     0.44963        9.61808        0.03294      2.74123
+     800     1.68015     0.45837        0.00000        0.00000      1.05311
+  old vs new at 800^2: dE 1.05311, x_kick 0.37384
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv.png

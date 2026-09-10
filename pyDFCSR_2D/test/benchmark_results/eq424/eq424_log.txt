@@ -1,0 +1,51 @@
+==============================================================================
+Verification of thesis Eq. 4.24 (section 4.4.2, integrand localization)
+==============================================================================
+
+--- CHECK 1: symbolic (no numbers, no lattice) ---
+
+  quadratic coefficients from the derivation:
+    A = 1 - 1/tau**2
+    B = -2*T/tau - 2*n_dot_q
+    C = -T**2 + q2
+
+  substituting each candidate back into the quadratic (0 => it is a root):
+    Eq 4.24 as printed  -> T**2*tau**2 + 2*T*n_dot_q*tau + n_dot_q**2*tau**2 - q2*tau**2 + q2
+    single power of tau -> 0
+
+  sympy's own solve(), for a third independent confirmation:
+    tau*(T + n_dot_q*tau - sqrt(T**2*tau**2 + 2*T*n_dot_q*tau + n_dot_q**2*tau**2 - q2*tau**2 + q2))/(tau**2 - 1)
+    tau*(T + n_dot_q*tau + sqrt(T**2*tau**2 + 2*T*n_dot_q*tau + n_dot_q**2*tau**2 - q2*tau**2 + q2))/(tau**2 - 1)
+
+  with an axis intercept b, rewritten in Tb = T - b/tau:
+    tau*(Tb + n_dot_q*tau - sqrt(Tb**2*tau**2 + 2*Tb*n_dot_q*tau + n_dot_q**2*tau**2 - q2*tau**2 + q2))/(tau**2 - 1)
+    tau*(Tb + n_dot_q*tau + sqrt(Tb**2*tau**2 + 2*Tb*n_dot_q*tau + n_dot_q**2*tau**2 - q2*tau**2 + q2))/(tau**2 - 1)
+  => identical in form; the intercept enters only as T -> T - b/tau.
+
+--- CHECK 2: numerical, brentq on the original system ---
+
+  geometry from a real run: s = 0.700040 m, t = 0.700000 m, x = -63.74 um, tau = -1.603447
+  sigma_x = 826.6 um, sigma_xi = 12.54 um
+
+   s-s_prime |  brentq root 1  brentq root 2 |   corrected -   corrected + |     printed -     printed +
+  ------------------------------------------------------------------------------------------------------
+     0.00100 |     -2107.1052       -63.4733 |      -63.4733    -2107.1047 |    -2723.7158      553.1378
+     0.00402 |     -8292.6937       -63.1619 |      -63.1619    -8292.6916 |   -10775.7323     2419.8788
+     0.01000 |    -20641.5055       -62.4958 |      -62.4958   -20641.5032 |   -26850.6687     6146.6697
+     0.05000 |   -106230.0553       -50.6381 |      -50.6381  -106230.0416 |  -138266.8391    31986.1594
+     0.13000 |        81.2371            nan |       81.2371  -293188.5051 |  -381674.8126    88567.5446
+     0.24000 |       729.5001            nan |      729.5001  -584564.1546 |  -761160.8740   177326.2194
+
+  All x' in um. nan = that root fell outside the +-0.2 m scan window,
+  which is a scan limitation, not a formula failure.
+
+  worst relative mismatch, corrected form : 2.552e-07
+  worst relative mismatch, printed form   : 1.089e+03
+
+--- VERDICT ---
+  symbolic : single-power form is a root = True, as-printed is a root = False
+  numerical: corrected matches to 2.6e-07, printed to 1.1e+03
+
+  => Eq 4.24 as printed has a typo: the tan^2(a0) prefactor on the
+     square root should be tan(a0). Confirmed symbolically and
+     numerically. Everything else in section 4.4.2 checks out.

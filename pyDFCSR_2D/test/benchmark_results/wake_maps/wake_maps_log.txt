@@ -1,0 +1,30 @@
+====================================================================================
+CSR integrand in the (x', s') plane and the 2D wakes, swept over beam tilt
+====================================================================================
+method = bspline_comoving (poly_degree 1), two-branch bands, integration 200 x 400
+wake mesh 21 x 51 observation points
+
+--- shear z:x = 0 ---
+    dx/dz = -0.3715, sigma_x = 44.9 um, sigma_xi = 39.52 um, amplification = 1.1 x
+    dE/dct  range [-2.4898, +0.8674] MeV/m,  x_kick range [+2.2536e-02, +5.1736e-01]
+    integrand window: x' spans 3538.4 um = 89.5 sigma_xi, s' spans 2.01 mm
+
+--- shear z:x = 2 ---
+    dx/dz = -2.0695, sigma_x = 94.0 um, sigma_xi = 71.98 um, amplification = 1.3 x
+    dE/dct  range [-6.0949, +2.2234] MeV/m,  x_kick range [+3.9445e-02, +7.5690e-01]
+    integrand window: x' spans 6647.5 um = 92.4 sigma_xi, s' spans 1.02 mm
+
+--- shear z:x = 20 ---
+    dx/dz = -1.6034, sigma_x = 826.6 um, sigma_xi = 12.54 um, amplification = 65.9 x
+    dE/dct  range [-0.0304, +0.1032] MeV/m,  x_kick range [+2.9052e-03, +9.3276e-02]
+    integrand window: x' spans 8091.0 um = 645.4 sigma_xi, s' spans 18.04 mm
+
+--- shear z:x = 50 ---
+    dx/dz = -1.5154, sigma_x = 2063.8 um, sigma_xi = 12.37 um, amplification = 166.8 x
+    dE/dct  range [-0.0204, +0.0667] MeV/m,  x_kick range [+9.6866e-04, +3.8661e-02]
+    integrand window: x' spans 18356.5 um = 1483.5 sigma_xi, s' spans 47.67 mm
+
+Plots saved:
+  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_plane_vs_shear.png
+  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/wake_xz_vs_shear.png
+  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/wake_transformed_vs_shear.png

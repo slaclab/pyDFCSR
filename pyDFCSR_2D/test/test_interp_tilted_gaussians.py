@@ -177,18 +177,18 @@ def run_test():
     print(f"  slope[{k_low}] = {slopes[k_low]}, slope[{k_low+1}] = {slopes[k_low+1]}")
     print(f"  alpha = {alpha:.2f}, blended slope = {slope_blended:.2f}")
 
-    # Analytical: time-blend of the two Gaussians at their respective tilts
-    rho_exact_k = analytical_density(x_query, z_query, slopes[k_low], sigma_xi, sigma_z)
-    rho_exact_k1 = analytical_density(x_query, z_query, slopes[k_low + 1], sigma_xi, sigma_z)
-    rho_exact = (1 - alpha) * rho_exact_k + alpha * rho_exact_k1
+    # Reference: the TRUE density at the query time, i.e. a Gaussian sheared by
+    # the time-interpolated slope. slope(t) is piecewise linear in t here, so on
+    # each interval this is the exact intermediate-time distribution.
+    rho_exact = analytical_density(x_query, z_query, slope_blended, sigma_xi, sigma_z)
+    drho_dx_exact = analytical_density_x(x_query, z_query, slope_blended, sigma_xi, sigma_z)
+    drho_dz_exact = analytical_density_z(x_query, z_query, slope_blended, sigma_xi, sigma_z)
 
-    drho_dx_exact_k = analytical_density_x(x_query, z_query, slopes[k_low], sigma_xi, sigma_z)
-    drho_dx_exact_k1 = analytical_density_x(x_query, z_query, slopes[k_low + 1], sigma_xi, sigma_z)
-    drho_dx_exact = (1 - alpha) * drho_dx_exact_k + alpha * drho_dx_exact_k1
-
-    drho_dz_exact_k = analytical_density_z(x_query, z_query, slopes[k_low], sigma_xi, sigma_z)
-    drho_dz_exact_k1 = analytical_density_z(x_query, z_query, slopes[k_low + 1], sigma_xi, sigma_z)
-    drho_dz_exact = (1 - alpha) * drho_dz_exact_k + alpha * drho_dz_exact_k1
+    # The reference this test USED to assert against: the lab-frame blend of the
+    # two snapshots. That is the approximation under test, not the truth, so it
+    # is reported for contrast only. See test_ghosting.py.
+    rho_blend = ((1 - alpha) * analytical_density(x_query, z_query, slopes[k_low], sigma_xi, sigma_z)
+                 + alpha * analytical_density(x_query, z_query, slopes[k_low + 1], sigma_xi, sigma_z))
 
     # ======================================================================
     # Interpolate with NEW method
@@ -251,18 +251,22 @@ def run_test():
     print(f"{'drho/dx':<12} | {rel_err(drho_dx_new, drho_dx_exact, mask):<14.6f} | {rel_err(drho_dx_leg, drho_dx_exact, mask):<16.6f} | {rel_err(drho_dx_new, drho_dx_leg, mask):<14.6f}")
     print(f"{'drho/dz':<12} | {rel_err(drho_dz_new, drho_dz_exact, mask):<14.6f} | {rel_err(drho_dz_leg, drho_dz_exact, mask):<16.6f} | {rel_err(drho_dz_new, drho_dz_leg, mask):<14.6f}")
 
+    G = abs(slopes[k_low + 1] - slopes[k_low]) * sigma_z / sigma_xi
+    print(f"\nGhosting parameter G = |d slope| sigma_z/sigma_xi = {G:.1f}")
+    print(f"Old reference (lab-frame blend) vs truth: {rel_err(rho_blend, rho_exact, mask):.6f}")
+    print("  -- that is how wrong this test's former 'exact' answer was. Because the")
+    print("     interpolator computes the same blend, the old test reported ~0 error.")
+
     # Also test at t = 0.15 (between step 1 and 2, slope 2 → 5.5, moderate)
     t_test2 = 0.15
     t_query2 = np.full(n_pts, t_test2)
     k2 = int((t_test2 - times[0]) / delta_t)
     alpha2 = (t_test2 - times[k2]) / delta_t
 
-    rho_exact2 = (1 - alpha2) * analytical_density(x_query, z_query, slopes[k2]) + \
-                 alpha2 * analytical_density(x_query, z_query, slopes[k2 + 1])
-    drho_dx_exact2 = (1 - alpha2) * analytical_density_x(x_query, z_query, slopes[k2]) + \
-                     alpha2 * analytical_density_x(x_query, z_query, slopes[k2 + 1])
-    drho_dz_exact2 = (1 - alpha2) * analytical_density_z(x_query, z_query, slopes[k2]) + \
-                     alpha2 * analytical_density_z(x_query, z_query, slopes[k2 + 1])
+    slope_blended2 = (1 - alpha2) * slopes[k2] + alpha2 * slopes[k2 + 1]
+    rho_exact2 = analytical_density(x_query, z_query, slope_blended2)
+    drho_dx_exact2 = analytical_density_x(x_query, z_query, slope_blended2)
+    drho_dz_exact2 = analytical_density_z(x_query, z_query, slope_blended2)
 
     rho_new2 = interpolate3D_transformed(x_query, z_query, t_query2, data_density_new, poly_coeffs_arr,
                                           min_xi_arr, min_z_arr, times[0], delta_xi_arr, delta_z_arr, delta_t)
