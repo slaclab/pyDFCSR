@@ -119,25 +119,35 @@ def default_bounds(csr, s, x, n_fl=1.5, fwd=None, d_sig=10.0):
                                                 sigma_x=sigma_x)
 
 
-def wake_from_bounds(csr, s, x, bounds, patch=True, cell=None):
+def wake_from_bounds(csr, s, x, bounds, patch=True, cells=None, nmax=6000):
     """
     Integrate over an explicit list of s' regions. Mirrors get_CSR_wake's xi_bands
     branch exactly: polar patch on the LAST region only (the one straddling s' = s).
 
-    `cell` is the longitudinal node spacing. It MUST be supplied for any extent
-    sweep: with a fixed node count per region, lengthening a region also coarsens
-    it, so the sweep would vary domain and resolution together and be uninterpretable
-    (this is the same confound that invalidated the Step 4 margin sweep -- see 4c).
-    Passing `cell` allocates nodes proportional to each region's length instead, so
-    the cell size is held constant and only the domain changes.
+    `cells` is a PER-REGION target node spacing. Supplying it is mandatory for any
+    extent sweep, because with a fixed node count per region, lengthening a region
+    also coarsens it -- the sweep would then vary domain and resolution together and
+    be uninterpretable. That is the same confound that invalidated the Step 4 margin
+    sweep (see 4c).
+
+    Per-region rather than one global spacing: the code deliberately gives every
+    region the same node COUNT despite wildly different lengths, so the cells differ
+    by two orders of magnitude (1487 / 258 / 14 um for regions 1 / 2 / 3 here) --
+    coarse far away where 1/|r-r'| has damped the integrand, fine near the
+    observation point. Imposing region 3's 14 um cell on region 1 would demand 42302
+    columns there, 106x the default, for no physical reason. Preserving each region's
+    own cell keeps the comparison honest and the cost bounded.
     """
     t = csr.beam.position
     nz = csr.integration_params.zbins
-    if cell is None:
+    if cells is None:
         sps = [np.linspace(a, b, nz) for a, b in bounds]
     else:
-        sps = [np.linspace(a, b, max(3, int(round(abs(b - a)/cell))))
-               for a, b in bounds]
+        sps = []
+        for i, (a, b) in enumerate(bounds):
+            c = cells[min(i, len(cells) - 1)]
+            n = int(round(abs(b - a)/c)) if c > 0 else nz
+            sps.append(np.linspace(a, b, int(np.clip(n, 3, nmax))))
     radii = csr._near_patch_radii(s, bounds[-1][0], bounds[-1][1]) if patch else None
     tapers = [None]*(len(bounds) - 1) + [None if radii is None else (*radii, False)]
     parts = [csr._integrate_xi_region(s, x, t, spk, False, tp)
@@ -147,7 +157,7 @@ def wake_from_bounds(csr, s, x, bounds, patch=True, cell=None):
     return sum(p[0] for p in parts), sum(p[1] for p in parts)
 
 
-def z_scan(csr, bounds_fn, cell=None, **kw):
+def z_scan(csr, bounds_fn, cells=None, **kw):
     nz = csr.CSR_params.zbins
     ix = csr.CSR_params.xbins // 2
     s0 = csr.beam.position
@@ -158,15 +168,35 @@ def z_scan(csr, bounds_fn, cell=None, **kw):
         s = s0 + csr.CSR_zmesh[k]
         x = csr.CSR_xmesh[k]
         bounds, _ = bounds_fn(csr, s, x, **kw)
-        dE[j], xk[j] = wake_from_bounds(csr, s, x, bounds, cell=cell)
+        dE[j], xk[j] = wake_from_bounds(csr, s, x, bounds, cells=cells)
     return dE, xk
 
 
-def default_cell(csr, s, x):
-    """The longitudinal spacing get_CSR_wake actually uses in its LAST region."""
+def cells_for(variant, default_bnds, default_cells_):
+    """
+    For each region of a repartitioned variant, the FINEST default cell that
+    overlaps it. Guarantees the variant is at least as well resolved as the default
+    everywhere, which is what makes a partition-invariance test meaningful: the
+    default deliberately grades the cell 1487 -> 258 -> 14 um, so any variant that
+    merges regions must inherit the finer cell or it is simply a coarser quadrature
+    rather than a different partition of the same one.
+    """
+    out = []
+    for (a, b) in variant:
+        overlapping = [c for (da, db), c in zip(default_bnds, default_cells_)
+                       if min(b, db) > max(a, da)]
+        out.append(min(overlapping) if overlapping else min(default_cells_))
+    return out
+
+
+def default_cells(csr, s, x):
+    """
+    The longitudinal spacing get_CSR_wake actually uses in EACH region: same node
+    count, very different lengths, hence very different cells.
+    """
     bounds, _ = default_bounds(csr, s, x)
-    a, b = bounds[-1]
-    return abs(b - a)/(csr.integration_params.zbins - 1)
+    n = csr.integration_params.zbins - 1
+    return [abs(b - a)/n for a, b in bounds]
 
 
 def reldiff(a, b):
@@ -218,12 +248,13 @@ def main():
 
     # Fixed-cell reference. Every extent sweep below allocates nodes proportional to
     # region length using this spacing, so the longitudinal cell never changes.
-    CELL = default_cell(csr, b.position + csr.CSR_zmesh[ix*nz + nz//2],
-                        csr.CSR_xmesh[ix*nz + nz//2])
-    refc, refcx = z_scan(csr, default_bounds, cell=CELL, n_fl=1.5)
-    emit(f'fixed longitudinal cell = {CELL*1e6:.2f} um '
-         f'(= {CELL/b._sigma_z:.4f} sigma_z); fixed-cell vs default-node reference '
-         f'differ by {reldiff(refc, ref):.5f}')
+    CELLS = default_cells(csr, b.position + csr.CSR_zmesh[ix*nz + nz//2],
+                          csr.CSR_xmesh[ix*nz + nz//2])
+    refc, refcx = z_scan(csr, default_bounds, cells=CELLS, n_fl=1.5)
+    emit('per-region longitudinal cells held fixed at the default values: '
+         + ', '.join(f'{c*1e6:.1f} um' for c in CELLS))
+    emit(f'fixed-cell reference vs default-node reference: {reldiff(refc, ref):.5f} '
+         '(should be ~0; both are the default geometry)')
     emit('')
 
     axes = {}
@@ -233,7 +264,7 @@ def main():
         emit(f"  {'value':>10} {'dE vs default':>14} {'xk vs default':>14}")
         rows = []
         for v in values:
-            dE, xk = z_scan(csr, default_bounds, cell=CELL, **{key: v})
+            dE, xk = z_scan(csr, default_bounds, cells=CELLS, **{key: v})
             rows.append((v, reldiff(dE, refc), reldiff(xk, refcx)))
             emit(f"  {fmt.format(v):>10} {reldiff(dE, refc):>14.5f} "
                  f"{reldiff(xk, refcx):>14.5f}")
@@ -259,31 +290,32 @@ def main():
     (s1, s2), (_, s3), (_, s4) = bounds0
     variants = {
         'default 3 regions': [(s1, s2), (s2, s3), (s3, s4)],
-        'single region (no seams)': [(s1, s4)],
+        'merge far, keep near': [(s1, s3), (s3, s4)],
         'seam moved to midpoint': [(s1, 0.5*(s1 + s3)), (0.5*(s1 + s3), s3), (s3, s4)],
         '5 equal regions': [(s1 + i*(s3 - s1)/4, s1 + (i + 1)*(s3 - s1)/4)
                             for i in range(4)] + [(s3, s4)],
     }
     seam_rows = []
-    for nm, bnd in variants.items():
+    for nm in variants:
         dE = np.zeros(nz)
         for j in range(nz):
             k = ix*nz + j
             s = b.position + csr.CSR_zmesh[k]
             xx = csr.CSR_xmesh[k]
             bb, _ = default_bounds(csr, s, xx)
-            # rebuild the same variant shape around this column's own s1..s4
             (a1, a2), (_, a3), (_, a4) = bb
             if nm == 'default 3 regions':
                 use = [(a1, a2), (a2, a3), (a3, a4)]
-            elif nm == 'single region (no seams)':
-                use = [(a1, a4)]
+            elif nm == 'merge far, keep near':
+                use = [(a1, a3), (a3, a4)]
             elif nm == 'seam moved to midpoint':
                 use = [(a1, 0.5*(a1 + a3)), (0.5*(a1 + a3), a3), (a3, a4)]
             else:
                 use = [(a1 + i*(a3 - a1)/4, a1 + (i + 1)*(a3 - a1)/4)
                        for i in range(4)] + [(a3, a4)]
-            dE[j], _ = wake_from_bounds(csr, s, xx, use, cell=CELL)
+            dcell = default_cells(csr, s, xx)
+            dE[j], _ = wake_from_bounds(csr, s, xx, use,
+                                        cells=cells_for(use, bb, dcell))
         seam_rows.append((nm, reldiff(dE, refc)))
         emit(f"  {nm:>28} {reldiff(dE, refc):>14.5f}")
     emit('')

@@ -485,11 +485,11 @@ contrast.
   20.00 |    0.9080    1.0724    1.1435 |    0.8844    1.0381    1.0313 |       2.06
 ```
 
-![Error vs G](pyDFCSR/pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
+![Error vs G](pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
 
-![Ghost cut at G=10](pyDFCSR/pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G10.png)
+![Ghost cut at G=10](pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G10.png)
 
-![Ghost cut at G=2](pyDFCSR/pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G2.png)
+![Ghost cut at G=2](pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G2.png)
 
 **Findings.**
 
@@ -596,7 +596,7 @@ Scaling of roughness with G (ghosting predicts ~G^2, i.e. 4x per halving):
     G 13.246 ->  6.258 (2.12x) : roughness 2.44714 -> 2.19550 (1.11x)  => effective power  0.14
 ```
 
-![Roughness vs G](pyDFCSR/pyDFCSR_2D/test/benchmark_results/G_scaling/roughness_vs_G.png)
+![Roughness vs G](pyDFCSR_2D/test/benchmark_results/G_scaling/roughness_vs_G.png)
 
 **Findings.**
 
@@ -683,9 +683,9 @@ R4 (near, band b)       10000   100.00      0.06      5.0711e+11
     grid  200^2 : rel. diff dE =  7.41733   x_kick =  2.79230
 ```
 
-![Integrand map](pyDFCSR/pyDFCSR_2D/test/benchmark_results/integrand_anatomy/integrand_map.png)
+![Integrand map](pyDFCSR_2D/test/benchmark_results/integrand_anatomy/integrand_map.png)
 
-![Quadrature convergence](pyDFCSR/pyDFCSR_2D/test/benchmark_results/integrand_anatomy/quadrature_convergence.png)
+![Quadrature convergence](pyDFCSR_2D/test/benchmark_results/integrand_anatomy/quadrature_convergence.png)
 
 **Findings.**
 
@@ -785,9 +785,9 @@ bands walk monotonically toward the new answer as they are refined (gap 35.6 →
 grids 100 → 800), while `xi_bands` self-converges cleanly (0.275 → 0.104 → 0.033). Both point the same
 way: the old bands were the undersampled ones.
 
-![xi_bands A/B](pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_ab.png)
+![xi_bands A/B](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_ab.png)
 
-![Old vs new across tilt](pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv.png)
+![Old vs new across tilt](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv.png)
 
 **Result 3 — but the high-tilt answer is NOT domain-converged. A second defect was masked.**
 
@@ -930,7 +930,7 @@ worst-case point before acting.
   `_integrate_near_patch`
 - `pyDFCSR_2D/test/test_xi_bands_converge.py` (new)
 
-![Convergence, one axis at a time](pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence.png)
+![Convergence, one axis at a time](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence.png)
 
 **Reproduce.**
 ```bash
@@ -1236,7 +1236,7 @@ Design points worth recording:
   20.00 |    0.9080    1.0724    1.1435 |    0.8844    1.0381    1.0313 |  0.000589  0.001019  0.001019
 ```
 
-![Error vs G, all three methods](pyDFCSR/pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
+![Error vs G, all three methods](pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
 
 *(this is the Step 1 figure regenerated; the green `bspline_comoving` curve is new)*
 
@@ -1350,9 +1350,9 @@ And Eq 4.24 **cannot describe `bspline_fft` at all** — the radicand goes negat
 formula: it is a statement that the lab-frame blend **has no well-defined localization geometry**,
 because it superposes two beam axes. A scheme with no single axis has no Eq 4.24.
 
-![Branches, co-moving](pyDFCSR/pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_comoving.png)
+![Branches, co-moving](pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_comoving.png)
 
-![Branches, lab-frame blend](pyDFCSR/pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_fft.png)
+![Branches, lab-frame blend](pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_fft.png)
 
 The figures are the clearest artefact this investigation has produced. In the co-moving panels the
 integrand sits on **one** horizontal ridge (narrow branch) and **one** diagonal ridge (chirp branch),
@@ -1443,7 +1443,7 @@ position: exactly `0.000e+00`, with `z_ret` sitting 2.0–19.2 σ_z outside the 
 Both fixed; re-run gives 141/0. **This sweep should be kept as a regression test for Step 6**, since it
 is what exercises the `l ≤ 0` and `|τ| ≈ 1` guards.
 
-![Branch prediction vs measured, swept over shear](pyDFCSR/pyDFCSR_2D/test/benchmark_results/localization/branch_shear_sweep.png)
+![Branch prediction vs measured, swept over shear](pyDFCSR_2D/test/benchmark_results/localization/branch_shear_sweep.png)
 
 Each panel is predicted (Eq 4.24) vs measured branch centre for one shear, with the `y = x` line;
 green circles are `inside`, red × would be misses. There are no red markers in any panel.
@@ -1774,11 +1774,11 @@ cause and wrong to file it under "got worse".
    resolution. **This was not A/B'd, so it is not attributed.** It is the first thing to look at next,
    and it suggests `near_patch = 5.0` may no longer be the right default.
 
-![Two-branch band location](pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/two_branch_bands.png)
+![Two-branch band location](pyDFCSR_2D/test/benchmark_results/xi_bands/two_branch_bands.png)
 
-![Convergence axes, co-moving](pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence_bspline_comoving.png)
+![Convergence axes, co-moving](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence_bspline_comoving.png)
 
-![Falsification vs the old bands, co-moving](pyDFCSR/pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv_bspline_comoving.png)
+![Falsification vs the old bands, co-moving](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv_bspline_comoving.png)
 
 **Files touched.**
 - `pyDFCSR_2D/CSR.py` — new `_comoving_frame_at`, `_eq424`, `_retarded_xi_bands`, `_disjoint_bands`;
@@ -1862,7 +1862,7 @@ window `x - 14 sigma_x` to `x + 6 sigma_x` (anchoring the window to the predicte
 a first version did, makes the figure structurally unable to reveal support the prediction
 missed).
 
-![Integrand support in lab coordinates](pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_lab_geometry.png)
+![Integrand support in lab coordinates](pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_lab_geometry.png)
 
 This is the clearest confirmation of the localization geometry produced so far. A narrow band
 sits flat at `x' = x` parallel to the `s'` axis, and a chirp band leaves the observation point
@@ -1883,7 +1883,7 @@ band is a thin line at `x' = x`. Both are as thesis 4.4.2 predicts.
 `v = 0` is the branch and `|v| <= 1` is the band the quadrature covers. This straightens each
 ridge so the colormap is resolvable, and answers "is the support inside the band?".
 
-![Integrand in band-relative coordinates](pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_band_relative.png)
+![Integrand in band-relative coordinates](pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_band_relative.png)
 
 **Caution on reading View 2:** it *co-moves with each branch*, so a correctly tracked chirp
 band is drawn **flat**, and its characteristic diagonal is subtracted away by construction. A
@@ -1910,9 +1910,9 @@ individual band is off-centre, the other band covers the remainder.
 
 **The wakes.**
 
-![Wakes on the tilt-removed mesh](pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/wake_transformed_vs_shear.png)
+![Wakes on the tilt-removed mesh](pyDFCSR_2D/test/benchmark_results/wake_maps/wake_transformed_vs_shear.png)
 
-![Wakes in the physical x-z plane](pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_maps/wake_xz_vs_shear.png)
+![Wakes in the physical x-z plane](pyDFCSR_2D/test/benchmark_results/wake_maps/wake_xz_vs_shear.png)
 
 - Shear 0 and 2 give the textbook structure: `dE/dct` negative through the core turning
   positive at the head, essentially a function of `z`; the transverse kick is a smooth centred
@@ -2210,6 +2210,81 @@ indistinguishable from a real result by content alone.
 **Net effect of all three:** the Step 6 result is unchanged and better supported; one claimed bug (history
 step size) turned out to be my own harness confound and is withdrawn; one new trap (`stop_time` overshoot)
 is recorded.
+
+#### 6j. Are the longitudinal extents right? (2026-09-10) ✅ **yes — the hand-tuned multiples are adequate**
+
+The transverse extent is now physics-derived and validated, but the `s′` domain is still hand-tuned lab-frame
+multiples — `500σ_z`, `200σ_z`, `20σ_z`, `5σ_z`, `3σ_z`, `10σ_x`, plus `s1 = s2 − n_fl·L_f`. Axis C varied
+longitudinal *resolution* and §6i varied history sampling, but the *extents* had never been swept. This does
+that, distinguishing two kinds of boundary:
+
+- **PARTITION** (`s2`, `s3`) — interior seams between regions that now all run identical ribbon-following
+  logic. Moving them repartitions the same domain, so the total must not move. A failure here is a seam bug.
+- **DOMAIN** (`s1`, `s4`, and `d` which sets `s3` in the chirp case) — true edges. Invariance here tests
+  whether the domain is big enough.
+
+`test_longitudinal_extent.py` reproduces `get_CSR_wake`'s decomposition with the magic numbers exposed; the
+self-check against `get_CSR_wake` is **exactly 0.00e+00**, so the harness is faithful.
+
+```
+--- s1 far edge (n_fl x L_f)  [DOMAIN] ---     --- d chirp reach (sigma_x)  [DOMAIN] ---
+   value   dE dev    xk dev                        value   dE dev    xk dev
+     1.5  0.00000   0.00000                           10  0.00000   0.00000
+     3    0.00000   0.00000                           20  0.00052   0.00019
+     6    0.00000   0.00000                           40  0.00065   0.00027
+    12    0.00000   0.00000                           80  0.00076   0.00030
+
+--- s4 forward reach (sigma_z)  [DOMAIN] ---   --- interior seams  [PARTITION] ---
+   value   dE dev    xk dev                       default 3 regions       0.00549
+     3    0.00000   0.00000                       merge far, keep near    0.00548
+     5    0.00251   0.00017                       seam moved to midpoint  0.00548
+    10    0.00650   0.00030                       5 equal regions         0.00549
+    20    0.00334   0.00021
+```
+
+**All three domain edges are already adequate.** `s1` is *exactly* invariant — region 1 contributes nothing
+measurable, precisely as thesis 4.4.2 says (the narrow band reaches far but is attenuated by `1/|r−r′|`), so
+`n_formation_length = 1.5` is ample. `d = 10σ_x` is invariant to **0.08%**. `s4` moves by at most **0.65%**
+and *non-monotonically*, which is a quadrature noise floor rather than a missing domain.
+
+**Read the PARTITION column as a spread, not an offset.** All four variants agree with each other to
+**1e-5** (0.00548 vs 0.00549). The common ~0.55% offset is a harness artifact: the seam loop recomputes the
+per-region cells at each observation point, while the reference used cells fixed at mid-z. The same artifact
+sets the floor for every number above — `fixed-cell vs default-node reference = 0.00576` for *identical*
+geometry, purely from `int(round(len/cell))` versus exactly 400 nodes. **Nothing below ~0.5% is resolvable
+by this test.**
+
+**The confounded first pass, and why it was wrong — for the third time in this investigation.** Sweeping the
+extents at fixed `zbins` gave 0.007 → 0.041 for `s4` and 0.017 → **0.152** for `d`, growing monotonically,
+which looks exactly like an undersized domain. It was not: lengthening a region at fixed node count also
+*coarsens* it — 8× coarser at `d_sig = 80` — so domain and resolution varied together. Same confound as
+Step 4c's margin sweep and §6i's stop-position artifact.
+
+The first fix was also wrong. Holding one *global* cell fixed imposes region 3's 14 µm spacing on region 1,
+demanding **42 302 columns** there (106× the default) for no physical reason — the code deliberately grades
+the cell **1486 / 258 / 13.9 µm** across regions 1/2/3, coarse where the kernel has damped the integrand and
+fine near the observation point. That job would have run for hours and was killed. The correct treatment
+preserves each region's *own* cell, and gives each repartitioning variant the *finest* default cell it
+overlaps, so no variant is ever less resolved than the default.
+
+**What this settles for the branch-following redesign.** The three-region split is *vestigial* — it exists
+only to give different transverse extents per region, and all three now run identical logic — but it is not
+*wrong*. So replacing it with one domain along the narrow band, one along the chirp band, and the polar patch
+is an **elegance and efficiency** change, not a correctness fix, and it gets a hard acceptance criterion: it
+must reproduce the current answer to better than the ~0.5% floor. The efficiency case stands: nodes are
+uniform in `s′` within each region while the integrand goes as `1/r`, so grading them should cut `zbins`
+substantially.
+
+**Caveat.** One shear (20), one observation point. The extents involve `σ_x/σ_z` ratios that change with
+tilt, so this should be repeated at shear 2 and 50 before the multiples are called safe in general.
+
+![Longitudinal extent invariance](pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent.png)
+
+**Files.** `pyDFCSR_2D/test/test_longitudinal_extent.py` (new).
+
+```bash
+python pyDFCSR_2D/test/test_longitudinal_extent.py   # ~8 min
+```
 
 ### Step 7 — Remaining secondary fixes ⬜
 

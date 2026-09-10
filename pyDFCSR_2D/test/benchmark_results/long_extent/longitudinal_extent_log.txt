@@ -6,45 +6,48 @@ sigma_z = 515.4 um, sigma_x = 826.6 um, sigma_xi = 12.54 um
 L_f = 395.5 mm, history built with n_fl = 24 (8 snapshots)
 
 self-check: wake_from_bounds vs get_CSR_wake = 0.00e+00   (must be ~0, else the harness does not reproduce the code)
+per-region longitudinal cells held fixed at the default values: 1486.0 um, 258.4 um, 13.9 um
+fixed-cell reference vs default-node reference: 0.00576 (should be ~0; both are the default geometry)
 
---- s1 far edge (n_fl x L_f)  [DOMAIN] ---
+--- s1 far edge (n_fl x L_f)  [DOMAIN]   (longitudinal cell held FIXED) ---
        value  dE vs default  xk vs default
          1.5        0.00000        0.00000
-           3        0.00010        0.00000
-           6        0.00010        0.00000
-          12        0.00010        0.00000
+           3        0.00000        0.00000
+           6        0.00000        0.00000
+          12        0.00000        0.00000
 
---- s4 forward reach (sigma_z)  [DOMAIN] ---
+--- s4 forward reach (sigma_z)  [DOMAIN]   (longitudinal cell held FIXED) ---
        value  dE vs default  xk vs default
            3        0.00000        0.00000
-           5        0.00686        0.00039
-          10        0.01147        0.00301
-          20        0.04116        0.01003
+           5        0.00251        0.00017
+          10        0.00650        0.00030
+          20        0.00334        0.00021
 
---- d chirp reach (sigma_x)  [DOMAIN] ---
+--- d chirp reach (sigma_x)  [DOMAIN]   (longitudinal cell held FIXED) ---
        value  dE vs default  xk vs default
           10        0.00000        0.00000
-          20        0.01738        0.00305
-          40        0.06765        0.02386
-          80        0.15209        0.07057
+          20        0.00052        0.00019
+          40        0.00065        0.00027
+          80        0.00076        0.00030
 
 --- interior seams s2, s3  [PARTITION] ---
 These are seams between regions that all run identical logic, so moving
 them repartitions the same domain. Any deviation is a seam bug.
+Longitudinal cell held FIXED, so region count does not change resolution.
                        variant  dE vs default
-             default 3 regions        0.00000
-      single region (no seams)        1.17287
-        seam moved to midpoint        0.00038
-               5 equal regions        0.00013
+             default 3 regions        0.00549
+          merge far, keep near        0.00548
+        seam moved to midpoint        0.00548
+               5 equal regions        0.00549
 
 --- verdict ---
-  s1 far edge (n_fl x L_f)     DOMAIN     worst dE deviation 0.00010
-  s4 forward reach (sigma_z)   DOMAIN     worst dE deviation 0.04116
-  d chirp reach (sigma_x)      DOMAIN     worst dE deviation 0.15209
-  default 3 regions            PARTITION  0.00000
-  single region (no seams)     PARTITION  1.17287
-  seam moved to midpoint       PARTITION  0.00038
-  5 equal regions              PARTITION  0.00013
+  s1 far edge (n_fl x L_f)     DOMAIN     worst dE deviation 0.00000
+  s4 forward reach (sigma_z)   DOMAIN     worst dE deviation 0.00650
+  d chirp reach (sigma_x)      DOMAIN     worst dE deviation 0.00076
+  default 3 regions            PARTITION  0.00549
+  merge far, keep near         PARTITION  0.00548
+  seam moved to midpoint       PARTITION  0.00548
+  5 equal regions              PARTITION  0.00549
 
 A DOMAIN axis reading ~0 means the default extent is already big enough.
 A PARTITION axis must read ~0 or the region bookkeeping is wrong.
