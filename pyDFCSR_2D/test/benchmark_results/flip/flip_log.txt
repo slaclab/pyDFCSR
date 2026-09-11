@@ -1,0 +1,72 @@
+========================================================================================
+Chirp band across full compression: s = 1.1000 m (0.100 m into the dipole)
+========================================================================================
+shear 20, drift 1.0 m, step_size 0.05 m, 4 snapshots retained
+tau(s) at the observation point = -19.8661
+
+s-prime regions (path length, and metres into the dipole):
+  far  s1-s2:  [0.71855, 0.99127]   dipole [-0.28145, -0.00873]   length 0.27273 m
+  mid  s2-s3:  [0.99127, 1.00129]   dipole [-0.00873, +0.00129]   length 0.01002 m
+  NEAR s3-s4:  [1.00129, 1.10015]   dipole [+0.00129, +0.10015]   length 0.09886 m
+
+Interpolated frame across the NEAR region (this is what the code uses;
+s-prime here is a proxy for the retarded time, exact at x_prime = x):
+     s_dip        tau  alpha/deg    2a/deg       tan2a  sig_z/um  sig_xi/um
+    0.0013     19.051      87.00    173.99      -0.105     46.29      54.28
+    0.0112     11.800      85.16    170.31      -0.171     25.66      97.90
+    0.0210      4.529      77.55    155.10      -0.464     14.20     176.85
+    0.0260      0.894      41.81     83.62       8.947     10.57     237.68
+    0.0309     -2.741     -69.95   -139.91       0.842      7.86     319.45
+    0.0408    -10.011     -84.30   -168.59       0.202      4.35     577.04
+    0.0507    -16.804     -86.59   -173.19       0.119      2.62     957.63
+    0.0606    -17.418     -86.71   -173.43       0.115      4.74     529.44
+    0.0705    -18.033     -86.83   -173.65       0.111      8.56     292.71
+    0.0804    -18.647     -86.93   -173.86       0.108     15.47     161.83
+    0.0903    -19.261     -87.03   -174.06       0.104     27.96      89.47
+    0.1002    -19.866     -87.12   -174.24       0.101     50.09      49.91
+
+  |tau| crosses 1 : 2 times inside the near region  -> 2 poles of tan 2a
+  tau range over the near region : -19.866 .. +19.051
+  |tan 2a| max                   : 285.1   (endpoints are ~0.10)
+
+Same region, tau DERIVED from linearly blended second moments:
+     s_dip  tau_coeff  tau_moment   a_coeff  a_moment    tan2a_c   tan2a_m
+    0.0013     19.051      19.998     87.00     87.14     -0.105    -0.100
+    0.0112     11.800      19.973     85.16     87.13     -0.171    -0.100
+    0.0210      4.529      19.933     77.55     87.13     -0.464    -0.101
+    0.0260      0.894      19.900     41.81     87.12      8.947    -0.101
+    0.0309     -2.741      19.850    -69.95     87.12      0.842    -0.101
+    0.0408    -10.011      19.592    -84.30     87.08      0.202    -0.102
+    0.0507    -16.804     -19.403    -86.59    -87.05      0.119     0.103
+    0.0606    -17.418     -19.837    -86.71    -87.11      0.115     0.101
+    0.0705    -18.033     -19.855    -86.83    -87.12      0.111     0.101
+    0.0804    -18.647     -19.861    -86.93    -87.12      0.108     0.101
+    0.0903    -19.261     -19.864    -87.03    -87.12      0.104     0.101
+    0.1002    -19.866     -19.866    -87.12    -87.12      0.101     0.101
+
+  moment blend: |tau| crosses 1 2 times; |tan 2a| max 1.234
+
+How much of the near region is spent at a fictitious orientation?
+  (|tau| < 1 means |alpha| < 45 deg, a beam flatter than 45 deg; the true
+   beam is within 3 deg of vertical everywhere in this region)
+  linear tau  : |alpha| < 45 deg on   2.75% of the region, < 60 deg on   4.78%
+  blended mom.: |alpha| < 45 deg on   0.03% of the region, < 60 deg on   0.03%
+
+Is the stored frame at the compression point even meaningful?
+  r^2 = 1 - sigma_xi^2/sigma_x^2 is the fraction of x-variance the tilt fit
+  explains. Near vertical the x-on-z regression explains almost nothing, so
+  tau there is noise-dominated and its SIGN is not reliable.
+         t    s_dip        tau         r        r^2  sig_z/um     amp
+    0.9500  -0.0500     20.000    0.9987   0.997484     50.00    19.9
+    1.0000   0.0000     20.000    0.9987   0.997481     50.00    19.9
+    1.0500   0.0500    -16.760   -0.0421   0.001773      2.51     1.0
+    1.1000   0.1000    -19.866   -0.9987   0.997490     50.09    20.0
+
+Located branch centres over the near region (x_prime - x, mm):
+  branch 0: live  99.6%   range [-2.497, +0.067]
+  branch 1: live  17.7%   range [-1.834, +3.574]
+
+lab x_prime window: [-4.32, +5.40] mm, 5000 samples -> 1.94 um per sample (sigma_xi at s = 49.9 um)
+integrand sampled: nonzero fraction 0.2267, max 7.2333e+11
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/flip/flip_integrand.png

@@ -2867,6 +2867,101 @@ figures were unaffected and the regression hid in exactly the entrance region th
 both §6o (extent) and §6p (count) turned out numerically neutral at the clean positions. §6n's frame-blend
 mechanism remains the only surviving candidate.
 
+#### 6q. `tau` is the wrong chart: the blended frame passes through orientations the beam never occupies (2026-09-11) ⚠️ **root cause of the entrance noise, and it reverses §6n's conclusion**
+
+Prompted by the observation that if the x–z shear reverses sign across full compression, then within **one**
+near region the chirp band must appear on **both** sides of `x'` — one lobe from `s'` before the compression
+point, one from after. It does, and the geometry is real. But testing it exposed something larger.
+
+**Setup.** Long-drift lattice (1.0 m drift, `step_size` 0.05 m), shear 20, observed 0.1 m into the dipole.
+The published s = 0.2 point used the 0.1 m drift and therefore only 3 snapshots, which confounds this
+mechanism with history truncation; the long drift removes that.
+
+The near region spans `s_dip` 0.0013 → 0.1002 and **contains** the compression point at 0.05:
+
+```
+   s_dip      tau         r        r^2   sig_z/um   sig_xi/um   amp
+ -0.0500   20.000   +0.9987   0.997484      50.00      50.225   19.9
+  0.0000   20.000   +0.9987   0.997481      50.00      50.249   19.9
+  0.0500  -16.760   -0.0421   0.001773       2.51     999.134    1.0   <- full compression
+  0.1000  -19.866   -0.9987   0.997490      50.09      49.911   20.0
+```
+
+**The correlation reversal is physical** (`r` goes +0.9987 → −0.9987). **The way the code interpolates across
+it is not.**
+
+##### The chart problem
+
+The beam's orientation goes **+87° → 90° (vertical) → −87°**. A continuous path in `tau = tan(alpha)` from
++20 to −20 *cannot* pass through 90°; it must pass through **0**, i.e. horizontal — the orientation
+perpendicular to the truth. So linear `tau` blending produces:
+
+```
+   s_dip      tau    alpha       2a      tan2a   sig_z/um
+  0.0013   19.051   87.00°   173.99°    -0.105      46.29
+  0.0210    4.529   77.55°   155.10°    -0.464      14.20
+  0.0260    0.894   41.81°    83.62°    +8.947      10.57   <- fictitious orientation
+  0.0309   -2.741  -69.95°  -139.91°    +0.842       7.86
+  0.1002  -19.866  -87.12°  -174.24°    +0.101      50.09
+```
+
+`tan 2a = 2 tau/(1 - tau^2)` has **poles at tau = ±1**, and the interpolated `tau` crosses ±1 **twice inside
+the near region**. Consequences, measured:
+
+| quantity | linear `tau` (code) | `tau` from blended moments |
+|---|---|---|
+| `|tan 2a|` max over the near region | **285.1** | **1.234** |
+| region spent at `|alpha| < 45°` | **2.75 %** | **0.03 %** |
+| region spent at `|alpha| < 60°` | **4.78 %** | **0.03 %** |
+| `|tau| = 1` crossings (poles) | 2 | 2 (over 0.03 % of the region) |
+
+Endpoint `|tan 2a|` is 0.10, so the excursion is **2850×**. The chirp band sits at
+`x - (s - s')·tan 2a`, so it is flung to ±metres while the density lives within ±5 mm of `x`. The quadrature
+nodes for those columns land in vacuum.
+
+For reference, the true beam is within **3° of vertical everywhere** in this region — every one of those
+intermediate orientations is an artefact of the coordinate, not a state the beam passes through.
+
+![Chirp band across a full-compression point](pyDFCSR_2D/test/benchmark_results/flip/flip_integrand.png)
+
+Top panel: `|integrand_z|` over the near region in lab `(x', s')`, with the located branch centres and the
+interpolated `|tau| = 1` / `tau = 0` locations marked. Middle: where the chirp band is *placed* — the two
+opposite-sign lobes meeting at compression (blended moments, red) against linear `tau` (blue) running off
+through the poles. Bottom: the blended shear and the resulting chirp angle.
+
+##### What was and was not already handled
+
+- **Branch count: handled.** Both roots are taken per column from the local retarded frame (§6p), and
+  branch 1's centre does swing to both signs (−1.834 → +3.574 mm). The two-lobe structure is representable.
+- **Branch angle: not handled.** This is the defect. It is not a missing `if`, it is the choice of
+  interpolated variable.
+
+##### This reverses §6n
+
+§6n concluded that "all unwrap-through-90° designs are dead" because `tau` passes through zero at the waist.
+**That reasoning was backwards.** `tau` passing through zero *is the artefact of using `tan alpha` as the
+coordinate*; the physical path goes through 90°. §6n also reported that seven candidate variables (`tau`,
+`arctan tau`, `1/tau`, `log sigma_xi`, `log sigma_z`, `sigma_z^2`, moments) were all "off by 20×–390×" — but
+that figure of merit was centre/width accuracy at a query point, which does not see the `tan 2a` excursion at
+all. On the quantity that actually places the chirp band, moment blending is **231×** better.
+
+##### It also reorders the plan
+
+At the compression snapshot the fit has **`r^2` = 0.0018** — the x-on-z regression explains 0.18 % of the
+x-variance, so `tau` = −16.76 there is noise-dominated and **its sign is not reliable**. Finer sampling
+(Phase 5) merely stores more such frames. **The parametrisation has to be fixed first**, so Phase 3 moves
+ahead of Phase 5.
+
+##### Remaining gap in the moment fix
+
+Moment blending is not fully clean: `cov` and `var_z` are interpolated independently, so `cov` crosses zero
+at a slightly wrong `s'` and `tau` still grazes ±1 over 0.03 % of the region. The chart-free fix interpolates
+the **orientation** itself (unwrapped angle, or a direction vector on RP¹), where vertical is a regular
+point. Both `tau` and `1/tau` are charts that each break at one orientation — `tau` at vertical, `1/tau` at
+horizontal — so neither works globally.
+
+**Files.** `pyDFCSR_2D/test/test_flip_integrand.py` (new).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
