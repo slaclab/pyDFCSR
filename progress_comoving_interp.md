@@ -18,6 +18,10 @@ the fix for a different defect. The noise fix is the integration-quadrature alig
 | **Step 5 — co-moving interpolant** (`DF_tracker_comoving`, `interpolate3D_comoving_fields`) | ✅ **implemented, `method: bspline_comoving`** |
 | Step 5c/5d — Eq 4.24 branches vs the measured integrand, at one tilt then swept over 6 shears | ✅ done (141 predictions inside support, 0 missed) |
 | **Step 6 — two-branch band location from Eq 4.24** (`_retarded_xi_bands`, `_eq424`, `_disjoint_bands`) | ✅ **implemented**; design in §6a/6b, result in §6c |
+| §6h — per-step `formation_length` (was pinned to the bend entrance) | ✅ **fixed**; 12.9% error at the shipped default removed |
+| §6j/6k/6l — longitudinal extents verified; resolution scale identified as `σ_ξ`; per-region allocation (`near_cell`, `far_zbins`) | ✅ **implemented**; shear-50 error 4.3% → 0.48% |
+| §6m — log-graded near-region nodes (`near_grade`) | 🟡 **implemented**; 12× fewer nodes where `1/u` holds, **but fails near a bend entrance** |
+| **`\|τ\| → ∞` degeneracy** — branches become *parallel*, `d = 10σ_x/\|tan 2α\|` diverges | ❌ **open, and the main correctness gap** |
 | Step 7 — remaining secondary fixes (`lattice.py` key order, `bilinear_single` OOB on the *old* paths, a pre-existing test failure) | ❌ not started |
 | Step 8 — validate and document | ❌ not started |
 
@@ -49,6 +53,13 @@ wrong at the shipped default**. Now refreshed every step: `L_f` matches the anal
 history deepens to 6–8 snapshots, and the default `n_formation_length = 1.5` is converged to 0.00000.
 Every Step 6 conclusion survives; the absolute magnitudes quoted in §6c–§6f were measured pre-fix and are
 ~13% low.
+
+**⚠️ The main open correctness gap is now the `|τ| → ∞` degeneracy (§6m).** As `|τ|` grows,
+`tan 2α = 2τ/(1−τ²) → 0` and the two Eq 4.24 branches become **parallel** rather than coincident, while
+`d = 10σ_x/|tan 2α|` diverges (154 mm at slope −12.5). The integrand then carries structure across the
+entire reach and **no affordable 1D grid converges** — uniform at 32 191 nodes and graded at 780 disagree
+by 22%. Thesis §4.4.2 discusses only the `|τ| = 1` degeneracy. Wakes computed near a bend entrance with
+strong chirp are therefore not trustworthy; away from that limit (`|tan 2α| ≳ 1`) everything below holds.
 
 **Known open items.** (i) The problem is now a **cancellation** one, so accuracy must be judged on the
 total, never on one branch. (ii) `CSR_integration: zbins` should default to **400**, not 200 — at 200 the
@@ -2448,6 +2459,111 @@ now pin `near_cell = 0.0` in their `BASE`, with a comment saying why; the new al
 **Files.** `pyDFCSR_2D/params.py` (two parameters), `pyDFCSR_2D/CSR.py` (`_region_node_counts`, and
 `get_CSR_wake` now allocates per region), three tests pinned to the old behaviour.
 
+#### 6m. Log-graded near-region nodes (2026-09-11) 🟡 **works where 1/u holds; exposes a second degeneracy where it does not**
+
+**Motivation.** A profile put the cost squarely on the integrand: `_comoving_fields` (the numba kernel)
+**69%** of runtime, `get_CSR_integrand`'s numpy assembly 17.5%, everything else noise — the Eq 4.24 band
+locator only 6.2%, frame blending 3.5%, polar patch 3.1%. And the near region held ~82% of the point
+evaluations. So the lever is fewer near-region nodes, not faster bookkeeping.
+
+**Implementation.** New `near_grade` (default 0.05), consumed by `CSR2D._near_region_nodes`. The cell is
+
+```
+du(u) = max( near_cell·sigma_xi , near_grade·u ),      u = |s - s'|
+```
+
+an absolute floor near the observation point and constant *relative* spacing outside, with crossover at
+`u* = floor/near_grade`. Built independently on each side, since the near region straddles `s' = s`. Node
+count becomes `1/g + ln(u_max/u*)/ln(1+g)` — logarithmic in the reach instead of linear. It is the
+longitudinal counterpart of the polar patch: there `r dr` absorbs the `1/r`, here `d(ln u)` does.
+Fully vectorized (`arange`, a vectorized power, `concatenate`) — no Python loop and no data-dependent
+gather. `np.trapz(..., x=sp)` already handles the non-uniform spacing. Inert when `near_cell = 0`, so
+every historical baseline is untouched (two-branch A/B still 1.06466 / 0.40824 byte-identical).
+
+**Where it works — validated at s = 0.7, against uniform `near_cell = 0.25`:**
+
+| | shear 20 (66×) nodes / rel L2 | shear 50 (167×) nodes / rel L2 |
+|---|---|---|
+| uniform 0.5 | 1083 / 0.00126 | 2513 / 0.00413 |
+| **graded 0.05** | **171 / 0.00359** | **207 / 0.00550** |
+| graded 0.10 | 103 / 0.00466 | 121 / 0.00634 |
+
+**6–12× fewer nodes at comparable accuracy**, 2.3–4.0× wall clock. The predicted `ln` scaling holds
+quantitatively (model ~200 nodes vs 207 measured), and the tilt scaling nearly vanishes: 171 → 207 nodes
+(1.2×) from amplification 66× → 167×, versus 1083 → 2513 (2.3×) uniform.
+
+**Where it fails, and why — the `|τ| → ∞` degeneracy.** At the dipole *entrance* (s = 0.2, shear 50,
+slope −12.46) grading is badly wrong:
+
+```
+   setting                near nodes   rel L2 vs finest
+   graded g=0.10                 131            2.45462
+   graded g=0.05                 227            0.53007     <- the default
+   graded g=0.02                 465            0.09731
+   graded g=0.01                 780            0.00000
+   uniform, 32191 nodes        32191            0.22417
+```
+
+**Neither scheme is converged there** — uniform at 32 191 nodes still disagrees with graded g=0.01 by 22%.
+Tested the assumption directly by measuring whether `|inner| · u` is flat, which it must be if the
+per-column contribution falls as `1/u`:
+
+```
+   u/sigma_xi     s = 0.6 (mid-dipole)     s = 0.2 (entrance)
+            5                  2.10e3                 2.94e3
+           45                  2.68e3                 4.71e4
+          195                  3.50e3                 8.56e4
+          843                  1.35e3                 3.44e3
+         1754                  7.20e2                 3.64e6
+```
+
+Mid-dipole it is flat to a factor ~2 over three decades — `1/u` holds and grading is the right tool. At
+the entrance it spans **three orders of magnitude with a peak at u = 58 mm**: there is genuine structure
+far from the observation point, so log grading, which deliberately under-resolves large `u`, is precisely
+the wrong tool, while uniform would need 154 mm resolved at `σ_ξ`.
+
+**The cause is a degeneracy of the localization that thesis §4.4.2 does not discuss.** With slope −12.46,
+`τ² = 155 ≫ 1`, so
+
+```
+tan 2α = 2τ/(1 − τ²) ≈ −2/τ  →  0
+```
+
+§4.4.2 flags `|τ| = 1` (α = ±π/4), where the two branches coincide in **position**. This is the other
+limit, `|τ| → ∞`, where they coincide in **direction** — both run nearly parallel to the `s′` axis. And
+`d = 10σ_x/|tan 2α|` diverges exactly there, stretching the near region to **154 mm** while the two
+branches are physically merging. Treating them as two separated localized bands is the wrong
+decomposition in that limit, which is why no 1D grid over that reach converges affordably.
+
+Note §6j validated `d = 10σ_x` at `|tan 2α| = 2.34`, so the extent rule is fine away from this limit;
+the failure is specific to `tan 2α → 0`.
+
+**Consequences, stated plainly.**
+
+- Grading is **recommended from mid-dipole onward** (`|tan 2α| ≳ 1`): 12× fewer nodes at ~0.5%.
+- The **s = 0.2 panels of both `partB` figures are not trustworthy**, for graded *or* uniform nodes. Also
+  the earlier capped-uniform run differed from graded by 47% there, which was a real error, not noise —
+  but the graded value is not the right answer either.
+- I claimed grading would "rescue" the capped position with 100× fewer nodes. **That was wrong**, and the
+  1/u test above is what disproved it.
+- `near_grade = 0.05` is therefore *regime-dependent* — the very failure mode this work set out to
+  remove. It should either be guarded on `|tan 2α|` or, better, the `|τ| → ∞` merge should be handled in
+  the decomposition, so the two branches are integrated as one when they are parallel.
+
+**Also fixed here.** The `near_nodes` diagnostic previously reported node counts for hardcoded dummy
+bounds `(2, 2.01)` — a fictitious 10 mm region — rather than the real ones; it now reads
+`csr._last_region_nodes[-1]`. And `_region_node_counts` warns once when the node cap binds, since
+silently clipping to `20·zbins` returned an under-resolved wake that looked entirely plausible (the cap
+is now `100·zbins`).
+
+**Files.** `pyDFCSR_2D/params.py` (`near_grade`), `pyDFCSR_2D/CSR.py` (`_near_region_nodes`, cap warning,
+`_last_region_nodes`), `pyDFCSR_2D/test/test_wake_evolution.py` (new, with per-map `.npz` caching so a
+killed run resumes).
+
+```bash
+python pyDFCSR_2D/test/test_wake_evolution.py AB    # ~10 min graded (was 112 uniform)
+```
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -2467,6 +2583,14 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 - The older one-off diagnostics (`test_region1_nonzero.py`, `test_integrand_diagnostic.py`,
   `test_integrand_step17.py`, `test_integrand_anatomy.py`) unpack `get_CSR_wake(debug=True)`
   positionally and need `CSR_integration: {xi_bands: False}` since Step 4 returns a dict on that path.
+- **The `|τ| → ∞` degeneracy of the localization** (§6m) — the most substantive open item. As `|τ|` grows,
+  `tan 2α = 2τ/(1−τ²) → 0`: the two Eq 4.24 branches become **parallel** rather than coincident, and
+  `d = 10σ_x/|tan 2α|` diverges — 154 mm at slope −12.5. The integrand then carries structure across the
+  whole reach (measured: `|inner|·u` varies 1000× and peaks at `u = 58 mm`) and **neither uniform nor
+  graded nodes converge affordably**. Thesis §4.4.2 treats only the `|τ| = 1` degeneracy, where the
+  branches coincide in position. The fix is presumably to integrate the two as a *single* band when nearly
+  parallel. Until then, any wake computed near a bend entrance with strong chirp is suspect, and
+  `near_grade` is regime-dependent — the failure mode this work exists to remove.
 - ~~`formation_length` computed only on element entry~~ — **fixed in §6h.**
 - ~~The **history step size** axis has never been varied~~ — **done in §6i: converged**, 0.11% at 23
   snapshots, ~2nd order.

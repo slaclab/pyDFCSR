@@ -20,7 +20,7 @@ class Integration_params:
     def configure_params(self, n_formation_length = 4, zbins = 200, xbins = 200,
                          xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
-                         near_cell = 0.5, far_zbins = 200):
+                         near_cell = 0.5, far_zbins = 200, near_grade = 0.05):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -42,6 +42,20 @@ class Integration_params:
         # machine precision, because 1/|r-r'| has already damped the integrand there.
         self.near_cell = near_cell
         self.far_zbins = far_zbins
+        # Geometric growth rate of the near-region longitudinal cell with distance
+        # from the observation point: du = max(near_cell*sigma_xi, near_grade*u),
+        # u = |s - s'|. 0 gives the uniform grid.
+        #
+        # Why: once u exceeds the transverse offsets, |r - r'| ~ u and the per-column
+        # contribution falls as 1/u, so equal contributions come from equal
+        # LOGARITHMIC intervals. A uniform grid is then under-resolved at small u
+        # (where accuracy is set) and over-resolved at large u (where the cost is),
+        # forcing node count ~ u_max/sigma_xi. Grading makes it ~ln(u_max/u*), which
+        # grows only logarithmically with tilt. It is the longitudinal counterpart of
+        # the polar patch: there r dr absorbs the 1/r, here d(ln u) does.
+        #
+        # Only active when near_cell != 0, so it cannot affect the flat-zbins path.
+        self.near_grade = near_grade
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
         # Only meaningful for the bspline_fft deposition, whose grid is sized by

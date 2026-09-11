@@ -863,12 +863,73 @@ class CSR2D:
         """
         ip = self.integration_params
         if not ip.near_cell:
-            return [ip.zbins] * len(bounds)
+            self._last_region_nodes = [ip.zbins] * len(bounds)
+            return self._last_region_nodes
         target = ip.near_cell * self.beam._sigma_x_transform
         counts = [ip.far_zbins] * len(bounds)
         a, b = bounds[-1]
-        counts[-1] = int(np.clip(round(abs(b - a) / target), 3, 20 * ip.zbins))
+        want = int(round(abs(b - a) / target))
+        cap = 100 * ip.zbins
+        # Warn once per run when the cap binds. It binds where |tan 2 alpha| collapses
+        # -- near a bend entrance the chirp band can stretch to d = 10 sigma_x /
+        # |tan 2 alpha| ~ 150 mm while the cell stays at sigma_xi, asking for ~25000
+        # columns. Silently clipping that returns an under-resolved wake that looks
+        # perfectly plausible, which is exactly how it went unnoticed once already.
+        if want > cap and not getattr(self, '_warned_near_cap', False):
+            self._warned_near_cap = True
+            if (not self.parallel) or self.rank == 0:
+                print(f'WARNING: near-region nodes capped at {cap} '
+                      f'(wanted {want}); near-region cell is '
+                      f'{want/cap:.1f}x coarser than near_cell requests. '
+                      f'Raise zbins, raise near_cell, or use graded nodes.')
+        counts[-1] = int(np.clip(want, 3, cap))
+        self._last_region_nodes = counts
         return counts
+
+    def _near_region_nodes(self, s, a, b):
+        """
+        s' nodes for the near region, graded so the cell grows with |s - s'|.
+
+        The cell is  du = max(near_cell*sigma_xi, near_grade*u),  u = |s - s'|:
+        an absolute floor set by the transverse support width close to the
+        observation point, geometric growth outside. Built independently on each
+        side, because the near region straddles s' = s.
+
+        Rationale: for u larger than the transverse offsets, |r - r'| ~ u, so the
+        per-column contribution falls as 1/u and equal contributions come from equal
+        logarithmic intervals. Uniform nodes are therefore under-resolved where the
+        accuracy is set and over-resolved where the cost is, forcing
+        N ~ u_max/sigma_xi -- which is why the count had to scale with tilt. Graded,
+        N ~ 1/near_grade + ln(u_max/u*)/ln(1+near_grade), growing only
+        logarithmically with tilt.
+
+        The outer integral uses np.trapz(..., x=sp), which handles the non-uniform
+        spacing correctly.
+        """
+        ip = self.integration_params
+        floor = ip.near_cell * self.beam._sigma_x_transform
+        g = ip.near_grade
+        if not ip.near_cell or not g or floor <= 0.0:
+            return np.linspace(a, b, self._region_node_counts(((a, b),))[-1])
+
+        ustar = floor / g                      # where relative spacing takes over
+
+        def side(umax):
+            if umax <= 0.0:
+                return np.zeros(1)
+            u = np.arange(0.0, min(ustar, umax) + floor, floor)
+            if umax > ustar:
+                n = int(np.ceil(np.log(umax / ustar) / np.log1p(g)))
+                u = np.concatenate((u, ustar * (1.0 + g) ** np.arange(1, n + 1)))
+            return np.unique(np.minimum(u, umax))
+
+        uL = side(s - a)
+        uR = side(b - s)
+        sp = np.concatenate((s - uL[::-1], s + uR))
+        self._last_region_nodes = list(getattr(self, '_last_region_nodes',
+                                               [ip.far_zbins] * 3))
+        self._last_region_nodes[-1] = len(sp)
+        return np.unique(sp)
 
     def _near_patch_radii(self, s, s3, s4):
         """
@@ -1014,8 +1075,10 @@ class CSR2D:
             # range (sp3), so once both are replaced by the same ribbon they must be
             # merged into one region or the ribbon would be counted twice.
             bnds = ((s1, s2), (s2, s3), (s3, s4))
-            sps = [np.linspace(a, b, n) for (a, b), n
-                   in zip(bnds, self._region_node_counts(bnds))]
+            counts = self._region_node_counts(bnds)
+            # far regions uniform; the near region graded about s' = s
+            sps = [np.linspace(a, b, n) for (a, b), n in zip(bnds[:-1], counts[:-1])]
+            sps.append(self._near_region_nodes(s, s3, s4))
 
             # Only the last region straddles s' = s, so only it owns the 1/|r-r'|
             # singularity and gets the polar patch.
