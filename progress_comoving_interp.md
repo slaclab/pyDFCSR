@@ -2818,6 +2818,55 @@ jitter rather than wake structure, and a term vanishing from a formula during a 
 **Files.** `pyDFCSR_2D/params.py` (`branch_sin_min`), `pyDFCSR_2D/CSR.py` (`_layout_bounds`, `_frame_tilt`,
 single-band selection in `_retarded_xi_bands`, `xi_bands` block reads the new bounds).
 
+#### 6p. The band count must be decided per column, not from α(s) (2026-09-11) ⚠️ **regression in §6o, reverted**
+
+Prompted by a reading of thesis §4.4.2 / Fig 4.2: what localizes the integrand is not the shear at the
+**observation** point but the shear at the **retarded** time, α(s′). So "are the two Eq 4.22 branches
+degenerate here?" is a question about α(s′), which differs column to column.
+
+The two halves of the layout decision therefore behave differently:
+
+| quantity | scope | why |
+|---|---|---|
+| region extent `d` | **must** be one scalar per observation point | it *defines* the boundary `s3`; there is no per-column meaning to it |
+| band **count** | **must** be per column | it is a property of α(s′), and α(s′) is not α(s) |
+
+§6o got the second one wrong: it selected `signs = (-1.0,)` from `sin 2α(s)` in `_retarded_xi_bands`.
+Measured cost, against always taking both roots and letting the existing per-column collapse decide:
+
+```
+     s    tau(s)  shortcut   rel L2 (shortcut vs both roots)
+ 0.135     65.32    1 band                     0.27671
+ 0.145    162.12    1 band                     0.29771
+ 0.155   -158.05    1 band                     0.31403
+ 0.165    -64.41    1 band                     0.29681
+ 0.200    -19.87   2 bands                     0.00000
+```
+
+**28–31% of the wake discarded wherever it fired.** The mechanism: at s = 0.2, shear 20 the retarded tilt
+sweeps **+19.4 → −0.22 → −19.8** across the near region, and `|sin 2α|` never falls below **0.1007** — the
+degenerate window `|sin 2α| < 0.05` needs `|τ| < 0.025`, which no column reaches. τ(s) being degenerate says
+nothing about τ(t_ret).
+
+**Fix: delete the shortcut; no replacement logic needed.** The per-column decision was already implemented,
+three ways over: a degenerate second root either fails `_eq424`'s `rad < 0` / `l ≤ 0` guards and is parked
+dead, or converges on top of the first and is collapsed to zero width by `_disjoint_bands`. Baselines return
+to **1.06466 / 0.40824** exactly.
+
+`_layout_bounds` keeps its pole-free `sin 2α`/`cos 2α` form — that part of §6o stands, and the extent is
+legitimately scalar. It now returns only the bounds; the `two_band` flag it used to return is gone, since
+nothing may consume it.
+
+**The lesson is the same one as §6o's `(x − xmean)` episode, in the opposite direction.** There the check was
+"does removing a term change the converged answer?" (no → it was metric jitter). Here it is "does adding a
+shortcut change the converged answer?" (yes, 30% → it was real contribution). Both need the *same*
+measurement, and §6o only ran it in one direction: `branch_sin_min` never fired at s = 0.7, so the shipped
+figures were unaffected and the regression hid in exactly the entrance region the change was aimed at.
+
+**Still open, and now sharper.** With the shortcut gone the s = 0.2 noise is unexplained by the layout —
+both §6o (extent) and §6p (count) turned out numerically neutral at the clean positions. §6n's frame-blend
+mechanism remains the only surviving candidate.
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

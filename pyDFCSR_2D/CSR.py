@@ -732,17 +732,17 @@ class CSR2D:
         T = t - sp
         margin = self.integration_params.xi_band_margin
 
-        # Where the two branches are degenerate there is only ONE band: thesis 4.4.2's
-        # x2 = x - (s-s')tan(2a) collapses to x2 = x at both a = 0 and a = +-pi/2, and
-        # |sin 2a| is small in both limits. Computing the second root there is not just
-        # wasted work -- it is a root of a near-degenerate quadratic, so it wanders.
-        tau = self._frame_tilt()
-        sin2a = 2.0 * tau / (1.0 + tau * tau)
-        signs = ((-1.0,) if abs(sin2a) < self.integration_params.branch_sin_min
-                 else (-1.0, +1.0))
-
+        # BOTH roots are always taken. The branch degeneracy of thesis 4.4.2 is a
+        # property of the tilt at the RETARDED time a(s'), which varies column to
+        # column -- the retarded tilt sweeps +19.4 -> -0.22 -> -19.8 across one near
+        # region -- so it cannot be decided from a(s) at the observation point. Doing
+        # so discarded 28-31% of the wake wherever it fired.
+        # The per-column decision needs no new logic: on a degenerate column the
+        # second root either fails the _eq424 guards (rad < 0, l <= 0) and is parked
+        # dead, or lands on top of the first and is collapsed to zero width by
+        # _disjoint_bands.
         bands, diag = [], []
-        for sign in signs:
+        for sign in (-1.0, +1.0):
             xp = np.full(sp.shape, float(x))
             live = np.ones(sp.shape, dtype=bool)
             rad = np.zeros(sp.shape)
@@ -860,8 +860,11 @@ class CSR2D:
 
     def _layout_bounds(self, s, x):
         """
-        (bounds, two_band) for the xi_bands path: the three s' regions, and whether the
-        two Eq 4.24 localization branches are resolvable here.
+        The three s' integration regions for the xi_bands path.
+
+        Only the region EXTENT is decided here. Whether the two Eq 4.24 branches are
+        resolvable is a per-column property of the retarded tilt a(s'), so it is left
+        to _retarded_xi_bands; the extent cannot be, since it defines s3 itself.
 
         Everything is keyed on sin 2a and cos 2a, never on tan 2a and never on |tau|:
 
@@ -887,11 +890,10 @@ class CSR2D:
 
         sin2a = 2.0 * tau / (1.0 + tau * tau)
         cos2a = (1.0 - tau * tau) / (1.0 + tau * tau)
-        two_band = abs(sin2a) >= ip.branch_sin_min
 
-        # Near-region length as ONE continuous expression, with no branch on it. The
-        # only if-clause is on the band COUNT; switching the extent formula as well
-        # reintroduced a discontinuity (125 mm -> 0.347 mm at the threshold).
+        # Near-region length as ONE continuous expression, with no branch on it at all.
+        # An earlier version switched the extent formula at branch_sin_min and
+        # reintroduced a discontinuity (125 mm -> 0.347 mm across the threshold).
         #
         #   d = (10 sigma_x + x - xmean) |cos 2a| / max(|sin 2a|, branch_sin_min)
         #
@@ -917,7 +919,7 @@ class CSR2D:
         s3 = max(0.0, s - d)
         s2 = s3 - 200.0 * sigma_z
         s1 = max(0.0, s2 - ip.n_formation_length * self.formation_length)
-        return ((s1, s2), (s2, s3), (s3, s4)), two_band
+        return ((s1, s2), (s2, s3), (s3, s4))
 
     def _frame_tilt(self):
         """
@@ -1162,9 +1164,8 @@ class CSR2D:
             # The s' decomposition is also recomputed here, pole-free and keyed on
             # sin 2a instead of |tan_theta| <= 1. The legacy bounds above are left
             # untouched so the xi_bands = False path stays byte-identical.
-            bnds, two_band = self._layout_bounds(s, x)
+            bnds = self._layout_bounds(s, x)
             (s1, s2), (_, s3), (_, s4) = bnds
-            self._last_two_band = two_band
             counts = self._region_node_counts(bnds)
             # far regions uniform; the near region graded about s' = s
             sps = [np.linspace(a, b, n) for (a, b), n in zip(bnds[:-1], counts[:-1])]
