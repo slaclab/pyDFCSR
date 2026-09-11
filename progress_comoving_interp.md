@@ -58,9 +58,11 @@ Every Step 6 conclusion survives; the absolute magnitudes quoted in §6c–§6f 
 what **full compression** is, so it is physically unavoidable in a bunch compressor — measured 0.05 m into
 the bend, where σ_z falls 20× to 2.5 µm and the slope passes through ±∞ (§6n). It breaks *two* things at
 once. The frame blend is linear in `τ`, so mid-step it reconstructs an **untilted** beam (τ = 0.067) where
-the truth is maximally tilted — refining `step_size` cannot fix a path error. Fix direction: blend
-`arctan τ` with branch continuity, through 90°, as `σ_ξ` is already blended log-linearly. And separately, on
-the localization side: as `|τ|` grows,
+the truth is maximally tilted — refining `step_size` cannot fix a path error. Worse, the *consequence* of any frame error scales as `Δτ·σ_z/σ_ξ` — magnified by the amplification — so at
+525× even a 5% τ error displaces the density by **13 band widths** (§6n, shear 50 at its σ_ξ minimum). Fix
+direction: blend `arctan τ` with branch continuity for the waist, **plus** higher-order frame interpolation
+for the magnification, since angle continuity alone does not address it. And separately, on the localization
+side: as `|τ|` grows,
 `tan 2α = 2τ/(1−τ²) → 0` and the two Eq 4.24 branches become **parallel** rather than coincident, while
 `d = 10σ_x/|tan 2α|` diverges (154 mm at slope −12.5). The integrand then carries structure across the
 entire reach and **no affordable 1D grid converges** — uniform at 32 191 nodes and graded at 780 disagree
@@ -2681,9 +2683,66 @@ between-snapshot blend error looks like.
 one bad panel out of five — and it means the angle-blending fix must be judged on a scan of observation
 points straddling a waist, not at a single point.
 
-**Caveat on scope.** Measured at shear 20. The waist position depends on the incoming chirp, so it sits
-elsewhere for other shears — shear 50's `s = 0.2` is also poor, consistent with its waist being nearby but
-not identical.
+**Shear 50: both noisy positions confirmed, and they have DIFFERENT routes to the same root cause.**
+Shear 50 has two special points — a longitudinal waist at s ≈ 0.12 (much earlier than shear 20's 0.15,
+since the +50 chirp compresses sooner) and a **σ_ξ minimum** at s ≈ 0.38 where the slice width bottoms out
+at 4.58 µm and amplification peaks at **525×**.
+
+```
+      s   d (mm)   sig_xi   amp   waist in near?  xi-min in near?   rough ABS   rough REL
+   0.20    154.0   12.46u   200             True            False    15.45330     1.12283
+   0.40     38.0    4.59u   520            False             True     3.51300     1.64149
+   0.60     15.2    8.67u   253            False            False     0.00327     0.00954
+   0.80      3.9   16.92u   113            False            False     0.00115     0.00693
+   1.00      3.2   28.58u    54            False            False     0.00066     0.00874
+```
+
+Perfect correlation again, but *two* mechanisms: at s = 0.2 the waist is in the near region (same as shear
+20); at s = 0.4 the waist is 280 mm away, far outside `d` = 38 mm, and what is nearby is the σ_ξ minimum.
+Its relative roughness (1.64) is the worst measured anywhere.
+
+**The second mechanism: frame-blend error magnified by the amplification.** Coverage is not the problem —
+union coverage reads **1.00000** at all three positions. Measuring the blend directly, with snapshots at
+s = 0.3 and 0.4 straddling s = 0.35:
+
+| quantity | blend | truth | error |
+|---|---|---|---|
+| τ (linear) | −4.4762 | −4.2606 | **5.1%** |
+| σ_ξ (log-linear) | 5.09 µm | 4.74 µm | **+7.3%** |
+
+The band centre is `p_α(z_ret) = τ·z_ret + b`, so the τ error is multiplied by `z_ret`, while the band
+half-width is only `margin·xlim·σ_ξ` = **47.4 µm**:
+
+```
+   z_ret            centre displacement   in band half-widths
+   1 sigma_z (569um)          122.6 um                   2.6
+   3 sigma_z (1706um)         367.8 um                   7.8
+   5 sigma_z (2843um)         613.0 um                  12.9
+```
+
+**A 5% slope error displaces the reconstructed density by up to 13 band widths at the bunch edges.**
+
+**Unifying statement.** The transverse consequence of a frame-blend error scales as `Δτ · σ_z / σ_ξ` —
+i.e. it is magnified by the tilt amplification. So the two failures are one cause with two routes:
+
+| position | route |
+|---|---|
+| s = 0.2 | τ passes through ∞ at the waist → blend is *qualitatively* wrong, routes through τ = 0 |
+| s = 0.4 | τ error only 5%, but amplification 525× turns it into a 13-band-width displacement |
+
+Both are the *frame interpolation*, not the integration. **The accuracy requirement on frame blending
+therefore scales with amplification**, which makes this systematic rather than a corner case, and it means
+angle blending alone is not sufficient: it fixes the waist path error but not the magnification. That needs
+higher-order frame interpolation, or the frame carried by the transport map rather than by refitted
+parameters.
+
+**A metric limitation worth recording.** Union coverage (§6f) **cannot detect any of this**: it compares
+the located band against *the interpolant's own* density, so when the frame is displaced the band and the
+density move together and coverage stays at 1.0. It validates band placement, not frame fidelity. I had
+been treating it as stronger evidence than it is.
+
+**Caveat on scope.** Waist positions depend on the incoming chirp, so they differ per shear (0.15 at shear
+20, 0.12 at shear 50). Two shears measured.
 
 **Files.** `pyDFCSR_2D/example/input/dipole_lattice_entrance.yaml` (new; longer upstream drift, finer
 step). Kept separate from `dipole_lattice.yaml`, which is the baseline for every number in this document.
