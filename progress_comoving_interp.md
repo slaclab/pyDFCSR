@@ -21,7 +21,7 @@ the fix for a different defect. The noise fix is the integration-quadrature alig
 | §6h — per-step `formation_length` (was pinned to the bend entrance) | ✅ **fixed**; 12.9% error at the shipped default removed |
 | §6j/6k/6l — longitudinal extents verified; resolution scale identified as `σ_ξ`; per-region allocation (`near_cell`, `far_zbins`) | ✅ **implemented**; shear-50 error 4.3% → 0.48% |
 | §6m — log-graded near-region nodes (`near_grade`) | 🟡 **implemented**; 12× fewer nodes where `1/u` holds, **but fails near a bend entrance** |
-| **`\|τ\| → ∞` degeneracy** — branches become *parallel*, `d = 10σ_x/\|tan 2α\|` diverges | ❌ **open, and the main correctness gap** |
+| **`\|τ\| → ∞` degeneracy at full compression** — breaks the localization (§6m) *and* the frame blend (§6n) | ❌ **open, and the main correctness gap** |
 | Step 7 — remaining secondary fixes (`lattice.py` key order, `bilinear_single` OOB on the *old* paths, a pre-existing test failure) | ❌ not started |
 | Step 8 — validate and document | ❌ not started |
 
@@ -54,7 +54,13 @@ history deepens to 6–8 snapshots, and the default `n_formation_length = 1.5` i
 Every Step 6 conclusion survives; the absolute magnitudes quoted in §6c–§6f were measured pre-fix and are
 ~13% low.
 
-**⚠️ The main open correctness gap is now the `|τ| → ∞` degeneracy (§6m).** As `|τ|` grows,
+**⚠️ The main open correctness gap is the `|τ| → ∞` degeneracy, and it is worse than first thought.** It is
+what **full compression** is, so it is physically unavoidable in a bunch compressor — measured 0.05 m into
+the bend, where σ_z falls 20× to 2.5 µm and the slope passes through ±∞ (§6n). It breaks *two* things at
+once. The frame blend is linear in `τ`, so mid-step it reconstructs an **untilted** beam (τ = 0.067) where
+the truth is maximally tilted — refining `step_size` cannot fix a path error. Fix direction: blend
+`arctan τ` with branch continuity, through 90°, as `σ_ξ` is already blended log-linearly. And separately, on
+the localization side: as `|τ|` grows,
 `tan 2α = 2τ/(1−τ²) → 0` and the two Eq 4.24 branches become **parallel** rather than coincident, while
 `d = 10σ_x/|tan 2α|` diverges (154 mm at slope −12.5). The integrand then carries structure across the
 entire reach and **no affordable 1D grid converges** — uniform at 32 191 nodes and graded at 780 disagree
@@ -2563,6 +2569,77 @@ killed run resumes).
 ```bash
 python pyDFCSR_2D/test/test_wake_evolution.py AB    # ~10 min graded (was 112 uniform)
 ```
+
+#### 6n. The entrance noise is a longitudinal waist, and the frame blend cannot cross it (2026-09-11) ⚠️ **limitation of the co-moving interpolant itself**
+
+The `s = 0.2` panel of `partB_shear20` is visibly striated while the other four are smooth. First guess,
+and the requested fix, was insufficient history before the bend: the upstream drift in
+`dipole_lattice.yaml` is 0.1 m = **one step**, so 0.1 m into the bend the history holds only **3 snapshots**
+and the integration reaches back to `s1 = 0`, the edge of the available history. A longer upstream drift
+was added (`dipole_lattice_entrance.yaml`, 1.0 m drift, `step_size = 0.05`, kept separate so the shared
+baseline is untouched).
+
+**That is not the cause.** Beam states match at equal depth into the bend — σ_z 50.09 vs 50.08 µm, slope
+−19.866 vs −19.867 — so the noise follows the beam, not the history depth.
+
+**The cause is a longitudinal waist 0.05 m into the bend.** Mapping the entrance finely (shear 20, bend
+starts at s = 1.0):
+
+```
+  into bend    sigma_z     slope    L_f (mm)
+      0.005     45.00u   +22.215       175.4
+      0.035     15.11u   +65.308       121.9
+      0.050      2.51u   -16.795        67.1     <- full compression
+      0.060     10.41u   -93.173       107.7
+      0.100     50.09u   -19.866       181.8
+      0.200    149.01u    -6.585       261.5
+```
+
+The bend compresses the incoming +20 chirp to **full compression**: σ_z falls **20×** to 2.5 µm and the
+slope passes through **±∞** (sign flip via ±90°, not via 0). This also explains the huge wake there
+(±13 MeV/m at shear 20, vs ±0.1 further along) and why `L_f ∝ σ_z^{1/3}` collapses to 67 mm, truncating
+the retained history to a 100 mm window just where the most history is needed.
+
+**And the co-moving frame blend cannot represent it.** With `step_size = 0.1` the snapshots straddling the
+waist are `s = 1.0` (τ = +20.000) and `s = 1.1` (τ = −19.866). `_comoving_frame_at` blends the polynomial
+**linearly**, so:
+
+```
+   alpha   linear blend of tau   implied angle
+    0.00                20.000         +87.14 deg
+    0.50                 0.067          +3.83 deg     <- reconstructs an UNTILTED beam
+    1.00               -19.866         -87.12 deg
+```
+
+Mid-step the interpolant reconstructs a transversely upright beam exactly where the real one is fully
+compressed and lying almost flat in `z`. **This is not a resolution problem**: refining `step_size` shrinks
+the affected interval but never corrects the path, because the blend is linear in a quantity that is
+singular. Step 5's claim that the co-moving blend is "exact for affine evolution" still holds — but passing
+through a waist is precisely where the *frame parametrisation*, not the affine assumption, fails.
+
+**This unifies with §6m.** Both failures are the same `|τ| → ∞` limit, which is what full compression *is*:
+
+| | mechanism |
+|---|---|
+| localization (§6m) | `tan 2α = 2τ/(1−τ²) → 0`, branches become parallel, `d = 10σ_x/\|tan 2α\|` diverges to 154 mm |
+| interpolation (§6n) | `τ → ∞`, linear blending of `τ` routes through 0 instead of through ∞ |
+
+So the `|τ| → ∞` degeneracy is not a corner case of the integration geometry — it is a **physically
+inevitable** configuration wherever a chirped beam reaches full compression, i.e. exactly the bunch
+compressor this code exists to model.
+
+**Fix direction.** Blend the tilt **angle** `arctan τ` with branch continuity rather than `τ`:
+`87.1° → 90° → 92.9°` (= `−87.1° + 180°`), which traverses the vertical correctly and stays bounded.
+`σ_ξ` is already blended log-linearly for the analogous reason (positivity and smoothness); the slope needs
+the same treatment. Note this touches `_comoving_frame_at`, `interpolate3D_comoving_fields`, and the frame
+used by `_retarded_xi_bands`, so all three must agree or the bands will not sit on the density.
+
+**Caveat on scope.** Measured at shear 20 only. The waist position depends on the incoming chirp, so it
+will sit elsewhere for other shears — shear 50's `s = 0.2` is also poor, consistent with its waist being
+nearby but not identical.
+
+**Files.** `pyDFCSR_2D/example/input/dipole_lattice_entrance.yaml` (new; longer upstream drift, finer
+step). Kept separate from `dipole_lattice.yaml`, which is the baseline for every number in this document.
 
 ### Step 7 — Remaining secondary fixes ⬜
 

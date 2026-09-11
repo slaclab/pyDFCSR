@@ -1,0 +1,48 @@
+#Todo：enforce the same time steps in all elements
+# step_size MUST stay the first key: lattice.py:18-39 reads it positionally.
+step_size:  0.05  # unit step size for tracking and CSR computing (meter)
+
+# Same dipole as dipole_lattice.yaml, but with a LONG upstream drift.
+#
+# Purpose: resolve the entrance transient. In dipole_lattice.yaml the upstream
+# drift is 0.1 m = one step, so 0.1 m into the bend the history holds only three
+# snapshots and the integration reaches back to s1 = 0 -- the edge of the available
+# history. The wake there is visibly striated (see partB_shear20 at s = 0.2).
+#
+# The integration reaches back roughly n_formation_length*L_f + d + 200 sigma_z.
+# At the bend entrance L_f = (24 R^2 5 sigma_z)^(1/3) ~ 0.18 m, so with
+# n_formation_length = 1.5 the reach is ~0.27 m, plus d ~ 0.1 m at shear 20. A
+# 1.0 m upstream drift therefore keeps the whole reach inside the history with
+# room to spare, and the halved step_size doubles the snapshot density within it.
+#
+# Kept as a SEPARATE file: dipole_lattice.yaml is the baseline for every number
+# recorded in progress_comoving_interp.md, so editing it would silently invalidate
+# them all.
+element_1:
+  type: drift
+  L: 1.0
+  nsep: 1
+
+element_2:
+  type: dipole
+  L: 1.0
+  angle: 1.0
+
+  #--OPTIONAL--#
+  E1: 0
+  E2: 0
+  FINT: 0.0
+  FINTX: 0.5
+  HGAP: 0.1
+  HGAPX: 0.0
+  FRINGE_AT: both_ends
+  FRINGE_TYPE: linear_edge
+  TILT: 0.0
+  #-----------#
+
+  nsep: 1
+
+element_3:
+  type: drift
+  L: 0.5
+  nsep: 1
