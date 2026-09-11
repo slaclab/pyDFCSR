@@ -2747,6 +2747,77 @@ been treating it as stronger evidence than it is.
 **Files.** `pyDFCSR_2D/example/input/dipole_lattice_entrance.yaml` (new; longer upstream drift, finer
 step). Kept separate from `dipole_lattice.yaml`, which is the baseline for every number in this document.
 
+#### 6o. Branch-degeneracy handling: a pole removed, but numerically neutral (2026-09-11) 🟡
+
+**First, two corrections to §6n above.**
+
+1. **§6n says `tau` passes through ±∞ at a waist. That is wrong.** `tau` is the *regression* slope of x on z
+   (`np.polyfit(z, x, 1)[0]` = `cov/var_z` = `r·σ_x/σ_z`), **not** `tan` of the beam's geometric tilt. They
+   agree only while `|r| ≈ 1`. At full compression `r → σ_ξ/σ_x = 1/amplification` (≈0.05) and the two become
+   **perpendicular** — principal axis 90.00°, regression line 2.54°. Verified on 2×10⁶ sampled particles:
+   `np.polyfit` returns **−19.82**, finite, while the ellipse major axis really is at 90.007°. The fit finds
+   the **short** axis. So `tau` sweeps through **zero**, peaking near +196 and landing at −τ₀, never through
+   infinity, and the ±90°-crossing detector proposed in §6n is invalid.
+2. **Eq 4.22 degenerates at *both* limits.** `tan 2α = 2τ/(1−τ²) → 0` at `α = 0` *and* `α = ±90°`, so the
+   chirp branch merges into the narrow one in both — as thesis §4.4.2 states explicitly. The code had special
+   handling for **neither**; it branched at `|τ| = 1` (α = 45°), which is where the branches are maximally
+   *separated*.
+
+**What was implemented.** All layout decisions on the `xi_bands` path now key on `sin 2α = 2τ/(1+τ²)` and
+`cos 2α = (1−τ²)/(1+τ²)`, which are bounded and pole-free, instead of `tan 2α` (pole at `|τ| = 1`) or `|τ|`:
+
+```python
+sin2a, cos2a = 2*tau/(1+tau*tau), (1-tau*tau)/(1+tau*tau)
+two_band = abs(sin2a) >= branch_sin_min           # catches BOTH degenerate limits
+d = (10*sigma_x + x - xmean)*abs(cos2a)/max(abs(sin2a), branch_sin_min)
+```
+
+- the `|tan_theta| <= 1` branch is **deleted** on this path (legacy left untouched);
+- `α = 45°` needs **no clause**: `cos 2α → 0` gives `d → 0` continuously, and `_eq424` already handles the
+  `τ² = 1` formula degeneracy;
+- when degenerate, only the `sign = −1` root is computed — one band of half-width `margin·xlim·σ_ξ`, correct
+  in both limits (`σ_ξ = 51 µm` at τ = 20, `999 µm` at τ ≈ 0);
+- the layout tilt now comes from the **core fit** the density frame uses, not `beams.slope` (all particles).
+
+**Result: the near-region extent is continuous.** Scanning finely through the shear-20 waist, the worst
+adjacent-point ratio is **1.25×**, against the pre-fix
+
+```
+   d = 99.9 mm -> 807.7 mm -> (branch flip) s3 = s - 50.9 um -> 99.9 mm     (~16000x)
+```
+
+**But it is numerically neutral, and that refutes the hypothesis it was built on.** Every baseline is
+byte-identical (1.06466 / 0.40824 / 0.01759 / 0.08777), and roughness is unchanged to 1.00× at six test
+points *and bit-identical at five observation points straddling the waist* — even where the near region
+differs (s = 0.145: 130.6 mm new vs 145.0 mm old, both 2.1974). §6j explains why: the far part of the near
+region contributes nothing, so a discontinuity there never reaches the answer.
+
+**So the quadrature-layout confound is not the cause of the s = 0.2 / 0.4 noise.** `bands = 2` at all of
+them — the degeneracy never fires there, because the waist is in the **history**, not at the observation
+point. I had promoted this to Phase 1 on the strength of that confound hypothesis; the measurement says the
+original diagnosis (§6n, frame interpolation across the waist) was right and the reordering was wrong. Phase
+1 stands as a **robustness fix** — a removed pole and a removed discontinuity — not an accuracy fix.
+
+**An episode worth recording, because it nearly went in as a win.** While making `d` pole-free I silently
+dropped the `(x − xmean)` term. That made `d` independent of the observation point, and roughness at s = 0.7
+appeared to improve **4×** (0.08777 → 0.02005) — I reported that as a real gain and even concluded §6d's
+`zbins` requirement had been overstated. It was neither. The term is physically real (a chirp branch starting
+near the beam edge exits sooner, so `d` legitimately varies 1.86× across a wake mesh), and the two variants
+**converge to the same wake**:
+
+```
+   zbins/xbins    200/200   400/200   800/400   1600/400
+   rel L2         0.04543   0.00499   0.00346   0.00169
+```
+
+So dropping it removed per-column node-layout **jitter from the roughness metric**, not error from the
+answer. Restoring it returns 0.08777 exactly. Two lessons: the roughness metric partly measures layout
+jitter rather than wake structure, and a term vanishing from a formula during a refactor must be noticed —
+`d` ceasing to depend on `x` should have been the flag.
+
+**Files.** `pyDFCSR_2D/params.py` (`branch_sin_min`), `pyDFCSR_2D/CSR.py` (`_layout_bounds`, `_frame_tilt`,
+single-band selection in `_retarded_xi_bands`, `xi_bands` block reads the new bounds).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

@@ -20,7 +20,8 @@ class Integration_params:
     def configure_params(self, n_formation_length = 4, zbins = 200, xbins = 200,
                          xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
-                         near_cell = 0.5, far_zbins = 200, near_grade = 0.05):
+                         near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
+                         branch_sin_min = 0.05):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -56,6 +57,26 @@ class Integration_params:
         #
         # Only active when near_cell != 0, so it cannot affect the flat-zbins path.
         self.near_grade = near_grade
+        # Threshold on |sin 2a| below which the two Eq 4.22 localization branches are
+        # treated as ONE band, and the near-region reach (in sigma_z) used there.
+        #
+        # thesis 4.4.2: x2 = x - (s-s')tan(2a) degenerates to x2 = x at a = 0 AND at
+        # a = +-pi/2, i.e. the chirp branch merges into the narrow one in both limits.
+        # sin 2a = 2 tau/(1 + tau^2) and cos 2a = (1 - tau^2)/(1 + tau^2) are bounded
+        # and pole-free, and |sin 2a| is small at BOTH limits (0.0998 at tau = 20,
+        # 0.0124 at tau = 161, 0.0998 at tau = 0.05), so one test catches both.
+        # tan 2a must NOT be used: it has a pole at |tau| = 1.
+        #
+        # Threshold comes from geometry, not tuning: the branches are unresolvable once
+        # their separation over the region falls below one band width,
+        #     |tan 2a| * L < 2 * xi_band_margin * xlim * sigma_xi
+        # which gives ~0.045 for L = 5.6 mm, sigma_xi = 12.5 um and ~0.019 for
+        # L = 12.9 mm. 0.05 is the conservative single-pass value.
+        # It also saturates the near-region extent, since in the degenerate case
+        # d = N sigma_x/|tan 2a| is not merely large but meaningless (there is only one
+        # band). Without that saturation the near region swung
+        # 100 mm -> 808 mm -> 50.9 um across a longitudinal waist.
+        self.branch_sin_min = branch_sin_min
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
         # Only meaningful for the bspline_fft deposition, whose grid is sized by

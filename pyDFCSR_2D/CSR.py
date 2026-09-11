@@ -732,8 +732,17 @@ class CSR2D:
         T = t - sp
         margin = self.integration_params.xi_band_margin
 
+        # Where the two branches are degenerate there is only ONE band: thesis 4.4.2's
+        # x2 = x - (s-s')tan(2a) collapses to x2 = x at both a = 0 and a = +-pi/2, and
+        # |sin 2a| is small in both limits. Computing the second root there is not just
+        # wasted work -- it is a root of a near-degenerate quadratic, so it wanders.
+        tau = self._frame_tilt()
+        sin2a = 2.0 * tau / (1.0 + tau * tau)
+        signs = ((-1.0,) if abs(sin2a) < self.integration_params.branch_sin_min
+                 else (-1.0, +1.0))
+
         bands, diag = [], []
-        for sign in (-1.0, +1.0):
+        for sign in signs:
             xp = np.full(sp.shape, float(x))
             live = np.ones(sp.shape, dtype=bool)
             rad = np.zeros(sp.shape)
@@ -848,6 +857,82 @@ class CSR2D:
             z = np.zeros((nx, len(sp)))
             return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
         return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
+
+    def _layout_bounds(self, s, x):
+        """
+        (bounds, two_band) for the xi_bands path: the three s' regions, and whether the
+        two Eq 4.24 localization branches are resolvable here.
+
+        Everything is keyed on sin 2a and cos 2a, never on tan 2a and never on |tau|:
+
+          sin 2a = 2 tau/(1 + tau^2)      cos 2a = (1 - tau^2)/(1 + tau^2)
+
+        Both are bounded and pole-free, whereas tan 2a = 2 tau/(1 - tau^2) has a pole at
+        |tau| = 1. Thesis 4.4.2 notes that x2 = x - (s-s')tan(2a) degenerates to x2 = x
+        at a = 0 AND at a = +-pi/2, so the chirp branch merges into the narrow one in
+        BOTH limits -- and |sin 2a| is small in both, so a single test catches them.
+
+        The legacy (xi_bands = False) decomposition in get_CSR_wake is deliberately left
+        alone; it keys on |tan_theta| <= 1, which fires where the branches are maximally
+        SEPARATED and which sent the near region swinging
+        d = 99.9 mm -> 807.7 mm -> (branch flip) s3 = s - 50.9 um -> 99.9 mm
+        within ~1 mm of path length across a longitudinal waist.
+        """
+        ip = self.integration_params
+        b = self.beam
+        sigma_z, sigma_x = b._sigma_z, b._sigma_x
+        # Use the SAME tilt the density frame uses (core fit) rather than beams.slope
+        # (all particles). They disagree most exactly where the correlation vanishes.
+        tau = self._frame_tilt()
+
+        sin2a = 2.0 * tau / (1.0 + tau * tau)
+        cos2a = (1.0 - tau * tau) / (1.0 + tau * tau)
+        two_band = abs(sin2a) >= ip.branch_sin_min
+
+        # Near-region length as ONE continuous expression, with no branch on it. The
+        # only if-clause is on the band COUNT; switching the extent formula as well
+        # reintroduced a discontinuity (125 mm -> 0.347 mm at the threshold).
+        #
+        #   d = (10 sigma_x + x - xmean) |cos 2a| / max(|sin 2a|, branch_sin_min)
+        #
+        # This is the legacy d = (10 sigma_x + x - xmean)/|tan 2a| wherever the branches
+        # are resolvable, but it saturates at branch_sin_min as sin 2a -> 0 (where the
+        # branches merge and d stops meaning anything) and -> 0 at |tau| = 1 where
+        # cos 2a -> 0 -- correct, the chirp band is vertical and exits at once.
+        #
+        # The (x - xmean) term is kept deliberately: the chirp branch starts at the
+        # observation point, so one starting near the beam edge exits sooner than one
+        # starting at the centre, and d legitimately varies ~1.9x across a wake mesh.
+        # Dropping it makes the wake look ~4x smoother at fixed resolution, but the two
+        # variants converge to the same answer (rel L2 0.045 -> 0.0017 as zbins/xbins
+        # refine), so that smoothness is per-column node-layout jitter being removed
+        # from the roughness METRIC, not accuracy being gained. Optimising the metric
+        # rather than the answer is not worth losing the correct exit condition.
+        d = ((10.0 * sigma_x + x - b._mean_x) * abs(cos2a)
+             / max(abs(sin2a), ip.branch_sin_min))
+        # and never reach back further than the retained history supports
+        d = min(max(d, 0.0), ip.n_formation_length * self.formation_length)
+
+        s4 = s + 3.0 * sigma_z
+        s3 = max(0.0, s - d)
+        s2 = s3 - 200.0 * sigma_z
+        s1 = max(0.0, s2 - ip.n_formation_length * self.formation_length)
+        return ((s1, s2), (s2, s3), (s3, s4)), two_band
+
+    def _frame_tilt(self):
+        """
+        The tilt the DENSITY frame uses, i.e. the core fit stored by the tracker.
+
+        beams.slope fits ALL particles (beams.py); DF_tracker_comoving fits the core
+        only (fit_zlim). They disagree maximally where the x-z correlation vanishes,
+        and the integration layout must agree with the frame the density actually
+        lives in, or the bands sit beside the ribbon.
+        """
+        tr = self.DF_tracker
+        pc = getattr(tr, 'poly_coeffs', None)
+        if pc is None or not self.use_comoving:
+            return float(self.beam._slope[0])
+        return float(pc[0])
 
     def _region_node_counts(self, bounds):
         """
@@ -1070,11 +1155,16 @@ class CSR2D:
         s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
 
         if self.use_smooth_deposit and self.integration_params.xi_bands:
-            # The s' decomposition above is kept as-is; only the transverse extents
-            # change. The chirp case's regions 3 and 4 tiled x' over the *same* s'
-            # range (sp3), so once both are replaced by the same ribbon they must be
-            # merged into one region or the ribbon would be counted twice.
-            bnds = ((s1, s2), (s2, s3), (s3, s4))
+            # The transverse extents are replaced by the located ribbons, so the chirp
+            # case's regions 3 and 4 (which tiled x' over the SAME s' range) merge into
+            # one region or the ribbon would be counted twice.
+            #
+            # The s' decomposition is also recomputed here, pole-free and keyed on
+            # sin 2a instead of |tan_theta| <= 1. The legacy bounds above are left
+            # untouched so the xi_bands = False path stays byte-identical.
+            bnds, two_band = self._layout_bounds(s, x)
+            (s1, s2), (_, s3), (_, s4) = bnds
+            self._last_two_band = two_band
             counts = self._region_node_counts(bnds)
             # far regions uniform; the near region graded about s' = s
             sps = [np.linspace(a, b, n) for (a, b), n in zip(bnds[:-1], counts[:-1])]
