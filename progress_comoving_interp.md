@@ -2634,9 +2634,56 @@ compressor this code exists to model.
 the same treatment. Note this touches `_comoving_frame_at`, `interpolate3D_comoving_fields`, and the frame
 used by `_retarded_xi_bands`, so all three must agree or the bands will not sit on the density.
 
-**Caveat on scope.** Measured at shear 20 only. The waist position depends on the incoming chirp, so it
-will sit elsewhere for other shears — shear 50's `s = 0.2` is also poor, consistent with its waist being
-nearby but not identical.
+**Verification, and one correction to the hypothesis.** The mechanism above was argued, not tested, so two
+discriminating tests were run.
+
+*First attempt, refuted.* "Is the waist inside the integration reach?" — it is, at s = 0.2 through 0.8, yet
+only s = 0.2 is noisy. Reach containment is **not** the discriminator.
+
+*Corrected condition: the waist must lie inside the **near** region `(s3, s4)`, where `1/|r−r′|` has not
+damped it.* Consistent with §6j measuring the far edge as exactly invariant — a mis-represented frame far
+behind the observation point contributes nothing.
+
+```
+      s   d (mm)  waist dist   in NEAR region?    ||w||   rough ABS   rough REL
+   0.20     98.7      50.0mm              True   26.885    13.33888     0.49615
+   0.40     17.4     250.0mm             False    1.398     0.01447     0.01035
+   0.60      6.8     450.0mm             False    0.578     0.00575     0.00996
+   0.80      2.0     650.0mm             False    0.308     0.00347     0.01126
+   1.00      1.0     850.0mm             False    0.175     0.00295     0.01686
+```
+
+s = 0.20 is the only position with the waist inside the near region, and the only noisy one — by **~1000×**
+in absolute roughness.
+
+*Second test: does refining the history step reduce it?* At fixed s = 0.2000 — step sizes chosen to land
+there exactly, since `run(stop_time)` overshoots and that confounded the first attempt, and reporting
+absolute roughness because a large `‖w‖` masks it in the relative measure (the §6d trap again):
+
+```
+     step  snapshots   rough ABS
+   0.1000          3    13.33888
+   0.0500          4     8.24763
+   0.0400          6    29.14875   <- worst, and it straddles the waist
+   0.0250          7     6.29333
+   0.0200         11     4.78849
+   0.0125         13     2.34749
+```
+
+Roughness falls **5.7× for an 8× refinement — roughly first order**, the signature of a path error rather
+than smooth truncation (2nd order would give ~64×). The 0.04 outlier is itself evidence: `0.15/0.05`,
+`0.15/0.025` and `0.15/0.0125` are integers, so those runs place a snapshot **exactly on the waist**, while
+0.04 straddles it. Sensitivity to whether a snapshot lands on the feature is precisely what a
+between-snapshot blend error looks like.
+
+**Conclusion: mechanism confirmed, with the added condition that it only bites while the waist is within
+`d` of the observation point.** That predicts the failure is *intermittent* along a real lattice — matching
+one bad panel out of five — and it means the angle-blending fix must be judged on a scan of observation
+points straddling a waist, not at a single point.
+
+**Caveat on scope.** Measured at shear 20. The waist position depends on the incoming chirp, so it sits
+elsewhere for other shears — shear 50's `s = 0.2` is also poor, consistent with its waist being nearby but
+not identical.
 
 **Files.** `pyDFCSR_2D/example/input/dipole_lattice_entrance.yaml` (new; longer upstream drift, finer
 step). Kept separate from `dipole_lattice.yaml`, which is the baseline for every number in this document.
