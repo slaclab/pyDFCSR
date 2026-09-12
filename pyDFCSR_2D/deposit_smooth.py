@@ -377,11 +377,18 @@ class DF_tracker_comoving:
         self.u_grids = self.u_start + (np.arange(self.xbins) + 0.5) * self.delta_u
         self.w_grids = self.w_start + (np.arange(self.zbins) + 0.5) * self.delta_w
 
+    # frame_blend codes, shared with the numba kernel, which cannot take strings
+    BLEND_COEFF = 0
+    BLEND_MOMENT = 1
+    BLEND_ORIENT = 2
+    BLEND_CODES = {'coeff': BLEND_COEFF, 'moment': BLEND_MOMENT,
+                   'orient': BLEND_ORIENT}
+
     def configure_params(self, method='bspline_comoving', xbins=128, zbins=128,
                          xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
-                         clip_warn=1e-3):
+                         clip_warn=1e-3, frame_blend='coeff'):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -398,6 +405,42 @@ class DF_tracker_comoving:
         # restrict the tilt fit to the core, so tail particles cannot lever it
         self.fit_zlim = fit_zlim
         self.clip_warn = clip_warn
+
+        # Which parametrisation of the frame is interpolated BETWEEN snapshots.
+        # Deposition is identical either way; only the blend differs.
+        #
+        # 'coeff'  blends tau = tan(alpha) linearly. tan is the wrong chart across a
+        #          longitudinal waist: the beam's orientation goes +87 deg -> 90 deg
+        #          (vertical) -> -87 deg, and no continuous path in tau can pass
+        #          through 90 deg -- it must pass through 0, i.e. HORIZONTAL. Measured
+        #          at a shear-20 waist, the blended frame then spends 2.75% of the near
+        #          region at |alpha| < 45 deg, orientations the beam never occupies,
+        #          and |tan 2a| = 2 tau/(1 - tau^2) reaches 285 against endpoint values
+        #          of 0.10 because tau crosses the poles at +-1 twice.
+        # 'moment' blends (var_z, cov, var_x) linearly and derives
+        #          tau = cov/var_z, sigma_z = sqrt(var_z),
+        #          sigma_xi = sqrt(var_x - cov^2/var_z).
+        #          Same measurement: 0.03% and |tan 2a| <= 1.234. But it pays for that
+        #          with a width defect: a convex mix of two thin ellipses at different
+        #          tilts is FATTER than either, by a(1-a)(dtau)^2 var_z, so mid-interval
+        #          sigma_xi comes out 8x-10x too large at ordinary high tilt and the
+        #          wake stops converging under step refinement. Kept because it is the
+        #          honest full-covariance option and the defect is measured, not
+        #          assumed.
+        # 'orient' takes the orientation from the moment ratio and the widths
+        #          log-linearly, which is where each chart is well conditioned. Only
+        #          tau needs the moment chart; sigma_xi and sigma_z do not.
+        #
+        # Default stays 'coeff' so every recorded baseline reproduces byte-identically.
+        if frame_blend not in self.BLEND_CODES:
+            raise ValueError(f'frame_blend must be one of '
+                             f'{sorted(self.BLEND_CODES)}, got {frame_blend!r}')
+        if frame_blend != 'coeff' and poly_degree != 1:
+            raise ValueError(f"frame_blend='{frame_blend}' needs poly_degree = 1 "
+                             f'(the moment triple describes a straight axis), '
+                             f'got poly_degree = {poly_degree}')
+        self.frame_blend = frame_blend
+        self.frame_blend_code = self.BLEND_CODES[frame_blend]
 
     def get_DF(self, x, z, px, t):
         zmean = np.mean(z)
@@ -530,6 +573,39 @@ class DF_tracker_comoving:
         self.sigma_xi_arr = np.array([e[7] for e in self.DF_log])
         self.z_bar_arr = np.array([e[8] for e in self.DF_log])
         self.sigma_z_arr = np.array([e[9] for e in self.DF_log])
+        self._build_moment_arrays()
+
+    def _build_moment_arrays(self):
+        """
+        The frame re-expressed as a centroid and a second-moment triple, for
+        frame_blend = 'moment'.
+
+        DERIVED from the stored frame rather than measured at deposition, so that the
+        node values are reproduced EXACTLY: tau = cov/var_z, sqrt(var_z) = sigma_z and
+        sqrt(var_x - cov^2/var_z) = sigma_xi all hold identically at a snapshot. That
+        exactness is the property that matters -- it guarantees no discontinuity is
+        introduced AT snapshot times, whichever blend is selected.
+        (These are therefore an effective triple that reproduces the frame, not the
+        beam's true moments: sigma_xi is the all-particle spread while the tilt is fit
+        on the core, so a directly measured np.cov would not satisfy the identities.)
+        """
+        if self.poly_degree != 1:
+            # frame_blend != 'coeff' is rejected for poly_degree != 1, so these are
+            # never read. They must still be float arrays, not None, or numba cannot
+            # type the kernel signature.
+            z = np.zeros_like(self.sigma_z_arr)
+            self.var_z_arr, self.cov_arr, self.var_x_arr = z, z.copy(), z.copy()
+            self.x_bar_arr = z.copy()
+            return
+        tau = self.poly_coeffs_interp[:, 0]
+        self.var_z_arr = self.sigma_z_arr ** 2
+        self.cov_arr = tau * self.var_z_arr
+        self.var_x_arr = self.sigma_xi_arr ** 2 + tau ** 2 * self.var_z_arr
+        # Pivot at the centroid. The first moments are linear in the compression
+        # parameter and blend exactly; pivoting there also keeps the lever arm
+        # (z - z_bar) small, so a residual tau error costs the least displacement.
+        self.x_bar_arr = (tau * self.z_bar_arr + self.poly_coeffs_interp[:, -1]
+                          + self.xi_bar_arr)
 
     # ------------------------------------------------------------------
     # Lab-frame support of a snapshot, used by CSR.get_CSR_wake to place the

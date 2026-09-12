@@ -12,7 +12,7 @@ from .deposit import DF_tracker
 from .deposit_smooth import DF_tracker_smooth, DF_tracker_comoving
 from .interp1D import interpolate1D
 from .interp3D import (interpolate3D, interpolate3D_transformed,
-                       interpolate3D_comoving_fields, get_poly_deriv_blended)
+                       interpolate3D_comoving_fields)
 from .lattice import Lattice  # , get_referece_traj
 from .params import Integration_params, CSR_params
 # from .physical_constants import c, e, qe, me, MC2
@@ -626,12 +626,16 @@ class CSR2D:
         """
         The blended co-moving frame at each element of t_ret.
 
-        Mirrors interpolate3D_comoving_fields exactly -- linear in the polynomial
-        and the means, log-linear in the sigmas. A band located with a different
-        blend than the interpolant uses will not sit where the density is.
+        Mirrors interpolate3D_comoving_fields exactly, in whichever frame_blend mode
+        is active. A band located with a different blend than the interpolant uses
+        will not sit where the density is.
 
         Returns (poly, xi_bar, z_bar, sigma_xi, sigma_z); poly is (n, deg+1) with
-        the highest power first, matching np.polyfit and _eval_poly_rows.
+        the highest power first, matching np.polyfit and _eval_poly_rows. In
+        'moment' mode the centroid pivot is folded back into the coefficients, so
+        every consumer -- _eval_poly_rows, poly[:, 0] as the slope, and
+        poly[:, -1] + xi_bar as the intercept at z = 0 for _eq424 -- keeps working
+        unchanged.
         """
         tr = self.DF_tracker
         n_t = tr.poly_coeffs_interp.shape[0]
@@ -640,6 +644,26 @@ class CSR2D:
         k1 = np.minimum(k + 1, n_t - 1)
         a = np.clip(t_idx - k, 0.0, 1.0)
         b = 1.0 - a
+
+        if tr.frame_blend_code != tr.BLEND_COEFF:
+            var_z = b * tr.var_z_arr[k] + a * tr.var_z_arr[k1]
+            cov = b * tr.cov_arr[k] + a * tr.cov_arr[k1]
+            z_bar = b * tr.z_bar_arr[k] + a * tr.z_bar_arr[k1]
+            x_bar = b * tr.x_bar_arr[k] + a * tr.x_bar_arr[k1]
+
+            tau = cov / var_z
+            poly = np.stack([tau, x_bar - tau * z_bar], axis=1)
+            if tr.frame_blend_code == tr.BLEND_MOMENT:
+                var_x = b * tr.var_x_arr[k] + a * tr.var_x_arr[k1]
+                s_xi = np.sqrt(np.maximum(var_x - cov * cov / var_z, 0.0))
+                s_z = np.sqrt(var_z)
+            else:
+                s_xi = np.exp(b * np.log(tr.sigma_xi_arr[k])
+                              + a * np.log(tr.sigma_xi_arr[k1]))
+                s_z = np.exp(b * np.log(tr.sigma_z_arr[k])
+                             + a * np.log(tr.sigma_z_arr[k1]))
+            return poly, np.zeros_like(tau), z_bar, s_xi, s_z
+
         poly = (b[:, None] * tr.poly_coeffs_interp[k]
                 + a[:, None] * tr.poly_coeffs_interp[k1])
         return (poly,
@@ -1269,7 +1293,9 @@ class CSR2D:
             tr.poly_coeffs_interp, tr.xi_bar_arr, tr.sigma_xi_arr,
             tr.z_bar_arr, tr.sigma_z_arr,
             tr.u_start, tr.delta_u, tr.w_start, tr.delta_w,
-            tr.min_x, tr.delta_x)
+            tr.min_x, tr.delta_x,
+            tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr,
+            tr.x_bar_arr)
 
     def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None):
         """

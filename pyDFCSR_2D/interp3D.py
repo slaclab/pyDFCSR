@@ -192,41 +192,6 @@ def eval_poly_deriv(coeffs, z):
 
 
 @jit(nopython=True, cache=True)
-def get_poly_deriv_blended(zval, tval, poly_coeffs, min_t, delta_t):
-    """
-    Compute the time-blended polynomial derivative poly'(z) at each query point.
-    Uses the same time-blending logic as interpolate3D_transformed.
-
-    Returns poly'(z) for each query point, blended between bracketing timesteps.
-    This is needed for the chain rule: d_rho/dz_lab = d_rho/dz_xi - d_rho/dxi * poly'(z)
-    """
-    result = np.zeros(len(zval))
-    n_t = poly_coeffs.shape[0]
-
-    for i in range(len(zval)):
-        t_idx = (tval[i] - min_t) / delta_t
-        k = int(t_idx)
-
-        if k < 0:
-            k = 0
-        if k >= n_t - 1:
-            k = n_t - 2
-
-        alpha = t_idx - k
-        if alpha < 0.0:
-            alpha = 0.0
-        if alpha > 1.0:
-            alpha = 1.0
-
-        dp_k = eval_poly_deriv(poly_coeffs[k], zval[i])
-        dp_k1 = eval_poly_deriv(poly_coeffs[k + 1], zval[i])
-
-        result[i] = (1.0 - alpha) * dp_k + alpha * dp_k1
-
-    return result
-
-
-@jit(nopython=True, cache=True)
 def interpolate3D_transformed(xval, zval, tval, data, poly_coeffs,
                                min_xi_arr, min_z_arr, min_t,
                                delta_xi_arr, delta_z_arr, delta_t):
@@ -484,7 +449,9 @@ def interpolate3D_comoving_fields(xval, zval, tval,
                                   poly_coeffs, xi_bar_arr, sigma_xi_arr,
                                   z_bar_arr, sigma_z_arr,
                                   u_start, delta_u, w_start, delta_w,
-                                  min_t, delta_t):
+                                  min_t, delta_t,
+                                  blend_code, var_z_arr, cov_arr, var_x_arr,
+                                  x_bar_arr):
     """
     Interpolate the density history in a co-moving affine frame.
 
@@ -500,10 +467,23 @@ def interpolate3D_comoving_fields(xval, zval, tval,
         vx     = transverse velocity
         vx_x   = d vx / dx
 
-    Frame blending: the polynomial and the means are linear in alpha; the sigmas
-    are blended log-linearly so they stay positive and so that a beam growing
-    exponentially (which is what a drift does to a diverging beam) is tracked
-    smoothly rather than with a kink.
+    Frame blending, selected by blend_code (see DF_tracker_comoving.BLEND_CODES):
+
+      0 'coeff'   the polynomial and the means are linear in alpha; the sigmas are
+                  blended log-linearly so they stay positive and so that a beam
+                  growing exponentially (which is what a drift does to a diverging
+                  beam) is tracked smoothly rather than with a kink.
+      1 'moment'  (var_z, cov, var_x) and the centroid are linear in alpha, and
+                  tau, sigma_z, sigma_xi are derived from them. tau = tan(alpha) is
+                  the wrong chart across a longitudinal waist -- see the frame_blend
+                  note in DF_tracker_comoving.configure_params.
+      2 'orient'  orientation from the moment ratio tau = cov/var_z, widths
+                  log-linear as in 'coeff'. Fixes the waist without paying 'moment's
+                  sigma_xi inflation.
+
+    CSR._comoving_frame_at must mirror whichever branch is active: a band located
+    with a different blend than the interpolant uses will not sit where the density
+    is.
     """
     n = len(xval)
     rho = np.zeros(n)
@@ -533,15 +513,53 @@ def interpolate3D_comoving_fields(xval, zval, tval,
         z = zval[i]
 
         # --- blend the frame, not the field ---
-        # eval_poly is linear in the coefficients, so blending its value is the
-        # same as blending the coefficients and evaluating.
-        p_a = b * eval_poly(poly_coeffs[k], z) + a * eval_poly(poly_coeffs[k + 1], z)
-        dp_a = b * eval_poly_deriv(poly_coeffs[k], z) + a * eval_poly_deriv(poly_coeffs[k + 1], z)
+        if blend_code == 0:
+            # eval_poly is linear in the coefficients, so blending its value is the
+            # same as blending the coefficients and evaluating.
+            p_a = b * eval_poly(poly_coeffs[k], z) + a * eval_poly(poly_coeffs[k + 1], z)
+            dp_a = b * eval_poly_deriv(poly_coeffs[k], z) + a * eval_poly_deriv(poly_coeffs[k + 1], z)
 
-        xi_bar = b * xi_bar_arr[k] + a * xi_bar_arr[k + 1]
-        z_bar = b * z_bar_arr[k] + a * z_bar_arr[k + 1]
-        s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
-        s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
+            xi_bar = b * xi_bar_arr[k] + a * xi_bar_arr[k + 1]
+            z_bar = b * z_bar_arr[k] + a * z_bar_arr[k + 1]
+            s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
+            s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
+        else:
+            var_z = b * var_z_arr[k] + a * var_z_arr[k + 1]
+            cov = b * cov_arr[k] + a * cov_arr[k + 1]
+            z_bar = b * z_bar_arr[k] + a * z_bar_arr[k + 1]
+            x_bar = b * x_bar_arr[k] + a * x_bar_arr[k + 1]
+
+            # Orientation from the moment RATIO. This is the part that survives a
+            # longitudinal waist, where tau = tan(alpha) is the wrong chart.
+            tau = cov / var_z
+            # Centroid-pivoted axis. xi_bar is folded into p_a, so the shared code
+            # below needs no branch.
+            dp_a = tau
+            p_a = tau * (z - z_bar) + x_bar
+            xi_bar = 0.0
+
+            if blend_code == 1:
+                # 'moment': widths from the blended covariance as well.
+                var_x = b * var_x_arr[k] + a * var_x_arr[k + 1]
+                s_z = math.sqrt(var_z)
+                # PSD of the blend guarantees this is >= 0 in exact arithmetic; the
+                # clamp is only against round-off at the degenerate point.
+                var_xi = var_x - cov * cov / var_z
+                if var_xi < 0.0:
+                    var_xi = 0.0
+                s_xi = math.sqrt(var_xi)
+            else:
+                # 'orient': widths log-linear, as in 'coeff'.
+                #
+                # Blending the full covariance INFLATES sigma_xi badly, because a
+                # convex mix of two thin ellipses at different tilts is fatter than
+                # either -- by a(1-a)(dtau)^2 var_z. Measured at shear 20 in the body
+                # of the dipole, mid-interval sigma_xi comes out 8x-10x too large
+                # (20.3 um -> 196.9 um at tau: -9.92 -> -6.58), and the wake then
+                # fails to converge under step refinement. The widths do not need the
+                # moment chart -- only the orientation does -- so take just that.
+                s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
+                s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
 
         # --- map the query point into the shared normalized frame ---
         xi = xval[i] - p_a
@@ -577,48 +595,3 @@ def interpolate3D_comoving_fields(xval, zval, tval,
     return rho, rho_x, rho_z, vx, vx_x
 
 
-@jit(nopython=True, cache=True)
-def interpolate3D_comoving(xval, zval, tval, data,
-                           poly_coeffs, xi_bar_arr, sigma_xi_arr,
-                           z_bar_arr, sigma_z_arr,
-                           u_start, delta_u, w_start, delta_w,
-                           min_t, delta_t):
-    """
-    Co-moving interpolation of a single normalized field, WITHOUT any Jacobian
-    scaling. Used by the acceptance test (test_ghosting.py) to compare the frame
-    interpolation on its own; production code should call
-    interpolate3D_comoving_fields, which returns physical quantities.
-    """
-    n = len(xval)
-    out = np.zeros(n)
-    n_t = data.shape[0]
-    n_u = data.shape[1]
-    n_w = data.shape[2]
-
-    for i in range(n):
-        t_idx = (tval[i] - min_t) / delta_t
-        k = int(math.floor(t_idx))
-        if k < 0:
-            k = 0
-        if k >= n_t - 1:
-            k = n_t - 2
-        a = t_idx - k
-        if a < 0.0:
-            a = 0.0
-        if a > 1.0:
-            a = 1.0
-        b = 1.0 - a
-
-        z = zval[i]
-        p_a = b * eval_poly(poly_coeffs[k], z) + a * eval_poly(poly_coeffs[k + 1], z)
-        xi_bar = b * xi_bar_arr[k] + a * xi_bar_arr[k + 1]
-        z_bar = b * z_bar_arr[k] + a * z_bar_arr[k + 1]
-        s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
-        s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
-
-        u_cell = ((xval[i] - p_a - xi_bar) / s_xi - u_start) / delta_u - 0.5
-        w_cell = ((z - z_bar) / s_z - w_start) / delta_w - 0.5
-
-        out[i] = (b * bspline_eval_single(data[k], u_cell, w_cell, n_u, n_w)
-                  + a * bspline_eval_single(data[k + 1], u_cell, w_cell, n_u, n_w))
-    return out

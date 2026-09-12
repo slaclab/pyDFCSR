@@ -222,7 +222,7 @@ def main():
     # ---- 3. the located bands, and the integrand in the lab plane ---------------
     NS = 260
     spm = np.linspace(s3, s4, NS)
-    bands_raw = csr._retarded_xi_bands(s_obs, x_obs, t, spm)
+    csr._retarded_xi_bands(s_obs, x_obs, t, spm)   # populates _branch_diag
     br = csr._branch_diag['branches']
     c0, c1 = br[0]['centre'], br[1]['centre']
     l0, l1 = br[0]['live'], br[1]['live']
@@ -302,7 +302,7 @@ def main():
     axc.plot((sp - DRIFT) * 1e3, (chirp_i - x_obs) * 1e3, color='#1f77b4', lw=1.6,
              label=r'same, linear $\tau$ (what the code does)')
     axc.axhline(0.0, color='0.25', lw=1.0)
-    for i in np.where(np.abs(np.diff(sgn0 := np.sign(np.abs(tau_i) - 1.0))) > 0)[0]:
+    for i in np.where(np.abs(np.diff(sgn)) > 0)[0]:
         axc.axvline((sp[i] - DRIFT) * 1e3, color='0.45', lw=1.0, ls=':')
     axc.axvline((tt[np.argmin(sz_k)] - DRIFT) * 1e3, color='#ff2ec4', lw=1.4,
                 label='full compression snapshot')

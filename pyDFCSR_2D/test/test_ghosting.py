@@ -194,6 +194,21 @@ def query_points(slope_mid, n=60, extent=3.0):
     return x, z
 
 
+def moment_arrays(cm):
+    """
+    (var_z, cov, var_x, x_bar) for a co-moving stack, matching
+    DF_tracker_comoving._build_moment_arrays. Only the frame_blend != 'coeff' paths
+    read these; they are required positionally so numba can type the signature.
+    """
+    tau = np.asarray(cm['poly_coeffs'])[:, 0]
+    var_z = np.asarray(cm['sigma_z_arr']) ** 2
+    cov = tau * var_z
+    var_x = np.asarray(cm['sigma_xi_arr']) ** 2 + tau ** 2 * var_z
+    x_bar = (tau * np.asarray(cm['z_bar_arr'])
+             + np.asarray(cm['poly_coeffs'])[:, -1] + np.asarray(cm['xi_bar_arr']))
+    return var_z, cov, var_x, x_bar
+
+
 def rel_err(approx, exact):
     norm = np.linalg.norm(exact)
     return np.linalg.norm(approx - exact) / norm if norm > 0 else 0.0
@@ -257,7 +272,12 @@ def measure(ds, delta_t=0.05):
             cm['poly_coeffs'], cm['xi_bar_arr'], cm['sigma_xi_arr'],
             cm['z_bar_arr'], cm['sigma_z_arr'],
             cm['u_start'], cm['delta_u'], cm['w_start'], cm['delta_w'],
-            times[0], delta_t)
+            times[0], delta_t,
+            # frame_blend = 'coeff' (code 0), the default, so this measures the same
+            # thing it always did. The moment triple is derived from the same stored
+            # frame and is exact at nodes by construction, so another mode could be
+            # swapped in here without rebuilding the stack.
+            0, *moment_arrays(cm))
         out['cmv_rho'] = rel_err(c_rho, ex_rho)
         out['cmv_dx'] = rel_err(c_dx, ex_dx)
         out['cmv_dz'] = rel_err(c_dz, ex_dz)

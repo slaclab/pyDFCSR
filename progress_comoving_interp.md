@@ -2962,6 +2962,110 @@ horizontal — so neither works globally.
 
 **Files.** `pyDFCSR_2D/test/test_flip_integrand.py` (new).
 
+#### 6r. `frame_blend` implemented: the chart is fixed, the waist is not (2026-09-11) ✅ **`orient` mode; and a measured defect in full-moment blending**
+
+Implements the §6q fix as a config flag, `particle_deposition: frame_blend`, default `'coeff'` so every
+recorded baseline is untouched. Three modes:
+
+| mode | orientation | widths |
+|---|---|---|
+| `'coeff'` (default) | `tau` blended linearly — today's behaviour | log-linear |
+| `'moment'` | `tau = cov/var_z` from linearly blended `(var_z, cov, var_x)` | from the same blend |
+| `'orient'` | same as `'moment'` | log-linear |
+
+The moment triple is **derived from the stored frame**, not measured at deposition:
+`var_z = sigma_z^2`, `cov = tau var_z`, `var_x = sigma_xi^2 + tau^2 var_z`. So `tau = cov/var_z`,
+`sqrt(var_z) = sigma_z` and `sqrt(var_x - cov^2/var_z) = sigma_xi` hold **identically at every snapshot** —
+node exactness by construction, no deposition change, no new stored arrays.
+
+##### The orientation fix works
+
+| | `coeff` | `moment` | `orient` |
+|---|---|---|---|
+| `max\|tan 2a\|` over the history | **482.1** | **6.07** | **6.07** |
+| history at `\|alpha\| < 45°` (fictitious) | **1.81 %** | **0.015 %** | **0.015 %** |
+
+79× less chirp-angle excursion, 121× less time at an orientation the beam never occupies.
+
+##### `'moment'` turned out to be broken, and the test caught it
+
+Blending the *full* covariance **inflates `sigma_xi` 8×–10×** at mid-interval. A convex mix of two thin
+ellipses at different tilts is fatter than either, by `a(1-a)(dtau)^2 var_z`. Measured against that
+prediction in the body of the dipole:
+
+```
+   tau_k    tau_k1   sxi_log/um  sxi_mom/um  ratio  predicted/um
+ -9.9247   -6.5848       20.290     196.861   9.70       212.690
+ -4.9044   -3.8887       11.189     111.280   9.95       113.895
+ -2.7126   -2.3383        8.569      68.038   7.94        68.569
+```
+
+Only the orientation needs the moment chart; the widths are already well conditioned log-linearly. Hence
+`'orient'`. `'moment'` is kept because the defect is *measured* rather than assumed, and because it is the
+honest full-covariance option — but it should not be used.
+
+##### The acceptance test is convergence, not smoothness
+
+Deliberately so, after §6o: roughness cannot distinguish "more accurate" from "smoother". Every mode is
+exact at snapshot times, so every mode **must** converge as `step_size -> 0`, and modes that converge must
+share a limit. Successive-step differences, rel L2:
+
+```
+                        coeff     moment     orient
+  0.45 m into the dipole (ordinary point)
+  0.05  -> 0.025       0.00462    0.00880    0.00777
+  0.025 -> 0.0125      0.00091    0.01051    0.00161
+  0.0125-> 0.00625     0.00031    0.01157    0.00054
+
+  cross-mode gaps      coe-mom    coe-ori    mom-ori
+  0.05                 0.04366    0.01166    0.03967
+  0.00625              0.01205    0.00045    0.01180
+```
+
+`coeff` and `orient` both converge and their gap closes 26× (0.01166 -> 0.00045): **same limit, no
+regression at ordinary points.** `moment`'s successive differences *grow* — it does not converge at all,
+exactly as the `sigma_xi` inflation predicts. An earlier version of this study measured everything against
+`0.5*(coeff + moment)`, which is circular (it puts each mode half the disagreement from the "reference" by
+construction); that was scrapped for the self-convergence form above.
+
+##### The waist is still not fixed
+
+At 0.10 m into the dipole, where the near region contains the compression point, **nothing converges**:
+
+```
+  0.05  -> 0.025       0.97851    0.30910    1.41855
+  0.025 -> 0.0125      0.80867    0.80540    0.69145
+  0.0125-> 0.00625     0.33800    0.39322    0.28079
+```
+
+Successive differences of 28–140 % at `step_size = 0.00625` m — 160 steps through the 1 m drift. `orient` is
+modestly better than `coeff` on absolute roughness (0.70 vs 0.90 at the finest step, 8.66 vs 8.81 at the
+coarsest) and the cross-mode gaps do shrink, so the modes share a limit and there is no inconsistency — but
+the limit is not reached. **§6q's chart defect was real and is now fixed; it was not the whole cause of the
+entrance noise.** §6n's conclusion stands: the waist is a sampling problem, and Phase 5 is still required.
+
+![frame_blend: wake accuracy vs step size](pyDFCSR_2D/test/benchmark_results/flip/frame_blend_wake.png)
+
+##### Regressions
+
+`coeff` bit-identical: `test_two_branch_bands` still **1.06466 / 0.40824**; a dedicated test asserts
+`_comoving_frame_at` reproduces the pre-flag expressions with `assert_array_equal`. `test_ghosting`'s CMV
+columns stay flat at the B-spline grid error (0.000589 / 0.001019) across `G` = 0.05–20, unchanged.
+
+Two things worth recording about the mechanics:
+
+- **Numba's on-disk cache goes stale on a signature change** (`*.nbi` / `*.nbc` under `__pycache__`), and the
+  failure is a confusing `ModuleNotFoundError: No module named 'interp3D'` rather than a signature error.
+  Delete them after editing a `cache=True` kernel.
+- **`zip(MODES, (colour1, colour2))` silently dropped the third mode from the figure.** `zip` truncates; a
+  dict keyed by mode does not. The first version of the plot looked complete and was missing the mode the
+  study was about.
+
+**Files.** `pyDFCSR_2D/deposit_smooth.py` (`frame_blend` param, `_build_moment_arrays`),
+`pyDFCSR_2D/interp3D.py` (kernel blend branch; deleted the dead `get_poly_deriv_blended` and the dead
+single-field `interpolate3D_comoving`), `pyDFCSR_2D/CSR.py` (`_comoving_frame_at` mirrors the kernel),
+`pyDFCSR_2D/test/test_frame_blend.py` and `test_frame_blend_wake.py` (new), `test_ghosting.py` (call site).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
