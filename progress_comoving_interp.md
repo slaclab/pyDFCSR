@@ -2964,8 +2964,36 @@ horizontal — so neither works globally.
 
 #### 6r. `frame_blend` implemented: the chart is fixed, the waist is not (2026-09-11) ✅ **`orient` mode; and a measured defect in full-moment blending**
 
-Implements the §6q fix as a config flag, `particle_deposition: frame_blend`, default `'coeff'` so every
-recorded baseline is untouched. Three modes:
+##### What is being blended, and why there is a choice at all
+
+Each snapshot stores the beam's density as **five numbers plus a grid**: a tilt line `x = tau z + b`, a
+centroid `(z_bar, xi_bar)`, and two widths `(sigma_xi, sigma_z)`, with the density itself deposited on the
+normalized grid `u = (xi - xi_bar)/sigma_xi`, `w = (z - z_bar)/sigma_z` where `xi = x - p(z)`.
+
+Snapshots exist only at discrete times, but the retarded-time integral needs the frame at **arbitrary**
+`t_ret`. So those five numbers have to be interpolated between the two bracketing snapshots. `frame_blend`
+answers one question: **which numbers do you interpolate?**
+
+That is a real choice, not a formality. The frame is a *geometric object* — an ellipse with an orientation
+and two widths — but it is *stored* as one particular parametrisation of that object. Interpolating
+different parametrisations of the same ellipse gives different intermediate ellipses.
+
+##### The defect in plain terms
+
+Interpolate the compass bearings 350 deg and 10 deg linearly and you get 180 deg: pointing backwards,
+because you went round the wrong way. `tau = tan(alpha)` has exactly this defect, and its bad direction is
+**vertical**.
+
+Across full compression the beam rotates `+87 deg -> 90 deg -> -87 deg`. The stored slopes are `tau = +20`
+and `tau = -16.76`. Any continuous path between those two numbers **must pass through `tau = 0`**, i.e.
+`alpha = 0`, a *horizontal* ribbon — perpendicular to the truth. So halfway between the snapshots the code
+believes the beam is lying flat when it is actually standing on end. Worse,
+`tan 2a = 2 tau/(1 - tau^2)` has **poles at `tau = +-1`**, which that path crosses twice, and the chirp band
+sits at `x - (s - s') tan 2a`, so it is flung to +-metres while the density stays within +-5 mm.
+
+The beam never occupies any of those intermediate orientations. They are artefacts of the coordinate.
+
+##### The three modes, and why each exists
 
 | mode | orientation | widths |
 |---|---|---|
@@ -2973,10 +3001,49 @@ recorded baseline is untouched. Three modes:
 | `'moment'` | `tau = cov/var_z` from linearly blended `(var_z, cov, var_x)` | from the same blend |
 | `'orient'` | same as `'moment'` | log-linear |
 
+**`'coeff'`** interpolates the stored numbers as they are: `tau` and the means linearly, the sigmas
+log-linearly. (Log-linear keeps a width positive and tracks the exponential growth a drift gives a
+diverging beam, instead of putting a kink in it.) This is the pre-existing behaviour, and it carries the
+chart defect above.
+
+**`'moment'`** interpolates the **covariance matrix** `(var_z, cov, var_x)` instead. That is the ellipse
+itself rather than a parametrisation of its slope, so it has no preferred direction to break at. `tau`,
+`sigma_z` and `sigma_xi` are then derived at query time. At full compression "vertical" is simply
+`cov -> 0` with `var_z` small — both smooth — so the derived `tau` stays near `+-20` and never detours
+through 1.
+
+But it breaks the **widths**, because averaging two covariance matrices is not "the beam halfway between".
+Average two thin ellipses at different tilts and you get a fat blob, the same way averaging two photographs
+of a rotating needle gives a blur rather than a needle at the mean angle. That is the 8x-10x `sigma_xi`
+inflation measured below.
+
+**`'orient'`** is the hybrid, and the reason splitting is legitimate is that the two defects live in
+**different quantities**. The chart problem is only in the orientation. `sigma_xi` and `sigma_z` are
+positive scalars that never had a chart problem, and log-linear blending was already the right thing for
+them. So: orientation from the moment ratio, widths log-linear.
+
+`'orient'` and `'moment'` also **pivot at the centroid**, `centre(z) = tau (z - z_bar) + x_bar`, rather than
+at `z = 0` via the intercept `b`. The first moments are linear and well conditioned, and pivoting at the
+centroid keeps the lever arm short, so whatever `tau` error remains buys the least band displacement.
+
+##### Why the choice has teeth
+
+The frame is used at **two** sites that must agree:
+
+1. **placing the integration bands** — `_eq424` needs the slope and the intercept to locate the branches;
+2. **evaluating the density** — the numba kernel maps a query point into the normalized `(u, w)` grid.
+
+Blend them differently and the quadrature nodes sit where the density is not. Nothing enforced their
+agreement before, so `test_frame_blend.py` now asserts both sites construct the same frame.
+
+##### No new storage
+
 The moment triple is **derived from the stored frame**, not measured at deposition:
 `var_z = sigma_z^2`, `cov = tau var_z`, `var_x = sigma_xi^2 + tau^2 var_z`. So `tau = cov/var_z`,
 `sqrt(var_z) = sigma_z` and `sqrt(var_x - cov^2/var_z) = sigma_xi` hold **identically at every snapshot** —
-node exactness by construction, no deposition change, no new stored arrays.
+node exactness by construction, no deposition change, no new stored arrays. (They are therefore an
+*effective* triple that reproduces the frame, not the beam's true moments: `sigma_xi` is the all-particle
+spread while the tilt is fit on the core, so a directly measured `np.cov` would not satisfy the identities.)
 
 ##### The orientation fix works
 
