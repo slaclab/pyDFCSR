@@ -3133,6 +3133,156 @@ Two things worth recording about the mechanics:
 single-field `interpolate3D_comoving`), `pyDFCSR_2D/CSR.py` (`_comoving_frame_at` mirrors the kernel),
 `pyDFCSR_2D/test/test_frame_blend.py` and `test_frame_blend_wake.py` (new), `test_ghosting.py` (call site).
 
+#### 6s. Integrand and wake maps through the dipole, and what the log grading actually buys (2026-09-12) ✅
+
+Regenerates the §6f figures with the current code, at five locations inside the dipole for shear 20 and 50.
+
+##### What log grading is, and where it is used
+
+The near region `(s3, s4)` is the one that straddles `s' = s`, so it owns the `1/|r - r'|` singularity. Its
+`s'` nodes are **not uniform**. The cell is
+
+```
+    ds = max(near_cell * sigma_xi,  near_grade * u),      u = |s - s'|
+```
+
+— an absolute floor of `near_cell` transverse support widths close to the observation point, then
+**geometric growth** outside. Why: once `u` exceeds the transverse offsets, `|r - r'| ~ u`, so a column's
+contribution falls as `1/u` and equal contributions come from equal *logarithmic* intervals. A uniform grid
+is then over-resolved where the cost is and under-resolved where the accuracy is set.
+
+**It is ON by default** (`near_cell = 0.5`, `near_grade = 0.05`) and applies to the **near region only** —
+regions 1 and 2 stay uniform at `far_zbins = 200`.
+
+##### What it buys, measured
+
+`floor = near_cell*sigma_xi` is the cell targeted at `s' = s`; "unif." is how many uniform nodes that cell
+would need to cover the whole near region:
+
+```
+shear 20
+   s_dip      tau  sig_z/um  sig_xi/um    amp  near len/mm  nodes  floor/um  ds max/um  range   unif.
+    0.10  -19.866     50.09     49.911   20.0       98.860    137     24.96     4617.7  185.0    3962
+    0.20   -6.585    149.01     16.533   59.4       32.011    170      8.27     1456.8  176.2    3873
+    0.40   -2.713    339.99      8.436  109.3       11.829    193      4.22      503.1  119.3    2805
+    0.60   -1.603    515.45     12.502   66.1        5.596    165      6.25      190.2   30.4     896
+    0.80   -1.044    668.40     21.930   31.8        2.307     94     10.97       93.8    8.6     211
+
+shear 50
+    0.10  -12.462    199.65     12.508  198.9      154.629    220      6.25     7037.3 1125.3   24726
+    0.20   -5.485    446.79      5.631  435.2       66.317    251      2.82     3017.5 1071.7   23553
+    0.40   -2.493    923.76      5.899  390.4       26.864    244      2.95     1134.6  384.7    9108
+    0.60   -1.515   1361.92     12.358  167.0       12.914    201      6.18      410.4   66.4    2090
+    0.80   -0.999   1743.80     22.300   78.1        5.247     88     11.15      241.1   21.6     471
+```
+
+The saving is **29× at shear 20 / s = 0.10** (137 nodes instead of 3962) and **112× at shear 50 / s = 0.20**
+(251 instead of 23553), spanning up to a **1125×** dynamic range of cell size within a single region. Note
+the node count stays in the 90–250 band across a 67× spread in near-region length (2.3 mm to 155 mm) — that
+flatness is the point of §6m: graded, `N ~ 1/near_grade + ln(u_max/u*)/ln(1+near_grade)`, which grows only
+logarithmically with tilt, whereas uniform `N ~ u_max/sigma_xi` grows linearly and is what forced the
+retuning §6k had to do.
+
+##### A false-alarm warning, fixed
+
+Generating these figures made `_region_node_counts` print
+
+```
+WARNING: near-region nodes capped at 20000 (wanted 32077); near-region cell is
+1.6x coarser than near_cell requests. Raise zbins, raise near_cell, or use graded nodes.
+```
+
+at shear 50, s = 0.10 and 0.20 — while the graded grid was quietly using **220 nodes** and hitting its
+target cell exactly. The count `want` is the *uniform* requirement; with `near_grade` set,
+`_near_region_nodes` discards it entirely. So the warning reported a resolution loss that was not happening,
+and advised "use graded nodes" when they were already on. Now gated on `near_grade` being unset. (The
+warning is still wanted in the ungraded path — §6l added it precisely because a silent clip once returned an
+under-resolved wake that looked plausible.)
+
+##### How far apart the two frame_blend modes actually are
+
+Every figure shows **both** modes as rows, with the colour scale **shared down each column** — a
+self-normalising panel pair would let two panels look identical while differing 10x in amplitude, or look
+different purely from rescaling. Relative L2 over the whole wake mesh:
+
+```
+    shear   s_dip         dE     x_kick
+       20    0.10    0.70873    0.25290
+       20    0.20    0.25292    0.10720
+       20    0.40    0.05758    0.00538
+       20    0.60    0.00446    0.00044
+       20    0.80    0.00340    0.00048
+       50    0.10    1.19097    0.72002
+       50    0.20    1.49196    0.42775
+       50    0.40    0.18288    0.03746
+       50    0.60    0.02934    0.01968
+       50    0.80    0.14179    0.03477
+```
+
+**Shear 20 behaves exactly as §6q's mechanism predicts:** 71% at the waist, decaying monotonically to 0.34%
+once the near region no longer reaches the compression point. That is the signature of a *local* chart
+defect, and it is the strongest confirmation so far that `orient` changes what it should and leaves ordinary
+points alone.
+
+**Shear 50 does not decay cleanly** — 0.029 at s = 0.60 rising back to **0.142 at s = 0.80**. Non-monotonic,
+so something beyond the waist is involved. Leading hypothesis, from the `tau` column:
+
+| shear | s = 0.80 `tau` | dE difference |
+|---|---|---|
+| 20 | −1.044 | 0.0034 |
+| 50 | **−0.999** | **0.1418** |
+
+`tau = -0.999` is within 0.1% of the `|tau| = 1` degeneracy — the `alpha = 45 deg` case where `_eq424`'s
+quadratic collapses (`tau^2 - 1 -> 0`, handled only within 1e-9 by the `deg` guard) and the chirp root
+diverges. There *any* small difference in blended `tau` moves the located band a long way. Shear 20 is 4%
+away from the degeneracy and shows 40x less difference, which is consistent — but two points is not a
+demonstration. **Not yet established**; the test is to log the `rad < 0` and `live` fractions and the chirp
+root position across the near region at that point.
+
+##### The figures
+
+`s'` spans the **actual near region**, not the ±30 `sigma_z` zoom §6f used. At shear 20, s = 0.10 the near
+region is 98.9 mm while 30 `sigma_z` is 1.5 mm, so the old window showed under 2% of the domain and could
+not show the chirp band's excursion at all.
+
+![Longitudinal integrand, shear 20, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear20.png)
+
+![Longitudinal integrand, shear 50, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear50.png)
+
+Cyan/green are the located band edges, white ticks on the lower axis are the graded `s'` nodes (visibly dense
+near `s' = s`, sparse at the far end), the white `+` is the observation point. The thesis 4.4.2 picture
+appears literally from s = 0.20 onward: a narrow band along `x' ~ x` and a chirp band leaving it at angle
+`2 alpha`, the two meeting at the observation point.
+
+At **s = 0.10** the band envelope instead opens symmetrically to ±25 mm and closes again at `s' = s`. That
+is the structure predicted from the shear reversal: `tan 2a` changes sign across the compression point, so
+the chirp band sits on **opposite sides of `x'`** for `s'` before and after it, giving two lobes that meet
+where the branches degenerate.
+
+![Longitudinal wake, shear 20, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear20.png)
+
+![Longitudinal wake, shear 50, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear50.png)
+
+Transverse counterparts: `integrand_transverse_shear{20,50}.png`, `wake_transverse_shear{20,50}.png`.
+
+Wakes are smooth and physically ordered from s = 0.40 outward, amplitude falling as the bunch lengthens. The
+entrance points remain the exception at both shears, consistent with §6r: the chart defect is fixed, the
+waist is still undersampled.
+
+**Caveat on the integrand figures.** The `x'` window is sized from the *located* bands, so it cannot reveal
+support the locator missed entirely — `test_integrand_plane.py` answers that with a prediction-independent
+window. These figures show where the integrand and the nodes sit relative to each other, not whether the
+domain is complete.
+
+##### A process note
+
+The first version of this study plotted `coeff` only. The script never set `frame_blend`, so it fell back to
+the default while a print statement claimed the mode — the figures showed the artefact `orient` was built to
+remove and none of the fix. Printing a setting is not setting it, and a figure caption asserting a
+configuration is worth nothing unless the configuration is read back from the object that ran.
+
+**Files.** `pyDFCSR_2D/test/test_wake_evolution_maps.py` (new), `pyDFCSR_2D/CSR.py` (warning gate).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

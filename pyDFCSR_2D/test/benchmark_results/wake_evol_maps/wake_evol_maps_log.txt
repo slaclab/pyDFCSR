@@ -1,0 +1,59 @@
+========================================================================================================
+CSR integrand and 2D wakes at several locations inside the dipole
+========================================================================================================
+method bspline_comoving, two-branch bands, polar patch; frame_blend modes compared: ('coeff', 'orient')
+lattice: 1.0 m drift + 1 m dipole (1 rad), step_size 0.05 m; wake mesh 21 x 51
+integration: far regions uniform at far_zbins, NEAR region log-graded (near_cell = 0.5 sigma_xi, near_grade = 0.05)
+
+--- shear z:x = 20 ---
+    s_dip    mode       tau  sig_z/um  sig_xi/um    amp  near len/mm  nodes  floor/um  ds max/um   range   unif.           dE range (MeV/m)
+     0.10   coeff   -19.866     50.09     49.911   20.0       98.860    137     24.96     4617.7   185.0    3962 [ -10.4328,  +10.9961]
+     0.10  orient   -19.866     50.09     49.911   20.0       98.860    137     24.96     4617.7   185.0    3962 [ -16.4919,  +14.1419]
+     0.20   coeff    -6.585    149.01     16.533   59.4       32.011    170      8.27     1456.8   176.2    3873 [  -1.3119,   +4.1356]
+     0.20  orient    -6.585    149.01     16.533   59.4       32.011    170      8.27     1456.8   176.2    3873 [  -2.1422,   +3.9562]
+     0.40   coeff    -2.713    339.99      8.436  109.3       11.829    193      4.22      503.1   119.3    2805 [  -0.0336,   +0.1863]
+     0.40  orient    -2.713    339.99      8.436  109.3       11.829    193      4.22      503.1   119.3    2805 [  -0.0311,   +0.1848]
+     0.60   coeff    -1.603    515.45     12.502   66.1        5.596    165      6.25      190.2    30.4     896 [  -0.0289,   +0.1014]
+     0.60  orient    -1.603    515.45     12.502   66.1        5.596    165      6.25      190.2    30.4     896 [  -0.0287,   +0.1011]
+     0.80   coeff    -1.044    668.40     21.930   31.8        2.307     94     10.97       93.8     8.6     211 [  -0.0348,   +0.0690]
+     0.80  orient    -1.044    668.40     21.930   31.8        2.307     94     10.97       93.8     8.6     211 [  -0.0349,   +0.0690]
+
+--- shear z:x = 50 ---
+    s_dip    mode       tau  sig_z/um  sig_xi/um    amp  near len/mm  nodes  floor/um  ds max/um   range   unif.           dE range (MeV/m)
+     0.10   coeff   -12.462    199.65     12.508  198.9      154.629    220      6.25     7037.3  1125.3   24726 [  -4.6329,  +16.5921]
+     0.10  orient   -12.462    199.65     12.508  198.9      154.629    220      6.25     7037.3  1125.3   24726 [  -5.3619,  +12.1217]
+     0.20   coeff    -5.485    446.79      5.631  435.2       66.317    251      2.82     3017.5  1071.7   23553 [  -2.5712,   +2.2077]
+     0.20  orient    -5.485    446.79      5.631  435.2       66.317    251      2.82     3017.5  1071.7   23553 [  -2.4106,   +1.5915]
+     0.40   coeff    -2.493    923.76      5.899  390.4       26.864    244      2.95     1134.6   384.7    9108 [  -0.0211,   +0.1210]
+     0.40  orient    -2.493    923.76      5.899  390.4       26.864    244      2.95     1134.6   384.7    9108 [  -0.0175,   +0.1225]
+     0.60   coeff    -1.515   1361.92     12.358  167.0       12.914    201      6.18      410.4    66.4    2090 [  -0.0095,   +0.0595]
+     0.60  orient    -1.515   1361.92     12.358  167.0       12.914    201      6.18      410.4    66.4    2090 [  -0.0094,   +0.0592]
+     0.80   coeff    -0.999   1743.80     22.300   78.1        5.247     88     11.15      241.1    21.6     471 [  -0.2664,   +0.4287]
+     0.80  orient    -0.999   1743.80     22.300   78.1        5.247     88     11.15      241.1    21.6     471 [  -0.1065,   +0.4287]
+
+floor = near_cell*sigma_xi is the cell the grading targets near s' = s;
+"unif." is how many UNIFORM nodes that cell would need to cover the whole
+near region. The ratio of that to "nodes" is what the grading buys.
+"range" = ds max / floor is the dynamic range of cell size it spans.
+
+coeff vs orient, relative L2 over the whole wake mesh:
+    shear   s_dip         dE     x_kick
+       20    0.10    0.70873    0.25290
+       20    0.20    0.25292    0.10720
+       20    0.40    0.05758    0.00538
+       20    0.60    0.00446    0.00044
+       20    0.80    0.00340    0.00048
+       50    0.10    1.19097    0.72002
+       50    0.20    1.49196    0.42775
+       50    0.40    0.18288    0.03746
+       50    0.60    0.02934    0.01968
+       50    0.80    0.14179    0.03477
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear20.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_transverse_shear20.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear20.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear20.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear50.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_transverse_shear50.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear50.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear50.png

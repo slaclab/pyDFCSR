@@ -986,7 +986,13 @@ class CSR2D:
         # |tan 2 alpha| ~ 150 mm while the cell stays at sigma_xi, asking for ~25000
         # columns. Silently clipping that returns an under-resolved wake that looks
         # perfectly plausible, which is exactly how it went unnoticed once already.
-        if want > cap and not getattr(self, '_warned_near_cap', False):
+        # ... but only when this count is what the near region will actually use.
+        # With near_grade set, _near_region_nodes discards `want` entirely and builds a
+        # graded grid whose finest cell IS near_cell*sigma_xi, so the cap never binds
+        # and warning about it is not merely noise: it reports a resolution loss that
+        # is not happening, and advises "use graded nodes" when they are already on.
+        graded = bool(ip.near_grade)
+        if want > cap and not graded and not getattr(self, '_warned_near_cap', False):
             self._warned_near_cap = True
             if (not self.parallel) or self.rank == 0:
                 print(f'WARNING: near-region nodes capped at {cap} '
