@@ -1,0 +1,77 @@
+Detailed Benchmark: dipole_fine
+Config: input/dipole_config_fine.yaml
+Date: 2026-07-09 12:38:40
+
+Legacy: 35.1s, 32 deposit steps, 32 wake steps
+New: 40.8s, 32 deposit steps, 32 wake steps
+
+Per-step field plots: fields_step_000.png to fields_step_031.png
+Wake plots: wakes_step_*.png
+
+Per-step density L2 norm (relative to legacy max):
+  Step 0: grid mismatch ((100, 100) vs (200, 200))
+  Step 1: grid mismatch ((100, 100) vs (200, 200))
+  Step 2: grid mismatch ((100, 100) vs (200, 200))
+  Step 3: grid mismatch ((100, 100) vs (200, 200))
+  Step 4: grid mismatch ((100, 100) vs (200, 200))
+  Step 5: grid mismatch ((100, 100) vs (200, 200))
+  Step 6: grid mismatch ((100, 100) vs (200, 200))
+  Step 7: grid mismatch ((100, 100) vs (200, 200))
+  Step 8: grid mismatch ((100, 100) vs (200, 200))
+  Step 9: grid mismatch ((100, 100) vs (200, 200))
+  Step 10: grid mismatch ((100, 100) vs (200, 200))
+  Step 11: grid mismatch ((100, 100) vs (200, 200))
+  Step 12: grid mismatch ((100, 100) vs (200, 200))
+  Step 13: grid mismatch ((100, 100) vs (200, 200))
+  Step 14: grid mismatch ((100, 100) vs (200, 200))
+  Step 15: grid mismatch ((100, 100) vs (200, 200))
+  Step 16: grid mismatch ((100, 100) vs (200, 200))
+  Step 17: grid mismatch ((100, 100) vs (200, 200))
+  Step 18: grid mismatch ((100, 100) vs (200, 200))
+  Step 19: grid mismatch ((100, 100) vs (200, 200))
+  Step 20: grid mismatch ((100, 100) vs (200, 200))
+  Step 21: grid mismatch ((100, 100) vs (200, 200))
+  Step 22: grid mismatch ((100, 100) vs (200, 200))
+  Step 23: grid mismatch ((100, 100) vs (200, 200))
+  Step 24: grid mismatch ((100, 100) vs (200, 200))
+  Step 25: grid mismatch ((100, 100) vs (200, 200))
+  Step 26: grid mismatch ((100, 100) vs (200, 200))
+  Step 27: grid mismatch ((100, 100) vs (200, 200))
+  Step 28: grid mismatch ((100, 100) vs (200, 200))
+  Step 29: grid mismatch ((100, 100) vs (200, 200))
+  Step 30: grid mismatch ((100, 100) vs (200, 200))
+  Step 31: grid mismatch ((100, 100) vs (200, 200))
+
+Per-step wake L2 norm (relative to legacy):
+  Step 1: dE/dct rel_diff = 0.5485, x_kick rel_diff = 0.0000
+  Step 2: dE/dct rel_diff = 0.0597, x_kick rel_diff = 0.0316
+  Step 3: dE/dct rel_diff = 0.0579, x_kick rel_diff = 0.0312
+  Step 4: dE/dct rel_diff = 0.0444, x_kick rel_diff = 0.0263
+  Step 5: dE/dct rel_diff = 0.0420, x_kick rel_diff = 0.0304
+  Step 6: dE/dct rel_diff = 0.0424, x_kick rel_diff = 0.0303
+  Step 7: dE/dct rel_diff = 0.0431, x_kick rel_diff = 0.0305
+  Step 8: dE/dct rel_diff = 0.0439, x_kick rel_diff = 0.0307
+  Step 9: dE/dct rel_diff = 0.0435, x_kick rel_diff = 0.0308
+  Step 10: dE/dct rel_diff = 0.0433, x_kick rel_diff = 0.0309
+  Step 11: dE/dct rel_diff = 0.0433, x_kick rel_diff = 0.0310
+  Step 12: dE/dct rel_diff = 0.0439, x_kick rel_diff = 0.0311
+  Step 13: dE/dct rel_diff = 0.0451, x_kick rel_diff = 0.0311
+  Step 14: dE/dct rel_diff = 0.0435, x_kick rel_diff = 0.0311
+  Step 15: dE/dct rel_diff = 0.0405, x_kick rel_diff = 0.0311
+  Step 16: dE/dct rel_diff = 0.0401, x_kick rel_diff = 0.0312
+  Step 17: dE/dct rel_diff = 0.0433, x_kick rel_diff = 0.0314
+  Step 18: dE/dct rel_diff = 0.0521, x_kick rel_diff = 0.0317
+  Step 19: dE/dct rel_diff = 0.0476, x_kick rel_diff = 0.0325
+  Step 20: dE/dct rel_diff = 0.0461, x_kick rel_diff = 0.0328
+  Step 21: dE/dct rel_diff = 0.0480, x_kick rel_diff = 0.0323
+  Step 22: dE/dct rel_diff = 0.0478, x_kick rel_diff = 0.0361
+  Step 23: dE/dct rel_diff = 0.0486, x_kick rel_diff = 0.0207
+  Step 24: dE/dct rel_diff = 0.0518, x_kick rel_diff = 0.0192
+  Step 25: dE/dct rel_diff = 0.0699, x_kick rel_diff = 0.2212
+  Step 26: dE/dct rel_diff = 0.7375, x_kick rel_diff = 0.6434
+  Step 27: dE/dct rel_diff = 1.2176, x_kick rel_diff = 1.3551
+  Step 28: dE/dct rel_diff = 0.3749, x_kick rel_diff = 6586432266.5655
+  Step 29: dE/dct rel_diff = 0.3497, x_kick rel_diff = 1.1409
+  Step 30: dE/dct rel_diff = 0.4464, x_kick rel_diff = 2.2386
+  Step 31: dE/dct rel_diff = 0.1365, x_kick rel_diff = 1.1073
+  Step 32: dE/dct rel_diff = 0.2339, x_kick rel_diff = 1.8941

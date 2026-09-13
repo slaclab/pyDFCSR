@@ -1,0 +1,15 @@
+Benchmark: dipole
+Config: input/dipole_config.yaml
+Date: 2026-07-08 14:18:39
+
+Legacy method time: 20.4s
+New method time: 21.5s
+Speedup: 0.95x
+
+Density comparison plots saved.
+
+Final beam statistics (step 16):
+  σ_z: legacy=63.965 μm, new=63.711 μm
+  σ_x: legacy=106.592 μm, new=106.930 μm
+  σ_E: legacy=1104153.8 eV, new=1118869.5 eV
+  ε_nx: legacy=25.8104 μm, new=25.7179 μm

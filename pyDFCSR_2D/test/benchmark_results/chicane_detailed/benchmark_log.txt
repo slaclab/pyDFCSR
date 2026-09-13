@@ -1,0 +1,61 @@
+Chicane Benchmark: chicane
+Config: input/chicane_config.yaml
+Date: 2026-07-10 11:00:38
+
+Legacy: 215.5s, 133 deposit steps, 53 wake steps
+New: 247.8s, 133 deposit steps, 53 wake steps
+
+Per-step wake L2 norm (relative to legacy):
+  Step 1: dE/dct rel_diff = 0.1034, x_kick rel_diff = 0.0437
+  Step 2: dE/dct rel_diff = 0.1768, x_kick rel_diff = 0.0329
+  Step 3: dE/dct rel_diff = 0.1759, x_kick rel_diff = 0.0332
+  Step 4: dE/dct rel_diff = 0.1509, x_kick rel_diff = 0.0336
+  Step 5: dE/dct rel_diff = 0.1423, x_kick rel_diff = 0.0346
+  Step 6: dE/dct rel_diff = 0.2480, x_kick rel_diff = 0.0347
+  Step 7: dE/dct rel_diff = 0.1887, x_kick rel_diff = 0.0314
+  Step 12: dE/dct rel_diff = 0.1281, x_kick rel_diff = 0.0288
+  Step 17: dE/dct rel_diff = 1.1243, x_kick rel_diff = 0.1020
+  Step 22: dE/dct rel_diff = 1.6100, x_kick rel_diff = 0.0000
+  Step 27: dE/dct rel_diff = 1.9649, x_kick rel_diff = 0.0000
+  Step 32: dE/dct rel_diff = 2.9706, x_kick rel_diff = 0.0000
+  Step 37: dE/dct rel_diff = 5.0518, x_kick rel_diff = 0.0000
+  Step 42: dE/dct rel_diff = 8.6329, x_kick rel_diff = 0.0000
+  Step 47: dE/dct rel_diff = 16.6380, x_kick rel_diff = 0.0000
+  Step 52: dE/dct rel_diff = 30.8099, x_kick rel_diff = 0.0000
+  Step 57: dE/dct rel_diff = 68.7943, x_kick rel_diff = 0.6119
+  Step 58: dE/dct rel_diff = 139.4374, x_kick rel_diff = 0.8618
+  Step 59: dE/dct rel_diff = 88.7072, x_kick rel_diff = 0.8630
+  Step 60: dE/dct rel_diff = 83.1873, x_kick rel_diff = 1.1980
+  Step 61: dE/dct rel_diff = 61.8791, x_kick rel_diff = 1.6896
+  Step 62: dE/dct rel_diff = 145.6933, x_kick rel_diff = 10.5948
+  Step 63: dE/dct rel_diff = 128.6234, x_kick rel_diff = 13.9497
+  Step 64: dE/dct rel_diff = 115.9485, x_kick rel_diff = 13.2931
+  Step 65: dE/dct rel_diff = 118.5343, x_kick rel_diff = 15.7837
+  Step 66: dE/dct rel_diff = 117.2503, x_kick rel_diff = 16.1719
+  Step 67: dE/dct rel_diff = 137.1049, x_kick rel_diff = 21.6897
+  Step 68: dE/dct rel_diff = 157.6776, x_kick rel_diff = 27.4928
+  Step 69: dE/dct rel_diff = 242.9672, x_kick rel_diff = 30.1361
+  Step 70: dE/dct rel_diff = 434.0293, x_kick rel_diff = 28.1681
+  Step 71: dE/dct rel_diff = 812.6146, x_kick rel_diff = 20.6816
+  Step 72: dE/dct rel_diff = 21.1744, x_kick rel_diff = 0.3960
+  Step 73: dE/dct rel_diff = 32.0088, x_kick rel_diff = 0.4034
+  Step 74: dE/dct rel_diff = 22.6258, x_kick rel_diff = 0.6662
+  Step 75: dE/dct rel_diff = 9.9571, x_kick rel_diff = 0.7216
+  Step 76: dE/dct rel_diff = 4.1491, x_kick rel_diff = 0.7513
+  Step 77: dE/dct rel_diff = 2.6868, x_kick rel_diff = 1.3014
+  Step 82: dE/dct rel_diff = 5.1138, x_kick rel_diff = 2.9058
+  Step 87: dE/dct rel_diff = 1.4137, x_kick rel_diff = 1171260201589.3977
+  Step 92: dE/dct rel_diff = 1.3102, x_kick rel_diff = 1.9270
+  Step 97: dE/dct rel_diff = 1.2369, x_kick rel_diff = 1.4701
+  Step 102: dE/dct rel_diff = 1.1464, x_kick rel_diff = 1.4062
+  Step 107: dE/dct rel_diff = 1.0759, x_kick rel_diff = 1.2008
+  Step 112: dE/dct rel_diff = 1.0093, x_kick rel_diff = 1.3032
+  Step 117: dE/dct rel_diff = 0.9686, x_kick rel_diff = 0.9307
+  Step 122: dE/dct rel_diff = 0.9955, x_kick rel_diff = 0.9947
+  Step 127: dE/dct rel_diff = 3.3991, x_kick rel_diff = 0.6487
+  Step 128: dE/dct rel_diff = 1.1487, x_kick rel_diff = 0.6186
+  Step 129: dE/dct rel_diff = 0.7699, x_kick rel_diff = 0.6352
+  Step 130: dE/dct rel_diff = 0.6990, x_kick rel_diff = 0.6680
+  Step 131: dE/dct rel_diff = 0.8309, x_kick rel_diff = 0.6917
+  Step 132: dE/dct rel_diff = 0.6896, x_kick rel_diff = 0.4775
+  Step 133: dE/dct rel_diff = 0.6484, x_kick rel_diff = 0.5991

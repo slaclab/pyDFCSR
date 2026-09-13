@@ -1,0 +1,77 @@
+Detailed Benchmark: dipole_chirp500_fine
+Config: input/dipole_chirp500_config_fine.yaml
+Date: 2026-07-10 10:52:04
+
+Legacy: 64.3s, 32 deposit steps, 32 wake steps
+New: 47.0s, 32 deposit steps, 32 wake steps
+
+Per-step field plots: fields_step_000.png to fields_step_031.png
+Wake plots: wakes_step_*.png
+
+Per-step density L2 norm (relative to legacy max):
+  Step 0: grid mismatch ((100, 100) vs (200, 200))
+  Step 1: grid mismatch ((100, 100) vs (200, 200))
+  Step 2: grid mismatch ((100, 100) vs (200, 200))
+  Step 3: grid mismatch ((100, 100) vs (200, 200))
+  Step 4: grid mismatch ((100, 100) vs (200, 200))
+  Step 5: grid mismatch ((100, 100) vs (200, 200))
+  Step 6: grid mismatch ((100, 100) vs (200, 200))
+  Step 7: grid mismatch ((100, 100) vs (200, 200))
+  Step 8: grid mismatch ((100, 100) vs (200, 200))
+  Step 9: grid mismatch ((100, 100) vs (200, 200))
+  Step 10: grid mismatch ((100, 100) vs (200, 200))
+  Step 11: grid mismatch ((100, 100) vs (200, 200))
+  Step 12: grid mismatch ((100, 100) vs (200, 200))
+  Step 13: grid mismatch ((100, 100) vs (200, 200))
+  Step 14: grid mismatch ((100, 100) vs (200, 200))
+  Step 15: grid mismatch ((100, 100) vs (200, 200))
+  Step 16: grid mismatch ((100, 100) vs (200, 200))
+  Step 17: grid mismatch ((100, 100) vs (200, 200))
+  Step 18: grid mismatch ((100, 100) vs (200, 200))
+  Step 19: grid mismatch ((100, 100) vs (200, 200))
+  Step 20: grid mismatch ((100, 100) vs (200, 200))
+  Step 21: grid mismatch ((100, 100) vs (200, 200))
+  Step 22: grid mismatch ((100, 100) vs (200, 200))
+  Step 23: grid mismatch ((100, 100) vs (200, 200))
+  Step 24: grid mismatch ((100, 100) vs (200, 200))
+  Step 25: grid mismatch ((100, 100) vs (200, 200))
+  Step 26: grid mismatch ((100, 100) vs (200, 200))
+  Step 27: grid mismatch ((100, 100) vs (200, 200))
+  Step 28: grid mismatch ((100, 100) vs (200, 200))
+  Step 29: grid mismatch ((100, 100) vs (200, 200))
+  Step 30: grid mismatch ((100, 100) vs (200, 200))
+  Step 31: grid mismatch ((100, 100) vs (200, 200))
+
+Per-step wake L2 norm (relative to legacy):
+  Step 1: dE/dct rel_diff = 0.5485, x_kick rel_diff = 0.0000
+  Step 2: dE/dct rel_diff = 0.0597, x_kick rel_diff = 0.0316
+  Step 3: dE/dct rel_diff = 0.0576, x_kick rel_diff = 0.0310
+  Step 4: dE/dct rel_diff = 0.0450, x_kick rel_diff = 0.0256
+  Step 5: dE/dct rel_diff = 0.0397, x_kick rel_diff = 0.0288
+  Step 6: dE/dct rel_diff = 0.0463, x_kick rel_diff = 0.0279
+  Step 7: dE/dct rel_diff = 0.0461, x_kick rel_diff = 0.0269
+  Step 8: dE/dct rel_diff = 0.0418, x_kick rel_diff = 0.0254
+  Step 9: dE/dct rel_diff = 0.0367, x_kick rel_diff = 0.0245
+  Step 10: dE/dct rel_diff = 0.0543, x_kick rel_diff = 0.0358
+  Step 11: dE/dct rel_diff = 0.1133, x_kick rel_diff = 0.0702
+  Step 12: dE/dct rel_diff = 0.1440, x_kick rel_diff = 0.0860
+  Step 13: dE/dct rel_diff = 0.3170, x_kick rel_diff = 0.1079
+  Step 14: dE/dct rel_diff = 0.3469, x_kick rel_diff = 0.1152
+  Step 15: dE/dct rel_diff = 0.4684, x_kick rel_diff = 0.1417
+  Step 16: dE/dct rel_diff = 0.5920, x_kick rel_diff = 0.1555
+  Step 17: dE/dct rel_diff = 1.1056, x_kick rel_diff = 0.1845
+  Step 18: dE/dct rel_diff = 1.5738, x_kick rel_diff = 0.1800
+  Step 19: dE/dct rel_diff = 1.9002, x_kick rel_diff = 0.2121
+  Step 20: dE/dct rel_diff = 3.0174, x_kick rel_diff = 0.2361
+  Step 21: dE/dct rel_diff = 2.0580, x_kick rel_diff = 0.2612
+  Step 22: dE/dct rel_diff = 2.1337, x_kick rel_diff = 0.2965
+  Step 23: dE/dct rel_diff = 7.3796, x_kick rel_diff = 7.5295
+  Step 24: dE/dct rel_diff = 11.0530, x_kick rel_diff = 8.6298
+  Step 25: dE/dct rel_diff = 11.6173, x_kick rel_diff = 8.5891
+  Step 26: dE/dct rel_diff = 8.1358, x_kick rel_diff = 7.7969
+  Step 27: dE/dct rel_diff = 16.0268, x_kick rel_diff = 23.0537
+  Step 28: dE/dct rel_diff = 14.1413, x_kick rel_diff = 14.0104
+  Step 29: dE/dct rel_diff = 4.4875, x_kick rel_diff = 3.5659
+  Step 30: dE/dct rel_diff = 2.5669, x_kick rel_diff = 1.2176
+  Step 31: dE/dct rel_diff = 6.0724, x_kick rel_diff = 8.4545
+  Step 32: dE/dct rel_diff = 0.0000, x_kick rel_diff = 0.0000

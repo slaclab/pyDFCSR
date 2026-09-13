@@ -11,20 +11,20 @@ margin m with xbins = 100*m, so the cell size is constant and every
 added node lands where the density is zero. Deviations are vs m = 1.
 
                   margin   xbins   rough(dE)   dE vs m=1   xk vs m=1
-  single-branch      1.0     100     0.01717     0.00000     0.00000
-  single-branch      2.0     200     0.01759     0.55839     0.17787
-  single-branch      4.0     400     0.18460     0.83687     0.29796
-  single-branch      8.0     800     0.63419     0.97179     0.38916
+  single-branch      1.0     100     0.01686     0.00000     0.00000
+  single-branch      2.0     200     0.01683     0.56262     0.13681
+  single-branch      4.0     400     0.12848     0.83978     0.26178
+  single-branch      8.0     800     0.42100     0.97343     0.36438
 
-  two-branch         1.0     100     0.09362     0.00000     0.00000
-  two-branch         2.0     200     0.08777     0.06025     0.10979
-  two-branch         4.0     400     0.08759     0.06212     0.11066
-  two-branch         8.0     800     0.08759     0.06212     0.11066
+  two-branch         1.0     100     0.01729     0.00000     0.00000
+  two-branch         2.0     200     0.01687     0.05202     0.09116
+  two-branch         4.0     400     0.01684     0.05330     0.09171
+  two-branch         8.0     800     0.01684     0.05335     0.09170
 
 --- Absolute effect on the wake at the base setting ---
-  dE     single -> two branch : rel L2 change 1.06466
-  x_kick single -> two branch : rel L2 change 0.40824
-  roughness dE  single 0.01759  two 0.08777
+  dE     single -> two branch : rel L2 change 1.06497
+  x_kick single -> two branch : rel L2 change 0.39062
+  roughness dE  single 0.01683  two 0.01687
 
 --- rad < 0 incidence vs |r - r'|, the guard section 6b asked to check ---
 The worry: inside the polar radius R2 a spurious rad < 0 is harmless
@@ -45,8 +45,8 @@ still merged, so dropping a branch there would lose real support.
   VERDICT: guard is safe in the annulus
 
 --- verdict ---
-  axis A, single-branch  worst dE dev 0.97179   change over the last doubling 0.13492
-  axis A, two-branch     worst dE dev 0.06212   change over the last doubling 0.00000
+  axis A, single-branch  worst dE dev 0.97343   change over the last doubling 0.13365
+  axis A, two-branch     worst dE dev 0.05335   change over the last doubling 0.00004
 
 An invariance axis must not move. "Change over the last doubling" is the
 honest number: it says whether the domain has stopped mattering.

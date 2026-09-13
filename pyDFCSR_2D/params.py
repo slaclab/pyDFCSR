@@ -21,7 +21,7 @@ class Integration_params:
                          xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
                          near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
-                         branch_sin_min = 0.05):
+                         branch_sin_min = 0.05, near_floor = 20.0):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -77,6 +77,23 @@ class Integration_params:
         # band). Without that saturation the near region swung
         # 100 mm -> 808 mm -> 50.9 um across a longitudinal waist.
         self.branch_sin_min = branch_sin_min
+        # Minimum UPSTREAM reach of the near region, in sigma_z.
+        #
+        # d = (10 sigma_x + x - xmean)|cos 2a|/|sin 2a| sizes the near region from where
+        # the CHIRP band exits the beam, and that goes to zero at |tau| = 1 (alpha = 45
+        # deg) where cos 2a -> 0. The chirp band really does exit at once there, but the
+        # near region also has to hold the NARROW band and the neighbourhood of the
+        # 1/|r-r'| pole, neither of which cares about the chirp geometry.
+        #
+        # Without the floor, at shear 50 / 0.80 m into a 1 rad dipole (tau = -0.999,
+        # cos 2a = 8.8e-4) the upstream reach collapsed to 15 um against sigma_z =
+        # 1744 um: 1-2 of 88 graded nodes on the causal side, the pole 15 um from the
+        # region edge, and region 2's uniform 1.74 mm cells left to resolve it. The wake
+        # went visibly blocky.
+        #
+        # 20 is not tuned -- it is the s3 = s - 20 sigma_z that the deleted
+        # |tan theta| <= 1 branch used to provide.
+        self.near_floor = near_floor
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
         # Only meaningful for the bspline_fft deposition, whose grid is sized by

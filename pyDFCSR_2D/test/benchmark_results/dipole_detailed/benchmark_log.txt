@@ -1,0 +1,45 @@
+Detailed Benchmark: dipole
+Config: input/dipole_config.yaml
+Date: 2026-07-09 12:28:09
+
+Legacy: 18.3s, 16 deposit steps, 16 wake steps
+New: 20.7s, 16 deposit steps, 16 wake steps
+
+Per-step field plots: fields_step_000.png to fields_step_015.png
+Wake plots: wakes_step_*.png
+
+Per-step density L2 norm (relative to legacy max):
+  Step 0: grid mismatch ((100, 100) vs (200, 200))
+  Step 1: grid mismatch ((100, 100) vs (200, 200))
+  Step 2: grid mismatch ((100, 100) vs (200, 200))
+  Step 3: grid mismatch ((100, 100) vs (200, 200))
+  Step 4: grid mismatch ((100, 100) vs (200, 200))
+  Step 5: grid mismatch ((100, 100) vs (200, 200))
+  Step 6: grid mismatch ((100, 100) vs (200, 200))
+  Step 7: grid mismatch ((100, 100) vs (200, 200))
+  Step 8: grid mismatch ((100, 100) vs (200, 200))
+  Step 9: grid mismatch ((100, 100) vs (200, 200))
+  Step 10: grid mismatch ((100, 100) vs (200, 200))
+  Step 11: grid mismatch ((100, 100) vs (200, 200))
+  Step 12: grid mismatch ((100, 100) vs (200, 200))
+  Step 13: grid mismatch ((100, 100) vs (200, 200))
+  Step 14: grid mismatch ((100, 100) vs (200, 200))
+  Step 15: grid mismatch ((100, 100) vs (200, 200))
+
+Per-step wake L2 norm (relative to legacy):
+  Step 1: dE/dct rel_diff = 0.0597, x_kick rel_diff = 0.0316
+  Step 2: dE/dct rel_diff = 0.0449, x_kick rel_diff = 0.0263
+  Step 3: dE/dct rel_diff = 0.0423, x_kick rel_diff = 0.0303
+  Step 4: dE/dct rel_diff = 0.0437, x_kick rel_diff = 0.0307
+  Step 5: dE/dct rel_diff = 0.0423, x_kick rel_diff = 0.0309
+  Step 6: dE/dct rel_diff = 0.0435, x_kick rel_diff = 0.0311
+  Step 7: dE/dct rel_diff = 0.0427, x_kick rel_diff = 0.0312
+  Step 8: dE/dct rel_diff = 0.0402, x_kick rel_diff = 0.0314
+  Step 9: dE/dct rel_diff = 0.0504, x_kick rel_diff = 0.0322
+  Step 10: dE/dct rel_diff = 0.0446, x_kick rel_diff = 0.0323
+  Step 11: dE/dct rel_diff = 0.0488, x_kick rel_diff = 0.0361
+  Step 12: dE/dct rel_diff = 0.0535, x_kick rel_diff = 0.0179
+  Step 13: dE/dct rel_diff = 0.7432, x_kick rel_diff = 0.6259
+  Step 14: dE/dct rel_diff = 0.3739, x_kick rel_diff = 2241882733.0014
+  Step 15: dE/dct rel_diff = 0.5180, x_kick rel_diff = 1.7848
+  Step 16: dE/dct rel_diff = 0.2677, x_kick rel_diff = 1.1570

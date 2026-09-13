@@ -922,9 +922,22 @@ class CSR2D:
         #   d = (10 sigma_x + x - xmean) |cos 2a| / max(|sin 2a|, branch_sin_min)
         #
         # This is the legacy d = (10 sigma_x + x - xmean)/|tan 2a| wherever the branches
-        # are resolvable, but it saturates at branch_sin_min as sin 2a -> 0 (where the
-        # branches merge and d stops meaning anything) and -> 0 at |tau| = 1 where
-        # cos 2a -> 0 -- correct, the chirp band is vertical and exits at once.
+        # are resolvable, and it saturates at branch_sin_min as sin 2a -> 0, where the
+        # branches merge and d stops meaning anything.
+        #
+        # It is then floored at near_floor sigma_z, which is NOT cosmetic. As |tau| -> 1,
+        # cos 2a -> 0 and the chirp band becomes vertical, so it does exit the beam at
+        # once -- but d is the length of the NEAR region, which must also contain the
+        # NARROW band and the neighbourhood of the 1/|r-r'| pole. Sizing it from the
+        # chirp exit alone starves both. Measured at shear 50, 0.80 m into the dipole
+        # (tau = -0.999, cos 2a = 8.8e-4): the upstream reach collapsed to 15 um =
+        # 0.009 sigma_z against sigma_z = 1744 um, so 1-2 of the 88 graded nodes landed
+        # on the causal side and the pole sat 15 um from the region edge, leaving
+        # region 2's uniform 1.74 mm cells to carry it. The wake went visibly blocky.
+        # The floor is the s3 = s - 20 sigma_z that the deleted |tan theta| <= 1 branch
+        # used to provide; removing that branch in 6o dropped it silently, and 6f's
+        # coarser s grid (tau = -1.225 then -0.814) stepped over the region where it
+        # matters -- the defect only bites within ~1% of |tau| = 1.
         #
         # The (x - xmean) term is kept deliberately: the chirp branch starts at the
         # observation point, so one starting near the beam edge exits sooner than one
@@ -936,6 +949,7 @@ class CSR2D:
         # rather than the answer is not worth losing the correct exit condition.
         d = ((10.0 * sigma_x + x - b._mean_x) * abs(cos2a)
              / max(abs(sin2a), ip.branch_sin_min))
+        d = max(d, ip.near_floor * sigma_z)
         # and never reach back further than the retained history supports
         d = min(max(d, 0.0), ip.n_formation_length * self.formation_length)
 

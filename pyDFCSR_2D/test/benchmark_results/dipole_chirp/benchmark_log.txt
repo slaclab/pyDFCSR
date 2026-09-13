@@ -1,0 +1,15 @@
+Benchmark: dipole_chirp
+Config: input/dipole_config_chirp.yaml
+Date: 2026-07-08 14:19:22
+
+Legacy method time: 25.0s
+New method time: 26.6s
+Speedup: 0.94x
+
+Density comparison plots saved.
+
+Final beam statistics (step 16):
+  σ_z: legacy=90.842 μm, new=90.916 μm
+  σ_x: legacy=747.015 μm, new=748.222 μm
+  σ_E: legacy=4377783.9 eV, new=4390147.2 eV
+  ε_nx: legacy=39.7293 μm, new=38.9897 μm

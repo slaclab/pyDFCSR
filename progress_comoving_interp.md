@@ -3165,16 +3165,18 @@ shear 20
     0.10  -19.866     50.09     49.911   20.0       98.860    137     24.96     4617.7  185.0    3962
     0.20   -6.585    149.01     16.533   59.4       32.011    170      8.27     1456.8  176.2    3873
     0.40   -2.713    339.99      8.436  109.3       11.829    193      4.22      503.1  119.3    2805
-    0.60   -1.603    515.45     12.502   66.1        5.596    165      6.25      190.2   30.4     896
-    0.80   -1.044    668.40     21.930   31.8        2.307     94     10.97       93.8    8.6     211
+    0.60   -1.603    515.45     12.502   66.1       11.855    184      6.25      480.6   76.9    1897
+    0.80   -1.044    668.40     21.930   31.8       15.373    172     10.97      629.1   57.4    1403
 
 shear 50
     0.10  -12.462    199.65     12.508  198.9      154.629    220      6.25     7037.3 1125.3   24726
     0.20   -5.485    446.79      5.631  435.2       66.317    251      2.82     3017.5 1071.7   23553
     0.40   -2.493    923.76      5.899  390.4       26.864    244      2.95     1134.6  384.7    9108
-    0.60   -1.515   1361.92     12.358  167.0       12.914    201      6.18      410.4   66.4    2090
-    0.80   -0.999   1743.80     22.300   78.1        5.247     88     11.15      241.1   21.6     471
+    0.60   -1.515   1361.92     12.358  167.0       31.324    224      6.18     1260.6  204.0    5070
+    0.80   -0.999   1743.80     22.300   78.1       40.107    210     11.15     1616.5  145.0    3598
 ```
+
+(The last two rows of each shear have `near len` set by §6t's `near_floor`, not by the chirp exit.)
 
 The saving is **29× at shear 20 / s = 0.10** (137 nodes instead of 3962) and **112× at shear 50 / s = 0.20**
 (251 instead of 23553), spanning up to a **1125×** dynamic range of cell size within a single region. Note
@@ -3210,13 +3212,13 @@ different purely from rescaling. Relative L2 over the whole wake mesh:
        20    0.10    0.70873    0.25290
        20    0.20    0.25292    0.10720
        20    0.40    0.05758    0.00538
-       20    0.60    0.00446    0.00044
-       20    0.80    0.00340    0.00048
+       20    0.60    0.00444    0.00044
+       20    0.80    0.00347    0.00049
        50    0.10    1.19097    0.72002
        50    0.20    1.49196    0.42775
-       50    0.40    0.18288    0.03746
-       50    0.60    0.02934    0.01968
-       50    0.80    0.14179    0.03477
+       50    0.40    0.18051    0.03834
+       50    0.60    0.02957    0.01980
+       50    0.80    0.03943    0.00669
 ```
 
 **Shear 20 behaves exactly as §6q's mechanism predicts:** 71% at the waist, decaying monotonically to 0.34%
@@ -3224,20 +3226,17 @@ once the near region no longer reaches the compression point. That is the signat
 defect, and it is the strongest confirmation so far that `orient` changes what it should and leaves ordinary
 points alone.
 
-**Shear 50 does not decay cleanly** — 0.029 at s = 0.60 rising back to **0.142 at s = 0.80**. Non-monotonic,
-so something beyond the waist is involved. Leading hypothesis, from the `tau` column:
+**Shear 50 still does not decay monotonically** — 0.030 at s = 0.60, 0.039 at s = 0.80 — but the numbers
+above are POST-§6t. Before that fix, s = 0.80 read **0.1418**, and I hypothesised it was the `|tau| = 1`
+degeneracy of Eq 4.24 making the chirp root hypersensitive to a small change in blended `tau`. **That
+hypothesis was wrong.** §6t found the real cause: at `tau = -0.999` the near region's upstream reach had
+collapsed to 0.009 `sigma_z`, so both modes were integrating over a domain that excluded the physics, and
+they disagreed because both were computing noise. With the floor in place the two modes agree to 0.039 at
+that point and their `dE` ranges are identical to four decimals.
 
-| shear | s = 0.80 `tau` | dE difference |
-|---|---|---|
-| 20 | −1.044 | 0.0034 |
-| 50 | **−0.999** | **0.1418** |
-
-`tau = -0.999` is within 0.1% of the `|tau| = 1` degeneracy — the `alpha = 45 deg` case where `_eq424`'s
-quadratic collapses (`tau^2 - 1 -> 0`, handled only within 1e-9 by the `deg` guard) and the chirp root
-diverges. There *any* small difference in blended `tau` moves the located band a long way. Shear 20 is 4%
-away from the degeneracy and shows 40x less difference, which is consistent — but two points is not a
-demonstration. **Not yet established**; the test is to log the `rad < 0` and `live` fractions and the chirp
-root position across the near region at that point.
+The lesson is that `|tau| -> 1` was the right *location* and the wrong *mechanism*. It mattered because
+`cos 2a -> 0` shrinks the integration region, not because the quadratic root is ill-conditioned — and the
+distinction was only settled by measuring the region geometry rather than reasoning about the formula.
 
 ##### The figures
 
@@ -3282,6 +3281,114 @@ remove and none of the fix. Printing a setting is not setting it, and a figure c
 configuration is worth nothing unless the configuration is read back from the object that ran.
 
 **Files.** `pyDFCSR_2D/test/test_wake_evolution_maps.py` (new), `pyDFCSR_2D/CSR.py` (warning gate).
+
+#### 6t. The near region collapses at `|tau| = 1`: a floor on `d` (2026-09-12) ✅ **17x amplitude error removed; also explains §6d's roughness**
+
+Found because the §6s wake maps looked *worse* than §6f's at shear 50 — the s = 0.80 panel had a visibly
+blocky, unphysical staircase. That turned out to be true, and worth chasing.
+
+##### First: the code had not regressed
+
+The obvious worry was that §6m/§6o/§6p/§6r broke something. Tested directly, by clearing the `.npz` cache and
+re-running §6f's *exact* configuration (`dipole_lattice.yaml`, 0.1 m drift, `step_size` 0.1, `zbins` 400) with
+current code:
+
+```
+                recorded (6f)              current code
+0.2000  [-11.6155, +10.0328]      [-11.6155, +10.0328]   identical
+0.4000  [ -1.5032,  +0.6706]      [ -1.5032,  +0.6706]   identical
+0.6000  [ -0.0112,  +0.0821]      [ -0.0112,  +0.0821]   identical
+0.8000  [ -0.0062,  +0.0468]      [ -0.0062,  +0.0468]   identical
+1.0000  [ -0.0085,  +0.0230]      [ -0.0085,  +0.0231]   4th decimal
+```
+
+(Note the cache: `wake_map` stores results per tag, so a naive re-run would have silently returned the OLD
+numbers and "proved" no regression. It had to be cleared first.)
+
+So the difference came from the §6s *configuration*, and specifically from the **observation points**:
+
+| grid | `tau` at each point |
+|---|---|
+| §6f: 0.1, 0.3, 0.5, 0.7, 0.9 m | −12.46, −3.47, −1.91, **−1.225**, **−0.814** |
+| §6s: 0.1, 0.2, 0.4, 0.6, 0.8 m | −12.46, −5.49, −2.49, −1.52, **−0.999** |
+
+§6f's grid *straddled* `tau = -1` without landing on it; §6s landed within **0.1%**. The blockiness was not
+new breakage — it was a **pre-existing defect that §6f's sampling happened to step over.**
+
+##### The defect
+
+`d = (10 sigma_x + x - xmean)|cos 2a| / max(|sin 2a|, branch_sin_min)` sizes the near region from where the
+**chirp** band exits the beam. At `|tau| -> 1` (`alpha = 45 deg`), `cos 2a -> 0`, so `d -> 0`. Measured at
+shear 50, 0.80 m into the dipole (`tau = -0.999`, `cos 2a = 8.8e-4`):
+
+```
+  d = s - s3   =  0.0153 mm          <- upstream reach
+  s4 - s       =  5.2314 mm          <- downstream reach
+  sigma_z      =  1743.8 um          -> d = 0.0088 sigma_z
+```
+
+The **upstream** reach — the causal side, where CSR comes from — collapsed to 15 µm, so **1–2 of the 88 graded
+nodes** landed there and the `1/|r - r'|` pole sat 15 µm from the region boundary. Region 2, uniform at
+`far_zbins = 200` over 200 `sigma_z`, has 1 `sigma_z` = 1744 µm cells, so nothing resolved the pole.
+
+The chirp band genuinely *does* exit at once when it is vertical. The error is that **`d` conflates "where
+does the chirp band exit" with "how long must the near region be"** — the region also has to hold the NARROW
+band and the pole neighbourhood, and neither cares about the chirp geometry. §6o deleted the legacy
+`|tan theta| <= 1` branch, which carried exactly this protection as `s3 = s - 20 sigma_z`, and the floor went
+with it silently.
+
+(A first hypothesis — that the polar patch was toggling on/off across mesh points — was tested and is
+**wrong**: the patch was on at 29/29 sampled points and the node count was stable at 87–88.)
+
+##### The fix, and why the value is not tuned
+
+New `Integration_params.near_floor`, default **20.0** (`sigma_z`): `d = max(d, near_floor*sigma_z)`. 20 is not
+fitted — it is the multiplier the deleted branch used. Sweeping it at the broken point:
+
+```
+ near_floor  d/sigma_z  nodes  abs rough  rel rough           dE range
+        0.0     0.0088     88    0.02605    0.01609  [ -0.0007, +0.4195]   <- shipped behaviour
+        5.0     5.0000    182    0.01143    0.11180  [ -0.0035, +0.0244]
+       20.0    20.0000    210    0.01143    0.11181  [ -0.0035, +0.0244]
+       40.0    40.0000    224    0.01143    0.11181  [ -0.0035, +0.0244]
+       80.0    80.0000    238    0.01143    0.11183  [ -0.0035, +0.0244]
+
+rel L2:  floor 0 vs 5 = 15.18     5 vs 20 = 0.00025     20 vs 80 = 0.00041
+```
+
+The unfloored wake was **17x too large** (+0.4195 against +0.0244), and every floored value agrees to 2–4e-4
+across a **16x** range of the parameter. That insensitivity is the point: the answer does not depend on the
+arbitrary constant, only on it being large enough. The floored result also matches §6f's neighbouring point
+(`tau = -0.814` gave `[-0.0085, +0.0231]`) in magnitude, while +0.42 MeV/m did not.
+
+Note the metric trap again, in the opposite direction from §6o: **relative** roughness *rose* 0.016 -> 0.112
+while absolute roughness *fell* 0.026 -> 0.011, purely because the wake got 17x smaller. Reading the relative
+number alone would have rejected the fix.
+
+##### It also explains §6d
+
+`test_two_branch_bands` (shear 20, s = 0.7) has `d = 7.9 sigma_z` — under-resolved by the same mechanism:
+
+```
+                        before     after
+  roughness dE (two)   0.08777   0.01687     <- 5.2x better; single-branch is 0.01683
+  dE rel L2            1.06466   1.06497
+  x_kick rel L2        0.40824   0.39062
+  axis A worst dev     0.06212   0.05335
+```
+
+§6d recorded that two-branch roughness was 5x *worse* than single-branch (0.0878 vs 0.0176) and never
+explained it; I checked at the time that absolute roughness had fallen and moved on. **This was the cause**,
+and two-branch roughness is now at parity with single-branch. The reference numbers move slightly because the
+comparison itself is now made on a properly resolved domain.
+
+##### Regressions
+
+All five §6f shear-50 `dE` ranges are **unchanged** by the floor — only node counts move (217 -> 233,
+169 -> 218, 215 -> 205). So the floor adds resolution where it was missing and does not perturb results that
+were already converged, which is the behaviour a safety floor should have.
+
+**Files.** `pyDFCSR_2D/params.py` (`near_floor`), `pyDFCSR_2D/CSR.py` (`_layout_bounds`).
 
 ### Step 7 — Remaining secondary fixes ⬜
 

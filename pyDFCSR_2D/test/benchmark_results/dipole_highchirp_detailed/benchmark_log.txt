@@ -1,0 +1,45 @@
+Detailed Benchmark: dipole_highchirp
+Config: input/dipole_config_highchirp.yaml
+Date: 2026-07-09 12:30:02
+
+Legacy: 22.9s, 16 deposit steps, 16 wake steps
+New: 23.7s, 16 deposit steps, 16 wake steps
+
+Per-step field plots: fields_step_000.png to fields_step_015.png
+Wake plots: wakes_step_*.png
+
+Per-step density L2 norm (relative to legacy max):
+  Step 0: grid mismatch ((100, 100) vs (200, 200))
+  Step 1: grid mismatch ((100, 100) vs (200, 200))
+  Step 2: grid mismatch ((100, 100) vs (200, 200))
+  Step 3: grid mismatch ((100, 100) vs (200, 200))
+  Step 4: rel_diff = 2.0396
+  Step 5: rel_diff = 2.4270
+  Step 6: rel_diff = 2.6257
+  Step 7: rel_diff = 2.7102
+  Step 8: rel_diff = 2.7371
+  Step 9: rel_diff = 2.7416
+  Step 10: rel_diff = 2.7421
+  Step 11: rel_diff = 2.5096
+  Step 12: rel_diff = 2.3488
+  Step 13: grid mismatch ((100, 100) vs (200, 200))
+  Step 14: grid mismatch ((100, 100) vs (200, 200))
+  Step 15: grid mismatch ((100, 100) vs (200, 200))
+
+Per-step wake L2 norm (relative to legacy):
+  Step 1: dE/dct rel_diff = 0.1004, x_kick rel_diff = 0.0666
+  Step 2: dE/dct rel_diff = 0.0355, x_kick rel_diff = 0.0226
+  Step 3: dE/dct rel_diff = 0.0340, x_kick rel_diff = 0.0399
+  Step 4: dE/dct rel_diff = 0.0781, x_kick rel_diff = 0.0793
+  Step 5: dE/dct rel_diff = 0.0959, x_kick rel_diff = 0.0480
+  Step 6: dE/dct rel_diff = 0.2174, x_kick rel_diff = 0.0586
+  Step 7: dE/dct rel_diff = 0.7049, x_kick rel_diff = 0.0621
+  Step 8: dE/dct rel_diff = 1.3092, x_kick rel_diff = 0.0624
+  Step 9: dE/dct rel_diff = 3.0606, x_kick rel_diff = 0.0606
+  Step 10: dE/dct rel_diff = 4.2963, x_kick rel_diff = 0.0638
+  Step 11: dE/dct rel_diff = 4.1028, x_kick rel_diff = 0.0525
+  Step 12: dE/dct rel_diff = 2.4451, x_kick rel_diff = 1.1893
+  Step 13: dE/dct rel_diff = 1.9409, x_kick rel_diff = 1.0771
+  Step 14: dE/dct rel_diff = 1.9400, x_kick rel_diff = 1.2957
+  Step 15: dE/dct rel_diff = 2.1699, x_kick rel_diff = 1.1759
+  Step 16: dE/dct rel_diff = 0.0000, x_kick rel_diff = 0.0000
