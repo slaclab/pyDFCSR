@@ -3480,6 +3480,92 @@ without §6t the near region would collapse near the exit of every run in this s
 
 **Files.** `pyDFCSR_2D/test/test_wake_evolution_maps.py` (shear list, shear-0 guard, `d set by` diagnostic).
 
+#### 6v. Is the waist a QUADRATURE problem? No (2026-09-13) ❌ **hypothesis refuted; the frame-history diagnosis survives its main challenge**
+
+§6t was a reminder that a geometry defect can make a "converged" answer badly wrong, and that a
+step_size convergence study cannot see it. So before accepting §6n/§6r's conclusion that the waist is
+undersampling of the frame HISTORY, the obvious alternative had to be eliminated: that it is undersampling of
+the `s'` QUADRATURE.
+
+##### The hypothesis, and why it looked strong
+
+The near-region cell is `ds = max(near_cell*sigma_xi, near_grade*|s - s'|)`. **Both terms are set at the
+observation time.** Neither knows `sigma_z` at the RETARDED time, which is what sets the integrand's
+longitudinal structure — and at a waist that collapses. Measured at shear 20, 0.10 m into the dipole:
+
+```
+  retarded sigma_z minimum:  2.514 um, at -49.988 mm from s   (sigma_z at s is 50.09 um)
+  DEFAULT graded cell there: 2448.9 um
+  cell / retarded sigma_z:   974x
+```
+
+The quadrature cell really is **974x longer than the density structure it integrates**, and refining
+`step_size` cannot fix it because the cell is pinned to observation-time quantities. That is a complete,
+quantitative mechanism for §6r's non-convergence.
+
+##### It is wrong
+
+Refining the quadrature at **fixed step_size**, so the frame history is identical down the whole ladder:
+
+```
+shear 20, 0.10 m into the dipole  (the waist)
+ near_cell  near_grade   nodes  cell@waist/um   ratio  abs rough  rel L2 vs finest
+       0.5        0.05     137        2448.86   974.1    8.81000           0.03413
+       0.5        0.02     279         992.66   394.9    8.66281           0.01310
+       0.5        0.01     478         498.77   198.4    8.79302           0.00620
+       0.5           0    3961          24.96     9.9    8.77210           0.00067
+       0.2           0    9904           9.98     4.0    8.77246           0.00030
+       0.1           0   19807           4.99     2.0    8.77251           0.00010
+      0.05           0   39614           2.50     1.0    8.77301           0.00000
+```
+
+Driving the cell from 974x down to **1.0x** the retarded `sigma_z` costs **289x more nodes** (137 -> 39614)
+and changes the wake by **3.4%**. The `dE` range moves from `[-9.0710, +6.0133]` to `[-9.1137, +5.9651]`. And
+the decisive number: **absolute roughness is unchanged, 8.81 -> 8.77.** Every wiggle survives. The quadrature
+converges smoothly and monotonically; the noise does not care.
+
+Two more points confirm the ladder is well-behaved rather than inert:
+
+```
+shear 10, 0.10 m  (waist AT the observation point, sigma_z = 5.02 um, ratio 3.0)
+      default -> finest:  rel L2 0.00034,  roughness 0.25032 -> 0.25025
+shear 20, 0.60 m  (control; 6r converged here, ratio 0.4)
+      default -> finest:  rel L2 0.00422,  roughness 0.00426 -> 0.00427
+```
+
+![Waist quadrature refinement](pyDFCSR_2D/test/benchmark_results/waist_quad/waist_quadrature.png)
+
+Left column: the seven wake cuts lie on top of one another at every point. Right column: the quadrature
+error falls smoothly. Both together are the refutation — the grid converges and the noise stays.
+
+##### Why the 974x does not matter
+
+The retarded `sigma_z` minimum sits **50 mm upstream** of the observation point, and by then `1/|r - r'|` has
+already damped the integrand hard. The region where the density is thinnest is the region that contributes
+least. That is exactly the argument that justified log grading in §6m — equal contributions come from equal
+logarithmic intervals — so the grading is behaving as designed, and the alarming ratio is measured in a place
+the answer does not depend on.
+
+The `cell / retarded sigma_z` ratio is therefore **not a useful error indicator on its own**, which is worth
+remembering: it is a large, alarming, and irrelevant number unless weighted by the integrand.
+
+##### Net result
+
+**§6n/§6r's frame-history diagnosis survives its main challenge.** The remaining correctness gap at the waist
+is the interpolation of the stored frame between snapshots, not the integration grid, and Phase 5 (sampling)
+remains the right target. This is a negative result, but it is the kind worth paying for: it removes the
+alternative that would have made Phase 5 wasted effort.
+
+##### One secondary finding, recorded not fixed
+
+At a waist the tilt fit explains almost nothing, so `sigma_xi -> sigma_x` (§6q). The floor
+`near_cell*sigma_xi` therefore becomes **large** exactly where `sigma_z` is smallest. At shear 10, 0.10 m the
+ungraded floor was 250.7 um against the graded cell's 15.06 um — 17x **coarser** near `s' = s`. The floor is
+keyed to the wrong quantity at a waist. Measured impact on the wake: 3e-4. Noted for the record; not worth a
+change on that evidence.
+
+**Files.** `pyDFCSR_2D/test/test_waist_quadrature.py` (new).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
