@@ -1,0 +1,24 @@
+====================================================================================================
+x-z CSR wakes at a waist: unresolved vs resolved step_size
+====================================================================================================
+shear 20, drift 0.35 m, mesh 21 x 51, deposition 128^2 fixed
+waist at s = 0.4000 m (0.0500 m into the dipole), width 2.3939 mm, sigma_z 2.501 um
+
+--- 0.10 m into the dipole: waist inside the near region ---
+       step  across  snaps     sec                 dE range               x_kick range
+       0.05    0.05      4    36.9 [ -10.0219, +10.7757] [-2.5582e-01,+7.1987e-01]
+      0.003    0.80     52    45.9 [ -10.0224,  +3.9123] [-1.6028e-01,+5.6968e-01]
+     0.0006    3.99    251   115.9 [  -9.9769,  +3.9098] [-1.5861e-01,+5.7028e-01]
+  vs the finest step at this point:
+         0.05 : dE rel L2 0.93564   x_kick rel L2 0.41361
+        0.003 : dE rel L2 0.01914   x_kick rel L2 0.00533
+
+--- 0.60 m into the dipole: control, far from the waist ---
+       step  across  snaps     sec                 dE range               x_kick range
+       0.05    0.05     12    38.9 [  -0.0273,  +0.0960] [+2.9921e-03,+9.1623e-02]
+     0.0025    0.96    238    57.2 [  -0.0273,  +0.0960] [+2.9962e-03,+9.1607e-02]
+  vs the finest step at this point:
+         0.05 : dE rel L2 0.00187   x_kick rel L2 0.00031
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p1.png
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p6.png

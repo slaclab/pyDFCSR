@@ -3767,6 +3767,77 @@ script in this work passes `sort_keys=False` for that reason. It is the Step 7 i
 **Files.** `pyDFCSR_2D/test/test_waist_step_refine.py` (new), `pyDFCSR_2D/waist.py`
 (`min_steps` recalibrated 4.0 -> 2.0).
 
+#### 6y. The x-z wake at the waist, resolved (2026-09-13) ✅ **the entrance wake was a numerical artefact**
+
+§6x measured the error at the waist as a single number from a mid-`x` cut. This recomputes the
+**full 21 x 51 mesh**, longitudinal and transverse, at unresolved and resolved `step_size`,
+because every x-z map in this work so far (§6f, §6s, §6u) was made at `step_size` = 0.05 m and
+is therefore not the real wake near the entrance.
+
+Colour scales are **shared** across each row. Self-normalising each panel would hide an
+amplitude error completely, which is the specific thing being shown.
+
+##### The waist point
+
+![x-z wake at the waist](pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p1.png)
+
+```
+0.10 m into the dipole (waist at 0.05 m, width 2.394 mm)
+       step  across  snaps                 dE range        dE rel L2   x_kick rel L2
+       0.05    0.05      4   [ -10.0219, +10.7757]          0.93564         0.41361
+      0.003    0.80     52   [ -10.0224,  +3.9123]          0.01914         0.00533
+     0.0006    3.99    251   [  -9.9769,  +3.9098]          reference     reference
+```
+
+At the shipped `step_size` the longitudinal wake is **94 % wrong** over the mesh and the
+transverse kick **41 % wrong**. The picture says it more plainly than the number: the coarse
+panel carries a large spurious **positive blob at +10.78 MeV/m**, against +3.91 in the
+converged answer — a factor **2.76** — sitting on visible stripe artefacts, and tilted along
+the chirp direction, which is the signature of the frame blend failing along the tilt band. In
+the resolved panels it is simply **absent**. The converged wake is smooth, with a broad
+negative lobe at negative `z` and large `x` and a mild positive region near `z = 0`.
+
+Both fine panels are visually identical, so the structure that survives is the physics.
+
+##### The control point
+
+![x-z wake at the control point](pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p6.png)
+
+```
+0.60 m into the dipole (far from the waist)
+       step  across  snaps                 dE range        dE rel L2   x_kick rel L2
+       0.05    0.05     12   [  -0.0273,  +0.0960]          0.00187         0.00031
+     0.0025    0.96    238   [  -0.0273,  +0.0960]          reference     reference
+```
+
+Indistinguishable — ranges agree to four digits, `dE` to 0.2 % and `x_kick` to 0.03 %. This is
+the control that matters: refining `step_size` 20x changes essentially **nothing** away from
+the waist. So the entrance error is the waist, not `step_size` doing something global, and the
+coarse default remains perfectly adequate everywhere else.
+
+##### Consequence for the earlier maps
+
+The §6u entrance-column maps (`s_dip` = 0.10 and 0.20 at shears >= 5) are **not** the real
+wake; they are the artefact above. Their qualitative claims about the *interior* of the dipole
+stand, and so does everything in §6u derived from `coeff` vs `orient` *differences* at the same
+`step_size`, since both modes were equally affected. But the entrance amplitudes there should
+not be quoted.
+
+This also puts §6r's `frame_blend` comparison in a better light than it looked: the 0.51-1.49
+rel-L2 differences it found between `coeff` and `orient` at the entrance were measured on top of
+a wake that was itself 94 % wrong, which is consistent with both modes being dominated by the
+same sampling artefact rather than by their own difference.
+
+##### Incidental: step_size must divide the path to the observation point
+
+The step grid starts at `s = 0`, so an observation point is reachable exactly only when
+`step_size` divides it. `0.95 / 0.003 = 316.67` overshot to 0.9510 and tripped the position
+assertion after paying the full tracking cost. Comparing rungs at *different* `s` would have
+been worse than crashing. The check now runs before tracking, and the control uses 0.0025
+(380 steps into 0.95) instead.
+
+**Files.** `pyDFCSR_2D/test/test_waist_wake_xz.py` (new).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
