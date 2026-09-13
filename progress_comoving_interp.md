@@ -3390,6 +3390,96 @@ were already converged, which is the behaviour a safety floor should have.
 
 **Files.** `pyDFCSR_2D/params.py` (`near_floor`), `pyDFCSR_2D/CSR.py` (`_layout_bounds`).
 
+#### 6u. Full shear sweep 0 -> 50, longitudinal and transverse (2026-09-13) ✅ **`orient` provably inert at zero tilt**
+
+Extends §6s to shear **0, 2, 5, 10, 20, 50** at five locations, both `frame_blend` modes, longitudinal and
+transverse. 60 wake meshes, 24 figures.
+
+##### `orient` does nothing where it should do nothing
+
+Relative L2 between the modes over the whole wake mesh, `dE`:
+
+```
+   shear    s=0.10   s=0.20   s=0.40   s=0.60   s=0.80
+       0   0.00000  0.00001  0.00002  0.00001  0.00000
+       2   0.00045  0.00030  0.00137  0.00075  0.00047
+       5   0.02808  0.08767  0.04758  0.00433  0.00152
+      10   0.50721  0.46266  0.06218  0.00536  0.00186
+      20   0.70873  0.25292  0.05758  0.00444  0.00347
+      50   1.19097  1.49196  0.18051  0.02957  0.03943
+```
+
+Two clean monotonic trends, both predicted by the §6q mechanism:
+
+- **Zero at zero tilt.** At shear 0 the two modes agree to 1e-5 and the figures are pixel-identical. With no
+  x–z correlation there is no compression waist, `tau` never sweeps through vertical, and there is nothing for
+  the chart fix to fix. That is the strongest available check that `orient` does not perturb what it should
+  not.
+- **Concentrated at the entrance.** For every shear the difference decays with `s`, to <= 0.04 by s = 0.80.
+  The chart defect needs a full-compression point inside the near region.
+
+##### Where the waist sits, per shear
+
+`sigma_z` minimum together with `amp -> 1` marks full compression (§6q: the tilt fit explains nothing there,
+so `sigma_xi -> sigma_x`):
+
+```
+  shear   waist location       sigma_z at waist   sigma_xi there
+      0   none in the dipole   50 -> 62 um grows  40-50 um
+      2   ~0.40 m              22.54 um           103.4 um
+      5   ~0.20 m              10.00 um           246.5 um
+     10   ~0.10 m               5.02 um           498.3 um
+     20   ~0.05 m (§6q)         2.51 um           999.1 um
+     50   upstream of 0.10 m   199.65 um at 0.10   12.5 um
+```
+
+The waist marches **upstream** as shear rises and the compression gets **stronger** (`sigma_z` minimum falls
+50 -> 2.5 um from shear 0 to 20). Shears 5 and 10 are useful additions precisely because they put the waist in
+the middle of the dipole rather than at the entrance, decoupling it from the bend-entrance transient.
+
+##### Shear 0 is a textbook validation
+
+![Longitudinal wake, shear 0](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear0.png)
+
+The classic 1D steady-state CSR wake: dipolar in `z`, essentially **independent of `x`** (vertical stripes,
+correct for an untilted beam with `sigma_x << R`), amplitude decaying smoothly 3.14 -> 2.17 MeV/m as the bunch
+lengthens 50 -> 62 um. Nothing needing explanation.
+
+##### Transverse wakes
+
+![Transverse wake, shear 20](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear20.png)
+
+![Transverse wake, shear 50](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear50.png)
+
+Smooth and largely single-signed, decaying with `s` as the bunch lengthens. The transverse wake is
+systematically **less** sensitive to the frame blend than the longitudinal one — `x_kick` differences are 3–5x
+smaller than `dE` differences at every point in the table above. Consistent with Eq 4.8 carrying no
+`drho/dz'` term, so it does not see the longitudinal derivative the chart error corrupts most.
+
+Full set, per shear in {0, 2, 5, 10, 20, 50}: `integrand_longitudinal_shear*.png`,
+`integrand_transverse_shear*.png`, `wake_longitudinal_shear*.png`, `wake_transverse_shear*.png`.
+
+##### §6t's floor is load-bearing across the whole sweep
+
+A new `d set by` column records which of the three terms in `_layout_bounds` set the near-region reach. The
+history **cap** is applied last and can therefore override §6t's floor — that would mean the region is limited
+by available history rather than geometry, an honest but different limitation, and it must not pass unnoticed.
+It never bound here. The floor did, at **s >= 0.60 for every shear**, and at s = 0.40 for shear 0:
+
+```
+  shear  0: chirp chirp floor floor floor
+  shear  2: chirp chirp chirp chirp floor
+  shear  5: chirp chirp chirp floor floor
+  shear 10: chirp chirp chirp floor floor
+  shear 20: chirp chirp chirp floor floor
+  shear 50: chirp chirp chirp floor floor
+```
+
+So `|tau| -> 1` late in the bend is the **generic** case, not a curiosity of the one point that exposed it:
+without §6t the near region would collapse near the exit of every run in this sweep.
+
+**Files.** `pyDFCSR_2D/test/test_wake_evolution_maps.py` (shear list, shear-0 guard, `d set by` diagnostic).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

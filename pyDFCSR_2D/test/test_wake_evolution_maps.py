@@ -49,7 +49,7 @@ EXAMPLE_DIR = os.path.join(os.path.dirname(__file__), '..', 'example')
 RESULT_DIR = os.path.join(os.path.dirname(__file__), 'benchmark_results',
                           'wake_evol_maps')
 
-SHEARS = (20.0, 50.0)
+SHEARS = (0.0, 2.0, 5.0, 10.0, 20.0, 50.0)
 MODES = ('coeff', 'orient')
 S_DIPS = (0.10, 0.20, 0.40, 0.60, 0.80)     # metres into the dipole
 DRIFT = 1.0
@@ -76,10 +76,12 @@ def write_inputs(shear, s_dip, mode):
         'total_charge': {'units': 'nC', 'value': 1},
         'z_dist': {'avg_z': {'units': 'mm', 'value': 0},
                    'sigma_z': {'units': 'um', 'value': 50}, 'type': 'gaussian'},
-        'transforms': {'s1': {'shear_coefficient':
-                              {'units': 'dimensionless', 'value': float(shear)},
-                              'type': 'shear z:x'}},
     }
+    if shear != 0.0:
+        beam['transforms'] = {'s1': {'shear_coefficient':
+                                     {'units': 'dimensionless',
+                                      'value': float(shear)},
+                                     'type': 'shear z:x'}}
     with open(os.path.join(EXAMPLE_DIR, f'input/wem_beam_{tag}.yaml'), 'w') as f:
         yaml.dump(beam, f, default_flow_style=False, sort_keys=False)
 
@@ -201,7 +203,7 @@ def main():
         emit(f"  {'s_dip':>7} {'mode':>7} {'tau':>9} {'sig_z/um':>9} "
              f"{'sig_xi/um':>10} {'amp':>6} {'near len/mm':>12} {'nodes':>6} "
              f"{'floor/um':>9} {'ds max/um':>10} {'range':>7} {'unif.':>7} "
-             f"{'dE range (MeV/m)':>26}")
+             f"{'d/sig_z':>8} {'d set by':>9} {'dE range (MeV/m)':>26}")
         for s_dip in S_DIPS:
             for mode in MODES:
                 cfg = write_inputs(shear, s_dip, mode)
@@ -241,12 +243,32 @@ def main():
                 # better than the grading really is.
                 floor = csr.integration_params.near_cell * d['sig_xi']
                 n_unif = int(np.ceil(near_len / floor)) if floor > 0 else -1
+
+                # Which of the three terms in _layout_bounds actually set d. The
+                # history cap is applied LAST, so it can override the near_floor from
+                # 6t; if that happens the region is limited by available history rather
+                # than by geometry, which is an honest limitation but a different one,
+                # and it must not pass unnoticed. Recomputed here from public
+                # quantities -- duplicated formula, kept only as a diagnostic.
+                ip = csr.integration_params
+                s_mid = d['s_obs']
+                d_act = s_mid - d['s3']
+                tau_ = csr._frame_tilt()
+                c2 = abs((1 - tau_ * tau_) / (1 + tau_ * tau_))
+                s2_ = abs(2 * tau_ / (1 + tau_ * tau_))
+                d_chirp = ((10 * b._sigma_x + d['x_obs'] - b._mean_x) * c2
+                           / max(s2_, ip.branch_sin_min))
+                d_floor = ip.near_floor * b._sigma_z
+                d_cap = ip.n_formation_length * csr.formation_length
+                src = min((abs(d_act - d_chirp), 'chirp'),
+                          (abs(d_act - d_floor), 'floor'),
+                          (abs(d_act - d_cap), 'CAP'))[1]
                 emit(f'  {s_dip:>7.2f} {mode:>7} {d["tau"]:>9.3f} '
                      f'{d["sig_z"]*1e6:>9.2f} {d["sig_xi"]*1e6:>10.3f} '
                      f'{d["amp"]:>6.1f} {near_len*1e3:>12.3f} '
                      f'{len(d["nodes"]):>6} {floor*1e6:>9.2f} '
                      f'{ds.max()*1e6:>10.1f} {ds.max()/floor:>7.1f} '
-                     f'{n_unif:>7} '
+                     f'{n_unif:>7} {d_act/b._sigma_z:>8.2f} {src:>9} '
                      f'[{d["dE"].min():+9.4f}, {d["dE"].max():+9.4f}]')
         emit('')
 
