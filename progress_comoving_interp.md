@@ -3566,6 +3566,115 @@ change on that evidence.
 
 **Files.** `pyDFCSR_2D/test/test_waist_quadrature.py` (new).
 
+#### 6w. Phase 5.1 — predict waists from linear optics and warn (2026-09-13) ✅ **the failure is no longer silent**
+
+##### What the problem is, in one paragraph
+
+The co-moving interpolant reconstructs the retarded density by blending the stored frame
+between two snapshots. Across a longitudinal waist that blend is wrong, and — this is the
+part that matters — **it is wrong without looking wrong.** §6n measured `sigma_z` = 50.00 um
+and 50.09 um at the two ends of an interval whose true minimum is **2.51 um**. Nothing in
+the stored history records that a 20x compression happened in between. It is the same
+failure as photographing a bouncing ball at the top of each bounce: every frame looks
+identical, and the sequence gives no hint that anything happened between them. §6v then
+ruled out the `s'` quadrature as the cause, so the only remedy is finer sampling — but the
+user has no way to know that, because the output looks fine.
+
+So Phase 5.1 does not try to fix the wake. It **propagates the beam's second moments
+through the lattice with linear transport before any particle is tracked**, finds the
+minima of `var_z(s)`, and reports which of them `step_size` cannot resolve.
+
+##### Why a warning and not a correction
+
+Two alternatives were rejected on purpose:
+
+- **Silently refining `step_size`** — changes the kick cadence, the cost, and every
+  recorded number, without being asked.
+- **Falling back to the nearest snapshot at a waist** — this manufactures the very symptom
+  being diagnosed. It applies the full inter-snapshot frame change at fixed `alpha`, i.e.
+  hundreds of band half-widths, once per snapshot interval, inside the near region, and it
+  puts a jump inside the `_retarded_xi_bands` fixed point.
+
+##### It agrees with tracking
+
+The predictor is only useful if it lands where the real tracker's waists are. Against the
+§6u/§6q measurements:
+
+```
+ shear   predicted s   analytic s   measured s   sigma_z pred   sigma_z measured
+     0          none         none         none              -                  -
+     2        0.4095       0.4095         0.41       22.571 um          22.54 um
+     5        0.1935       0.1935         0.20        9.881 um          10.00 um
+    10        0.0990       0.0990         0.10        5.011 um           5.02 um
+    20        0.0500       0.0500         0.05        2.516 um           2.51 um
+    50        0.0200       0.0200         0.02        1.006 um                  -
+```
+
+`sigma_z` at the waist agrees with tracking to **better than 0.5 %** at every shear where
+both exist, and the position to within §6u's sampling interval. Shear 0 correctly predicts
+**no** waist.
+
+The `analytic s` column is an independent check, not a restatement: in a bend `R51 = -sin(theta)`,
+so with `u = sin(theta)`
+
+```
+    var_z(u) = var_z0 - 2 u cov_zx + u^2 var_x      ->   minimised at  u = cov_zx / var_x
+```
+
+giving `s_waist = R arcsin(cov_zx / var_x)`. That matters because `r_gen6` works in
+`(x, x', y, y', z, dp/p)` while Bmad-X uses `(x, px, y, py, z, pz)`; a sign slip in `R51`
+would move the waist or delete it, and matching the measurement alone would not catch it.
+
+##### Two bugs the validation caught, one of them in the test
+
+- **My first analytic formula was wrong.** I used `u = 1/tau0`, which assumes the x–z
+  correlation is perfect (`var_x = tau0^2 var_z0`). At shear 2 the uncorrelated
+  `sigma_x = 50 um` is half the sheared 100 um, so `r = 0.894` and the true minimum is at
+  `u = 0.400`, not 0.500 — 0.41 m instead of 0.52 m. The **predictor was right and the test
+  was wrong**, which is the good direction but only visible because both were checked.
+- **The waist width was floor-limited by the scan grid.** At `n_sub = 200` over a 1 m dipole
+  the grid is 5 mm, and the shear-20 and shear-50 waists both reported exactly 5.0000 mm.
+  Their true widths are 2.41 mm and 0.34 mm. That error runs in the **dangerous** direction
+  — a narrow waist made to look wider, so the warning understates the problem. Fixed by
+  interpolating the `sqrt(2)` crossing rather than snapping to a node, and raising `n_sub`.
+  The interpolated widths now match the independent estimate `sigma_min R / sigma_x`
+  (2.41 vs 2.52 mm, 0.34 vs 0.40 mm, 9.82 vs 10.05 mm).
+
+##### What it prints
+
+`CSR2D.run()` calls it once, on rank 0 only, for the co-moving path only. On the shear-20
+configuration used throughout this work:
+
+```
+  [waist scan] linear optics predicts 1 longitudinal waist(s) in this lattice
+       s (m) sigma_z (um)     compress   width (mm) steps across  resolved
+      1.0500        2.512         19.9x       2.4043        0.05        NO
+  WARNING: 1 waist(s) are NOT resolved by step_size = 0.05 m.
+  ...  step_size <= 0.0006011 m would put 4 steps across the narrowest one.
+```
+
+`0.05` steps across the waist is the quantitative statement of §6n's problem: the tracker
+steps 50 mm at a time through a feature 2.4 mm wide. It also fires on
+`test_two_branch_bands`' own lattice (shear 20 at `step_size` 0.1) — correctly, since that
+waist is unresolved there too.
+
+The scan is **never fatal**: wrapped so any failure degrades to a one-line skip. A
+diagnostic that can abort a run is worse than the problem it reports, especially one based
+on linear optics of the design lattice with no CSR, no space charge, and a first-order
+identification of two coordinate conventions. `min_steps = 4` is a judgement call, and the
+report prints `steps across` so the reader can apply their own threshold.
+
+##### Still open
+
+This makes the failure visible; it does not fix it. Phase 5.2 (globally finer `step_size`,
+chosen from this prediction) is now a one-line config change the user can make on evidence.
+Phase 5.3 (non-uniform snapshots, so the waist can be resolved without paying for fine
+steps everywhere) still requires replacing arithmetic index lookup with a search in three
+history classes plus `CSR.py`, and is still deferred.
+
+**Files.** `pyDFCSR_2D/waist.py` (new), `pyDFCSR_2D/CSR.py` (`report_waists`, called from
+`run`), `pyDFCSR_2D/test/test_waist_scan.py` (new).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

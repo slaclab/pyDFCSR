@@ -14,6 +14,7 @@ from .interp1D import interpolate1D
 from .interp3D import (interpolate3D, interpolate3D_transformed,
                        interpolate3D_comoving_fields)
 from .lattice import Lattice  # , get_referece_traj
+from .waist import scan_waists, sigma_from_coords, format_report
 from .params import Integration_params, CSR_params
 # from .physical_constants import c, e, qe, me, MC2
 from .r_gen6 import r_gen6
@@ -236,10 +237,41 @@ class CSR2D:
         return element
 
 #    @profile
+    def report_waists(self):
+        """
+        Warn, before tracking, about longitudinal waists step_size cannot resolve.
+
+        The co-moving frame blend cannot reconstruct the retarded density across an
+        unresolved waist, and it fails SILENTLY: progress 6n measured sigma_z = 50.00 and
+        50.09 um at the endpoints of an interval whose true minimum is 2.51 um, so
+        nothing in the stored history says a waist was crossed. 6v then ruled out the
+        s'-quadrature as the cause, leaving sampling. This is the cheapest useful
+        response -- tell the user which results to distrust and what step_size would fix
+        it, rather than silently changing their run.
+
+        Only meaningful for the co-moving path, whose frame blend is the thing at risk.
+        Never fatal: a diagnostic that can abort a run is worse than the problem, and
+        this one is linear optics on the design lattice, so it can be wrong.
+        """
+        if not self.use_comoving:
+            return
+        try:
+            b = self.beam
+            sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py,
+                                       b.z, b.pz)
+            report = scan_waists(self.lattice.lattice_config, sigma0,
+                                 self.lattice.step_size)
+            text = format_report(report)
+            if text:
+                print(text)
+        except Exception as exc:                       # noqa: BLE001
+            print(f'  [waist scan] skipped ({type(exc).__name__}: {exc})')
+
     def run(self, stop_time = None, debug = False):
 
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
+            self.report_waists()
 
         step_count = 1
 
