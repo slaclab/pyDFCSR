@@ -3675,6 +3675,98 @@ history classes plus `CSR.py`, and is still deferred.
 **Files.** `pyDFCSR_2D/waist.py` (new), `pyDFCSR_2D/CSR.py` (`report_waists`, called from
 `run`), `pyDFCSR_2D/test/test_waist_scan.py` (new).
 
+#### 6x. Phase 5.2 — the waist CAN be bridged by sampling (2026-09-13) ✅ **§6n/§6r's pessimism was an artefact of stopping 10x short**
+
+##### The question §6r never actually asked
+
+§6r refined `step_size` at a waist, found successive differences of 28–140 % all the way
+down to 0.00625 m, and concluded the waist could not be bridged by sampling. §6w then
+predicted, from linear optics, that this waist is **2.39 mm wide** and needs
+`step_size <= 0.0006 m` for a few steps across it.
+
+**So §6r stopped 10x short of resolving the thing it was refining.** Every step size it
+tried put well under one step inside the waist. Its conclusion was not established, it was
+untested — the numerical equivalent of concluding a feature does not exist after only ever
+photographing it at longer exposure than the feature lasts.
+
+##### It converges
+
+Walking the ladder past §6r's stopping point, deposition held fixed at 128² so only
+`step_size` varies:
+
+```
+ step_size  snapshots  steps across  abs rough  rel L2 vs finest    dE range
+      0.05          4          0.05    8.48928           0.79017  [-8.7174, +5.6425]
+    0.0125         13          0.19    2.23283           0.43964  [-9.1738, +4.8863]
+     0.003         52          0.80    0.51613           0.01742  [-7.6980, +2.9491]
+     0.001        151          2.39    0.52086           0.00719  [-7.6698, +3.0114]
+    0.0006        251          3.99    0.50852           0.00000  [-7.6701, +3.0125]
+
+successive differences:  0.808  ->  0.427  ->  0.0151  ->  0.0072
+```
+
+- **Absolute roughness falls 16.7x** (8.49 -> 0.51) and then goes flat.
+- Successive differences **collapse 28x** across the 0.0125 -> 0.003 boundary and settle
+  below 1 %.
+- The `dE` range stabilises at `[-7.670, +3.012]`. The **shipped default of 0.05 m is 79 %
+  wrong** at this point, with its positive peak 87 % too large.
+
+§6r's finest step, 0.00625 m, lies **exactly in the knee** between the 0.0125 and 0.003
+rungs. One more rung and it would have seen the collapse.
+
+![Waist resolved by step refinement](pyDFCSR_2D/test/benchmark_results/waist_step/waist_step_refine.png)
+
+Left: the two coarse cuts oscillate wildly; the three fine ones lie on a single smooth
+curve. Middle: successive differences, with §6r's finest step marked at the knee. Right:
+roughness against steps across the waist.
+
+##### This settles the Phase 5 question
+
+The remaining correctness gap at a waist is **plain undersampling of the frame history, and
+it is fixable today by setting `step_size`** — no new machinery. Chain of elimination now
+complete: §6v ruled out the `s'` quadrature, §6t ruled out the near-region geometry, §6r
+ruled out the choice of blended variable, and §6x shows sampling works once it is actually
+fine enough. Phase 5.3 (non-uniform snapshots) remains desirable only as a **cost**
+optimisation — 251 snapshots and 78 s here versus 4 and 2.4 s — not as a correctness fix,
+which lowers its priority considerably.
+
+##### A false alarm in §6w, caught and fixed
+
+§6w set `min_steps = 4`. Against the table above that calls `step_size` 0.003 "NOT
+resolved" when its wake is already converged to 1.7 %, and 0.001 unresolved at 0.7 % — a
+warning about a problem that is not happening, which is exactly the failure §6t had to fix
+in the node-cap message. Recalibrated to **`min_steps = 2.0`**, which now tracks the
+measurement:
+
+```
+  step 0.05     0.05 across   NO      step 0.001    2.41 across   yes
+  step 0.0125   0.19 across   NO      step 0.0006   4.02 across   yes
+  step 0.003    0.80 across   NO
+```
+
+`resolved` now turns on exactly where the error drops to <= 0.7 %. Calibrated on **one**
+waist, so it is a defensible default rather than a law, and the report always prints
+`steps across` so a reader can apply their own threshold.
+
+##### Cost, stated plainly
+
+Resolving this waist costs **32x** the tracking time (2.4 s -> 78 s) and **63x** the
+snapshots (4 -> 251), and `build_interpolant` re-stacks the whole deque twice per step, which
+pushed peak RSS to 8.75 GB at 200² deposition — hence 128² for this study. That cost is why
+Phase 5.3 still has a reason to exist, and why the warning reports a *recommended*
+`step_size` rather than silently adopting it.
+
+##### Also caught here
+
+`yaml.dump` sorts keys alphabetically by default, which moves `step_size` to the END of a
+lattice dict — and `lattice.py` reads it **positionally as the first key**, so
+`get_referece_traj` died with `TypeError: 'float' object is not subscriptable`. Every test
+script in this work passes `sort_keys=False` for that reason. It is the Step 7 item about
+`lattice.py`'s positional `step_size` biting in practice.
+
+**Files.** `pyDFCSR_2D/test/test_waist_step_refine.py` (new), `pyDFCSR_2D/waist.py`
+(`min_steps` recalibrated 4.0 -> 2.0).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

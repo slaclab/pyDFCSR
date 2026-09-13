@@ -1,0 +1,29 @@
+====================================================================================================
+Phase 5.2: refine step_size PAST the point where the waist is resolved
+====================================================================================================
+shear 20, drift 0.35 m, observing 0.1 m into the dipole, deposition 128^2 held fixed
+6r refined only to 0.00625 m; 6w predicts this waist needs <= 0.0006 m
+
+  waist (from the launch distribution): s = 0.4000 m (0.0500 m into the dipole), width 2.3939 mm
+  "resolved" means >= 2 steps across that width
+
+  ran step_size=0.05        4 snapshots     2.4 s  steps across    0.05  resolved False
+  ran step_size=0.0125     13 snapshots     3.7 s  steps across    0.19  resolved False
+  ran step_size=0.003      52 snapshots     9.9 s  steps across    0.80  resolved False
+  ran step_size=0.001     151 snapshots    35.2 s  steps across    2.39  resolved True
+  ran step_size=0.0006    251 snapshots    77.9 s  steps across    3.99  resolved True
+
+   step_size  snapshots  steps across  resolved  abs rough  rel L2 vs finest                 dE range
+        0.05          4          0.05     False    8.48928           0.79017 [  -8.7174,  +5.6425]
+      0.0125         13          0.19     False    2.23283           0.43964 [  -9.1738,  +4.8863]
+       0.003         52          0.80     False    0.51613           0.01742 [  -7.6980,  +2.9491]
+       0.001        151          2.39      True    0.52086           0.00719 [  -7.6698,  +3.0114]
+      0.0006        251          3.99      True    0.50852           0.00000 [  -7.6701,  +3.0125]
+
+  successive differences (the convergence question)
+        0.05 -> 0.0125   : 0.80788
+      0.0125 -> 0.003    : 0.42731
+       0.003 -> 0.001    : 0.01508
+       0.001 -> 0.0006   : 0.00719
+
+Plot saved: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/waist_step/waist_step_refine.png

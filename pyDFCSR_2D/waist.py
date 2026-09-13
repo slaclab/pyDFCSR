@@ -148,13 +148,25 @@ def waist_width(s, var_z, i):
     return float(w) if np.isfinite(w) else np.inf
 
 
-def scan_waists(lattice_config, sigma0, step_size, min_steps=4.0, n_sub=2000):
+def scan_waists(lattice_config, sigma0, step_size, min_steps=2.0, n_sub=2000):
     """
     Full report: every predicted waist, its width, and whether step_size resolves it.
 
     min_steps is how many tracking steps must span the waist half-width for the frame
-    blend to have a chance. 4 is a judgement call, not a measurement -- it is the point
-    of the report to make the number visible rather than to be authoritative about it.
+    blend to have a chance. CALIBRATED, in progress 6x, against wake error at a shear-20
+    waist of width 2.39 mm:
+
+        steps across   0.05    0.19    0.80    2.39    3.99
+        wake rel L2    0.790   0.440   0.017   0.007   0 (reference)
+
+    so the error collapses between 0.2 and 0.8 steps across and is already ~1% at 0.8.
+    2.0 puts the threshold just past the knee: it still warns at 0.8 steps (1.7% error,
+    worth a word) and stays quiet at 2.4 (0.7%). The first version used 4.0, which called
+    a converged run unresolved -- a false alarm, and 6t is a reminder that a warning about
+    a problem that is not happening costs real credibility.
+
+    Calibrated on ONE waist, so it is a defensible default rather than a law; the report
+    always prints `steps across` so a reader can apply their own threshold.
     """
     s, vz, rho = propagate_var_z(lattice_config, sigma0, n_sub=n_sub)
     waists = find_waists(s, vz, rho)
