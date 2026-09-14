@@ -4398,7 +4398,59 @@ k = floor(t_idx),  clamped to [0, n-2]
 a = t_idx - k,     clamped to [0, 1]
 ```
 
-#### The algorithm selected: HYBRID
+#### What problem all three variants solve
+
+The CSR integral needs the density at a **retarded** time `q`, which falls *between* two stored
+snapshots. So every integrand evaluation -- ~2e8 per wake mesh -- must answer two questions:
+**which two snapshots bracket `q`** (the index `k`), and **how far between them it sits** (the
+weight `a`). The caller then forms `(1-a)*f[k] + a*f[k+1]`.
+
+With equally spaced snapshots that is one division, `k = floor((q - t0)/dt)`. Once spacing is
+non-uniform the formula is simply wrong, and the obvious fix -- binary search -- costs 7-38 ns
+against 0.74 ns. At 2e8 calls per mesh that is not a rounding error.
+
+Think of it as finding which **page of a book** a given word number is on. Uniform spacing is a
+book where every page holds exactly the same number of words, so one division answers it.
+
+#### SEGMENT -- "a few chapters, each internally uniform"
+
+Chapter 1 holds 100 words per page, chapter 2 holds 10. Locate the chapter, then divide inside
+it:
+
+```
+store per segment s:  seg_t0[s], seg_dt[s], seg_first[s], seg_n[s]
+s = 0
+while s < S-1 and q >= seg_t0[s+1]: s += 1     # walk to the right chapter
+loc = (q - seg_t0[s]) / seg_dt[s]              # inside a segment it IS uniform
+k = seg_first[s] + floor(loc);  a = loc - floor(loc)
+```
+
+This was the **planned primary**, because our schedules are piecewise uniform by construction --
+a few refined windows around waists and bend edges in an otherwise coarse lattice. One division,
+zero auxiliary memory, and at `S == 1` it reduces algebraically to today's expression.
+
+**Why it lost:** the chapter walk is a *linear* scan. Fine when queries arrive in order, but on
+random queries it mispredicts the branch (4-7 ns), and if the times are not cleanly
+piecewise-uniform then `S ~ n` and it collapses to **196 ns**.
+
+#### BUCKET -- "build an index card up front"
+
+Lay a uniform grid of buckets over the whole span and precompute which snapshot each bucket
+starts at. Works for *arbitrary* spacing.
+
+#### HYBRID -- one flag, both worlds
+
+```
+if is_uniform:  <today's exact single division>     -> bit-for-bit unchanged
+else:           <bucket>
+```
+
+Uniform histories, which is every run today, keep the original expression at **0.73 ns against
+the 0.74 ns baseline** -- so the bit-for-bit guarantee costs nothing. Non-uniform histories pay
+1.5-3.5 ns. And it is insensitive to how the schedule is shaped, which matters because a
+scheduler driven by waists and bend edges will not always produce cleanly segmentable times.
+
+#### The bucket algorithm in detail
 
 One branch on a precomputed `is_uniform` flag. Uniform histories (every run today) take the
 exact expression above; non-uniform take a bucket table:
