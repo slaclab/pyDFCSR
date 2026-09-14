@@ -299,3 +299,91 @@ def build_legacy(distance, nsep, lattice_length, step_size, n_element,
                         mode='legacy', lattice_length=lattice_length,
                         spe=spe, is_step=is_step, nsep=nsep, step_size=step_size, dl=dl,
                         kick_interval=kick_interval)
+
+
+# schedule-only per-element keys. They must be stripped before the element dict reaches
+# get_bmadx_element, which forwards whatever is left as **kwargs to SBend/Quadrupole/Sextupole.
+SCHEDULE_ELEMENT_KEYS = ('steps', 'kick_every')
+
+
+def build_manual(lattice_config, distance, lattice_length, n_element,
+                 default_steps=None, default_kick_every=1, step_size=None,
+                 kick_interval='trailing', nsep=None):
+    """
+    User-specified step count per element.
+
+    Per element in the lattice YAML:
+
+        element_2:
+          type: dipole
+          L: 1.0
+          angle: 1.0
+          nsep: 1
+          steps: 200          # this element gets exactly 200 equal steps
+          kick_every: 10      # a CSR kick on every 10th step
+
+    Unlike `legacy`, **element boundaries are exact nodes**. Each element's steps are
+    `L_e / n_e` and the last node of each element is set to the boundary exactly, so:
+
+    * the boundary gets a density snapshot, which it never did before -- the beam used to be
+      tracked to the boundary outside the step loop and past it inside, with the snapshot taken
+      only afterwards, so the position where the CSR transient turns on was absent from the
+      history entirely;
+    * no step straddles a boundary, so `DL_1` is 0 and the run loop's split path never fires;
+    * the last node lands on `lattice_length` exactly, rather than overshooting it the way
+      `np.arange(0, L + h/2, h)` does.
+
+    The last step of every element is always a kick node, regardless of `kick_every`. Midpoint
+    intervals are clipped at boundaries (`W` jumps at a dipole edge), and that clipping is only
+    meaningful if the boundary is itself a kick.
+    """
+    ele_keys = [k for k in lattice_config if k != 'step_size']
+    distance = np.asarray(distance, dtype=np.float64)
+    starts = np.concatenate([[0.0], distance[:-1]])
+
+    s_list = [0.0]
+    ele_list = [0]
+    kick_list = [False]
+    spe = np.zeros(n_element, dtype=int)
+
+    for e, key in enumerate(ele_keys):
+        cfg = lattice_config[key]
+        L_e = float(cfg['L'])
+        n_e = int(cfg.get('steps', default_steps if default_steps is not None
+                          else max(int(round(L_e / step_size)) if step_size else 1, 1)))
+        if n_e < 1:
+            raise ValueError(f"{key}: steps must be >= 1, got {n_e}")
+        ke = max(int(cfg.get('kick_every', default_kick_every)), 1)
+        h = L_e / n_e
+        spe[e] = n_e
+        for j in range(1, n_e + 1):
+            # last node of the element is the boundary EXACTLY, not starts[e] + n_e*h
+            s_list.append(float(distance[e]) if j == n_e else starts[e] + j * h)
+            ele_list.append(e)
+            kick_list.append(((j - 1) % ke == 0) or (j == n_e))
+
+    s_nodes = np.asarray(s_list, dtype=np.float64)
+    ele_of = np.asarray(ele_list, dtype=np.int64)
+    is_kick = np.asarray(kick_list, dtype=bool)
+    is_step = np.ones(s_nodes.size, dtype=bool)
+    is_step[0] = False
+    is_snap = is_step.copy()
+
+    if kick_interval == 'midpoint':
+        kick_lo, kick_hi = midpoint_intervals(s_nodes, np.flatnonzero(is_kick),
+                                              distance, lattice_length)
+    else:
+        kick_lo = np.zeros(s_nodes.size)
+        kick_hi = np.zeros(s_nodes.size)
+        last = 0.0
+        for i in np.flatnonzero(is_kick):
+            kick_lo[i] = last
+            kick_hi[i] = s_nodes[i]
+            last = s_nodes[i]
+
+    # dl is derived from the nodes here, unlike `legacy`. The nodes are the truth in this mode and
+    # there is no bit-identity guarantee to protect, so accumulated rounding is not a hazard.
+    return StepSchedule(s_nodes, ele_of, is_snap, is_kick, kick_lo, kick_hi,
+                        mode='manual', lattice_length=lattice_length,
+                        spe=spe, is_step=is_step, nsep=nsep, step_size=step_size,
+                        kick_interval=kick_interval)

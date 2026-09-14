@@ -4929,6 +4929,72 @@ step_control:
 `pyDFCSR_2D/lattice.py` (`kick_interval` validation), `pyDFCSR_2D/CSR.py` (`step_control` allowed
 and threaded, kick length selection).
 
+#### 11e. `manual` mode: user-specified steps per element ✅ **the whole non-uniform chain works end to end**
+
+```yaml
+step_control:
+  mode: manual
+  kick_interval: midpoint
+```
+```yaml
+element_2:
+  type: dipole
+  L: 1.0
+  angle: 1.0
+  nsep: 1
+  steps: 200          # exactly 200 equal steps in this element
+  kick_every: 10      # a CSR kick on every 10th step
+```
+
+Unlike `legacy`, **element boundaries are exact nodes**: each element gets `L_e/n_e` steps with the
+last node set to the boundary exactly. Three things follow, all of which were defects before:
+
+* the **boundary gets a density snapshot**. It never did -- the beam was tracked to the boundary
+  outside the step loop and past it inside, with the snapshot taken only afterwards, so the
+  position where the CSR transient turns on was absent from the history entirely (§6cc);
+* no step straddles a boundary, so `DL_1` is 0 and the run loop's split path never fires;
+* the last node lands on `lattice_length` **exactly**, instead of overshooting the way
+  `np.arange(0, L + h/2, h)` does -- the Step 7 `run(stop_time=T)` overshoot, fixed in this mode.
+
+The last step of every element is always a kick node regardless of `kick_every`, because midpoint
+intervals are clipped at boundaries and that clipping is only meaningful if the boundary is a kick.
+
+##### Verified end to end
+
+Steps asked 7/11/3 across a 0.35/0.22/0.33 m lattice, `kick_every` 3/4/1, midpoint intervals:
+
+```
+  steps per element : [7, 11, 3]   asked [7, 11, 3]   exact
+  every element boundary [0.35, 0.57, 0.90] is a node : True
+  last node 0.900000 == lattice length 0.900000       : True
+  beam ended at 0.900000, no overshoot
+  midpoint intervals sum 0.900000 == lattice 0.900000 : True
+
+  SNAPSHOT taken at every element boundary            : True
+  history strictly increasing                         : True
+  history detected as uniform                         : False   <- bucket path exercised
+```
+
+That last line matters: the spacings are 0.05/0.02/0.11, so the history is genuinely non-uniform
+and the run exercised the §11c bucket lookup, the §11d midpoint intervals and the boundary
+snapshots together. This is the first end-to-end validation of the whole chain.
+
+##### One trap in the config surface
+
+Per-element `steps` and `kick_every` must be stripped before the element dict reaches
+`get_bmadx_element`, which forwards whatever is left as `**kwargs` to `SBend`/`Quadrupole`/
+`Sextupole` -- an unexpected name raises there. `SCHEDULE_ELEMENT_KEYS` is popped alongside `nsep`.
+
+##### Default untouched
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  default (legacy) cached wake cut: max |diff| = 0.000e+00
+```
+
+**Files.** `pyDFCSR_2D/schedule.py` (`build_manual`, `SCHEDULE_ELEMENT_KEYS`),
+`pyDFCSR_2D/lattice.py` (dispatch), `pyDFCSR_2D/CSR.py` (strip schedule keys).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

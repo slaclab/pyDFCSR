@@ -1,6 +1,6 @@
 import numpy as np
 
-from .schedule import build_legacy
+from .schedule import build_legacy, build_manual
 from .yaml_parser import parse_yaml
 
 def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
@@ -179,6 +179,12 @@ class Lattice():
             self.schedule = build_legacy(self.distance, self.nsep, self.lattice_length,
                                          self.step_size, self.Nelement,
                                          kick_interval=kick_interval)
+        elif mode == 'manual':
+            self.schedule = build_manual(
+                self.lattice_config, self.distance, self.lattice_length, self.Nelement,
+                default_steps=cfg.get('default_steps'),
+                default_kick_every=cfg.get('default_kick_every', 1),
+                step_size=self.step_size, kick_interval=kick_interval, nsep=self.nsep)
         else:
             raise NotImplementedError(
                 f"step_control mode '{mode}' is not implemented yet; use 'legacy'")

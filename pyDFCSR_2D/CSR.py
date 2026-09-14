@@ -15,6 +15,7 @@ from .interp3D import (interpolate3D, interpolate3D_transformed,
                        interpolate3D_comoving_fields)
 from .lattice import Lattice  # , get_referece_traj
 from .lookup import lookup_vec
+from .schedule import SCHEDULE_ELEMENT_KEYS
 from .waist import (scan_waists, sigma_from_coords, format_report,
                     retention_schedule)
 from .params import Integration_params, CSR_params
@@ -187,6 +188,10 @@ class CSR2D:
     def get_bmadx_element(self, ele,  DL, entrance = False, exit = False):
         input_dic = self.lattice.lattice_config[ele].copy()
         input_dic.pop('nsep')
+        # Schedule-only keys must not reach bmad-x: whatever is left in input_dic is forwarded
+        # as **kwargs to SBend/Quadrupole/Sextupole, which would raise on an unexpected name.
+        for _k in SCHEDULE_ELEMENT_KEYS:
+            input_dic.pop(_k, None)
         L = input_dic.pop('L')
         type = input_dic.pop('type')
 
