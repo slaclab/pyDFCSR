@@ -58,7 +58,8 @@ class StepSchedule:
     """
 
     def __init__(self, s_nodes, ele_of, is_snap, is_kick, kick_lo, kick_hi,
-                 mode, lattice_length, spe, is_step, nsep=None, step_size=None):
+                 mode, lattice_length, spe, is_step, nsep=None, step_size=None,
+                 dl=None):
         self.s_nodes = np.asarray(s_nodes, dtype=np.float64)
         self.ele_of = np.asarray(ele_of, dtype=np.int64)
         self.is_snap = np.asarray(is_snap, dtype=bool)
@@ -79,8 +80,20 @@ class StepSchedule:
         self.nsep = nsep
         self.step_size = step_size
 
-        self.dl = np.zeros_like(self.s_nodes)
-        self.dl[1:] = np.diff(self.s_nodes)
+        if dl is None:
+            self.dl = np.zeros_like(self.s_nodes)
+            self.dl[1:] = np.diff(self.s_nodes)
+        else:
+            # Supplied explicitly, because np.diff(np.arange(0, L+h/2, h)) is NOT exactly h:
+            # measured 35 of 37 steps differing by ~1e-16 for L=1.85, h=0.05. The run loop feeds
+            # this length straight into bmad-x tracking, so a last-bit difference changes the
+            # trajectory and destroys the bit-identity guarantee that `legacy` exists to provide.
+            self.dl = np.asarray(dl, dtype=np.float64).copy()
+            assert self.dl.size == self.s_nodes.size
+            self.dl[0] = 0.0
+            drift = np.abs(np.cumsum(self.dl) - self.s_nodes).max()
+            assert drift < 1e-9 * max(self.lattice_length, 1.0), (
+                f'explicit dl is inconsistent with s_nodes by {drift:.3e} m')
         self._validate()
 
     def _validate(self):
@@ -218,6 +231,10 @@ def build_legacy(distance, nsep, lattice_length, step_size, n_element):
         kick_hi[i] = s_nodes[i]
         last = s_nodes[i]
 
+    # exactly step_size, never diff(s_nodes) -- see the note in StepSchedule.__init__
+    dl = np.full(n, float(step_size))
+    dl[0] = 0.0
+
     return StepSchedule(s_nodes, ele_of, is_snap, is_kick, kick_lo, kick_hi,
                         mode='legacy', lattice_length=lattice_length,
-                        spe=spe, is_step=is_step, nsep=nsep, step_size=step_size)
+                        spe=spe, is_step=is_step, nsep=nsep, step_size=step_size, dl=dl)

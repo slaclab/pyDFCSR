@@ -4757,6 +4757,44 @@ not subscriptable`. It bit twice during this work. Keys are now selected by name
 **Files.** `pyDFCSR_2D/schedule.py` (new), `pyDFCSR_2D/lattice.py` (`get_steps` builds the
 schedule and derives the legacy attributes from it; element keys by name).
 
+#### 11b. The run loop reads the schedule ✅ **still bit-identical**
+
+Every per-step length and decision now comes from the schedule. `step_count` starts at 1 and
+increments once per step, so it **is** the schedule's node index -- node `i` is the end of step
+`i`, and node 0 is the `s = 0` entrance handled by `initialization()`. That made the wiring a
+three-line change rather than a rewrite:
+
+```
+  DL = self.lattice.step_size          ->  DL_i = sched.dl[step_count]
+  if debug or compute_CSR:             ->  ... and sched.is_snap[step_count]
+  if step % nsep[ele_count] == 0:      ->  if sched.is_kick[step_count]
+```
+
+The nested `for ele: for step` shape is kept deliberately. The element-entry logic
+(`inbend`, `R_rec`, and `formation_length += L` for the pre-first-bend drift, which uses the FULL
+element length once per element) is intricate and correct; flattening the loop would have put all
+of it at risk for a purely cosmetic gain. Once `auto`/`manual` place nodes on element boundaries,
+`DL_1` becomes 0 and the existing split path degenerates on its own.
+
+##### A floating-point trap that would have destroyed the guarantee
+
+`dl` must be supplied **explicitly** as `step_size`, never derived from `np.diff(s_nodes)`.
+Measured: `np.diff(np.arange(0, 1.85 + 0.025, 0.05))` differs from 0.05 in the last bits for
+**35 of 37** steps (max 1.8e-16). That length is fed straight into bmad-x tracking, so a last-bit
+difference changes the trajectory and breaks the bit-identity that `legacy` exists to provide.
+`StepSchedule` now takes an optional explicit `dl` and asserts it is consistent with `s_nodes`.
+
+##### Verification
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  cached wake cut: max |diff| = 0.000e+00       (bitwise identical)
+  nsep=3 cadence reproduces the §6dd set exactly: [0.05, 0.20, 0.35, 0.50, 0.60, 0.75, 0.90, 1.05]
+  0 of 8 kick intervals wrong; sum 1.0500 == arc covered 1.0500
+```
+
+**Files.** `pyDFCSR_2D/CSR.py` (`run`), `pyDFCSR_2D/schedule.py` (explicit `dl`).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

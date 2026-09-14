@@ -338,6 +338,12 @@ class CSR2D:
         # per-element `step` counter restarting is exactly what broke the old DL*nsep
         self._s_last_kick = self.beam.position
 
+        # Every per-step length and decision now comes from the precomputed schedule.
+        # `step_count` starts at 1 and increments once per step, so it IS the schedule's node
+        # index -- node i is the end of step i, and node 0 is the s = 0 entrance handled by
+        # initialization(). Under mode 'legacy' the schedule reproduces the old uniform node set,
+        # kick cadence and steps_per_element exactly.
+        sched = self.lattice.schedule
         DL = self.lattice.step_size
         ele_count = 0
         skip_ele = False
@@ -418,10 +424,11 @@ class CSR2D:
                     skip_ele = False    # Reset the flag
 
                 else:
-                    element = self.get_bmadx_element(ele = ele,  DL = DL)
+                    DL_i = sched.dl[step_count]
+                    element = self.get_bmadx_element(ele = ele,  DL = DL_i)
                     # Propagate beam for one step
-                    self.beam.track(element, DL)
-                    distance_in_current_ele += DL
+                    self.beam.track(element, DL_i)
+                    distance_in_current_ele += DL_i
 
 
                 # sigma_z evolves within the element, so L_f has to be refreshed here
@@ -429,7 +436,7 @@ class CSR2D:
                 # sets the integration reach in get_CSR_wake.
                 self._refresh_formation_length(R)
 
-                if debug or self.CSR_params.compute_CSR:
+                if (debug or self.CSR_params.compute_CSR) and sched.is_snap[step_count]:
                     # get the density functions
                     self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
                     # append the density functions to the log
@@ -454,7 +461,11 @@ class CSR2D:
                 
                 
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
-                    if step % self.lattice.nsep[ele_count] == 0:
+                    # was `step % nsep[ele_count] == 0`, with `step` restarting per element.
+                    # The schedule encodes that cadence for mode 'legacy' and lets 'auto' and
+                    # 'manual' choose kicks independently of the snapshot spacing -- which is the
+                    # point, since a kick costs ~5000x what a snapshot costs.
+                    if sched.is_kick[step_count]:
                         # calculate CSR mesh given beam shape
                         self.get_CSR_mesh()
                         # Calculate CSR on the mesh
