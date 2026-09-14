@@ -4681,6 +4681,82 @@ quadratic B-spline do?), not micro-optimisation.
 
 
 
+### Step 11 — Adaptive step scheduling ⏳ **in progress**
+
+Goal: decouple the three grids that one uniform `step_size` currently drives, because their costs
+differ by orders of magnitude and they need different criteria.
+
+```
+  tracking   ~0.001 s per step
+  snapshot   ~0.08 s per step + 0.7-1.6 MB      -> decides MEMORY
+  CSR kick   ~5-7 s per evaluation              -> decides RUN TIME
+```
+
+Kicks are ~5000x more expensive than snapshots, yet `nsep` ties them together by an integer.
+§6x measured that a 2.39 mm waist needs `step_size <= 0.0006 m`; §6bb measured that applying that
+*uniformly* through a chicane costs 22-32 GB against 0.15 GB for local refinement. No single
+uniform step serves both.
+
+#### 11a. `StepSchedule` and the legacy builder ✅ **bit-identical**
+
+New `pyDFCSR_2D/schedule.py`. One precomputed, immutable plan:
+
+```
+s_nodes  (N,)  monotone, s_nodes[0] = 0
+ele_of   (N,)  element each step ends in
+dl       (N,)  step lengths, dl[0] = 0
+is_snap  (N,)  take a density snapshot here
+is_kick  (N,)  compute and apply a wake here;  invariant: is_kick implies is_snap
+kick_lo/hi     the arc each kick integrates over
+is_step  (N,)  nodes the loop actually advances to
+```
+
+**It must be precomputed, not adaptive.** `init_statistics` preallocates arrays of length
+`lattice.total_steps` and `update_statistics(step)` indexes them directly, so the total has to be
+known before tracking starts.
+
+**Kicks are a subset of snapshots** by invariant, so a kick always has history at its own position.
+
+##### Reproducing the old behaviour exactly, including two bugs
+
+`legacy` had to match the historical `get_steps()` bit-for-bit, which meant preserving two things
+that look like defects and are:
+
+1. **Element boundaries are NOT nodes.** A step can straddle one, so the run loop still splits it.
+   Putting nodes on boundaries changes the snapshot set, so it belongs to `auto`/`manual` only.
+2. **`np.arange(0, L + h/2, h)` overshoots the lattice end** whenever `L` is not a multiple of `h`
+   -- for `L = 2.5, h = 0.07` the last node is at 2.52. The old code silently dropped it from
+   `steps_per_element`, so the loop never reached it. This is the `run(stop_time=T)` overshoot
+   recorded in Step 7. It is preserved bug-for-bug here because `_positions_record` sizes the
+   preallocated statistics arrays and is written to output; `auto`/`manual` will land the last
+   node exactly on `lattice_length`.
+
+Deriving `steps_per_element` from `ele_of` by `bincount` looked cleaner and was **wrong**: correct
+on 39 of 48 randomised lattices, off by one in the last element on the other 9 -- always the
+overshoot case. It is now computed with the historical algorithm verbatim and stored.
+
+##### Verification
+
+```
+  120/120 randomised lattices reproduce get_steps() exactly (node set AND steps_per_element)
+       element lengths deliberately non-commensurate with step_size, nsep in {1,2,3,5}
+  nsep=3 kick positions reproduce the §6dd measured set exactly:
+       [0.05, 0.20, 0.35, 0.50, 0.60, 0.75, 0.90, 1.05]
+  sum of kick intervals == arc covered, to machine precision
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  cached wake cut: max |diff| = 0.000e+00  (bitwise identical)
+```
+
+##### Also fixed here (Part 7 item)
+
+`lattice.py` selected element keys as `list(lattice_config.keys())[1:]` -- "everything after the
+first key", assuming `step_size` came first. `yaml.dump` sorts keys alphabetically by default,
+which moves `step_size` last and made `get_referece_traj` die with `TypeError: 'float' object is
+not subscriptable`. It bit twice during this work. Keys are now selected by name.
+
+**Files.** `pyDFCSR_2D/schedule.py` (new), `pyDFCSR_2D/lattice.py` (`get_steps` builds the
+schedule and derives the legacy attributes from it; element keys by name).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

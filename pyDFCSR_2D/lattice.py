@@ -1,4 +1,6 @@
 import numpy as np
+
+from .schedule import build_legacy
 from .yaml_parser import parse_yaml
 
 def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
@@ -15,13 +17,19 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
       rho: bending radius (1/R) of the trajectory, array (Nsample,)
       distance: (Nelement,): distance[i] is the distance from the lattice entrance to the end of ith element
     """
-    Nelement = len(lattice_config) - 1
+    # Element keys, selected BY NAME rather than by position. This used to be
+    # `list(lattice_config.keys())[1:]`, i.e. "everything after the first key", which assumed
+    # step_size came first. yaml.dump sorts keys alphabetically by default, which moves step_size
+    # to the END and made get_referece_traj die with
+    # "TypeError: 'float' object is not subscriptable". It bit twice during this work.
+    ele_keys = [k for k in lattice_config if k != 'step_size']
+    Nelement = len(ele_keys)
     distance = np.zeros(Nelement)        # distance[i] is the distance between the entrance and the end of ith element
     rho = np.zeros(Nelement)
     nsep = np.zeros(Nelement)
     #s = np.zeros(Nelement*Nsample + 1)
     count = 0
-    for key in list(lattice_config.keys())[1:]:
+    for key in ele_keys:
         current_element = lattice_config[key]
         L = current_element['L']
         nsep[count] = current_element['nsep']
@@ -123,7 +131,8 @@ class Lattice():
         lattice_config = parse_yaml(self.lattice_input_file)
         self.check_input(lattice_config)
         self.lattice_config = lattice_config
-        self._Nelement = len(lattice_config) - 1
+        self.step_control = input_lattice.get('step_control', None)
+        self._Nelement = len([k for k in lattice_config if k != 'step_size'])
         self.get_ref_traj()
         self.get_steps()
 
@@ -150,26 +159,29 @@ class Lattice():
         #self.F_rho = RegularGridInterpolator(points = (self.s,), values = self.rho, method = 'nearest',bounds_error = False)
 
     def get_steps(self):
-        self.step_size = self.lattice_config['step_size']
-        #Todo: Deal with the endpoint
-        self._positions_record = np.arange(0, self.lattice_length + self.step_size/2, self.step_size)
-        self._total_steps = len(self._positions_record)
-        self._CSR_steps_index = np.array([])                   # the index of total_steps where the CSR will be computed
-        self.steps_per_element = np.zeros((self.Nelement,), dtype = int)
-        count = 0
-        prev_ind = 0
-        for d in self.distance:
-            ind = np.searchsorted(self._positions_record, d, side = 'right')    #a[ind-1]<= d<a[ind], a is positions_record
-            nsep_t = self.nsep[count]
-            new_index = np.arange(prev_ind, ind, nsep_t)
-            self._CSR_steps_index = np.append(self._CSR_steps_index, new_index)
-            if count == 0:
-                self.steps_per_element[count] = ind - prev_ind - 1 # s = 0
-            else:
-                self.steps_per_element[count] = ind - prev_ind
-            count += 1
-            prev_ind = ind
+        """
+        Build the step schedule and expose the legacy attributes derived from it.
 
+        `mode: legacy` (the default) reproduces the historical node set, kick cadence and
+        steps_per_element exactly -- verified against a verbatim copy of the old algorithm on 120
+        randomised lattices, including the cases where np.arange overshoots the lattice end.
+        """
+        self.step_size = self.lattice_config['step_size']
+        cfg = self.step_control or {}
+        mode = cfg.get('mode', 'legacy')
+
+        if mode == 'legacy':
+            self.schedule = build_legacy(self.distance, self.nsep, self.lattice_length,
+                                         self.step_size, self.Nelement)
+        else:
+            raise NotImplementedError(
+                f"step_control mode '{mode}' is not implemented yet; use 'legacy'")
+
+        # legacy-facing attributes, all derived from the schedule so there is one source of truth
+        self._positions_record = self.schedule.s_nodes
+        self._total_steps = self.schedule.n_nodes
+        self.steps_per_element = self.schedule.steps_per_element(self.Nelement)
+        self._CSR_steps_index = self.schedule.kick_indices
         self._CSR_steps_count = len(self._CSR_steps_index)
 
 
