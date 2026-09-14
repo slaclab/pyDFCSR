@@ -3,6 +3,8 @@ import math
 import numpy as np
 from collections import deque
 
+from .lookup import build_bucket, empty_bucket, is_uniform_times
+
 
 @jit(nopython=True)
 def cubic_bspline(x):
@@ -636,6 +638,23 @@ class DF_tracker_comoving:
         self.min_x = times[0]
         self.max_x = times[-1]
         self.delta_x = (self.max_x - self.min_x) / (n_t - 1) if n_t > 1 else 1.0
+
+        # --- retain the ACTUAL snapshot times and build the bracketing table -----------------
+        # These used to be thrown away: only times[0], times[-1] and n_t survived, so the
+        # interpolators reconstructed the index arithmetically and could only ever work on a
+        # uniform grid. A locally refined schedule needs the real times.
+        self.t_arr = np.asarray(times, dtype=np.float64)
+        assert n_t < 2 or np.all(np.diff(self.t_arr) > 0.0), (
+            'snapshot times must be strictly increasing; a repeated time divides by zero in the '
+            'non-uniform interpolation weight')
+        self.is_uniform = is_uniform_times(self.t_arr)
+        if self.is_uniform:
+            # keep the uniform fast path exactly as it was -- bit-for-bit
+            self.bucket, self.bucket_inv_h, self.bucket_t0, self.bucket_M = empty_bucket()
+            self.bucket_worst = 0
+        else:
+            (self.bucket, self.bucket_inv_h, self.bucket_t0,
+             self.bucket_M, self.bucket_worst) = build_bucket(self.t_arr)
 
         # Zero-copy views into the ring. A slice along the outermost axis of a
         # C-contiguous array is itself C-contiguous, so Numba sees exactly the same

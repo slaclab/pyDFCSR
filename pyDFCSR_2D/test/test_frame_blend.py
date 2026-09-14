@@ -184,7 +184,9 @@ def test_site_agreement(mode):
             tr.u_start, tr.delta_u, tr.w_start, tr.delta_w,
             tr.min_x, tr.delta_x,
             tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr,
-            tr.x_bar_arr)[0]
+            tr.x_bar_arr,
+            tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
+            tr.is_uniform)[0]
         assert rho.max() > 0, f'{mode}: no density found near the located centre'
         off = abs(xs[int(np.argmax(rho))] - centre[j]) / s_xi[j]
         assert off < 0.05, (f'{mode}: band frame and density frame disagree at '

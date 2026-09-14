@@ -33,6 +33,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from pyDFCSR_2D.lookup import empty_bucket
 from pyDFCSR_2D.interp3D import interpolate3D, interpolate3D_transformed
 
 try:
@@ -277,7 +278,10 @@ def measure(ds, delta_t=0.05):
             # thing it always did. The moment triple is derived from the same stored
             # frame and is exact at nodes by construction, so another mode could be
             # swapped in here without rebuilding the stack.
-            0, *moment_arrays(cm))
+            0, *moment_arrays(cm),
+            # `times` here is a synthetic uniform grid, so the hybrid takes its uniform
+            # branch and this measures exactly what it always did
+            np.asarray(times, dtype=np.float64), *empty_bucket(), True)
         out['cmv_rho'] = rel_err(c_rho, ex_rho)
         out['cmv_dx'] = rel_err(c_dx, ex_dx)
         out['cmv_dz'] = rel_err(c_dz, ex_dz)

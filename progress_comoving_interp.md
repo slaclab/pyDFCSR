@@ -4795,6 +4795,73 @@ difference changes the trajectory and breaks the bit-identity that `legacy` exis
 
 **Files.** `pyDFCSR_2D/CSR.py` (`run`), `pyDFCSR_2D/schedule.py` (explicit `dl`).
 
+#### 11c. Non-uniform history lookup wired in ✅ **uniform bit-identical, bucket path exact to round-off**
+
+New `pyDFCSR_2D/lookup.py`, porting the hybrid validated in Step 9.
+
+##### What had to change beyond the lookup itself
+
+`build_interpolant` was **throwing the snapshot times away**: it did `times = list(self.time_log)`
+and kept only `times[0]`, `times[-1]` and `n_t`, so the interpolators reconstructed the index
+arithmetically and could only ever work on a uniform grid. The times are now retained as `t_arr`,
+checked strictly increasing, tested for uniformity, and a bucket table is built when they are not.
+
+Three lookup sites were converted **together**, since mixing grids would be silent:
+
+```
+  interp3D.py:500  interpolate3D_comoving_fields   scalar, numba, ~1e8 calls per mesh
+  CSR.py:657       band construction               vectorized numpy
+  CSR.py:766       _comoving_frame_at              vectorized numpy
+```
+
+The two `CSR.py` sites are **vectorized**, so they needed a numpy twin (`lookup_vec`) rather than
+the numba scalar. They must share the arithmetic with the interpolant -- a band located with a
+different blend than the interpolant uses will not sit where the density is. `lookup_vec` uses
+`searchsorted` deliberately: those sites are called a few thousand times per mesh on modest
+arrays, so O(log n) is irrelevant there, whereas the scalar path runs ~1e8 times and is not.
+
+The three lookup sites on the **legacy and `bspline_fft`** paths (`interp3D.py:24, 228, 288`) were
+left alone. They only ever see uniform times today, and converting paths that cannot be tested to
+the same standard would add risk for no gain -- but that means a non-uniform schedule must not be
+combined with those deposition methods, which the scheduler will have to enforce.
+
+##### The tolerance in the uniformity test is load-bearing
+
+`is_uniform_times` compares spacings with `rtol = 1e-9`, not exactly. Snapshot times come from
+`np.arange(0, L + h/2, h)`, whose successive differences are **not** exactly `h` -- measured, 35 of
+37 differ by ~1e-16. An exact test would classify the historical uniform grid as non-uniform, send
+it down the bucket path, and silently destroy the bit-for-bit guarantee.
+
+##### Verification
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  cached wake cut, uniform path : max |diff| = 0.000e+00      (bitwise identical)
+
+  end-to-end invariance -- the SAME uniform history forced down the BUCKET path:
+    rel L2 difference   5.495e-13
+    max abs difference  4.996e-12 MeV/m
+    dE range identical to 6 decimals: [-7.697869, +2.949103]
+    bucket table M = 131, verified max correction iterations = 1
+```
+
+The bucket result cannot be bit-exact -- `a = (q-t[k])/(t[k+1]-t[k])` is a different
+floating-point expression from `t_idx - k` -- so agreement to 5e-13 is the correct standard, and
+the measured loop bound of 1 matches the theoretical bound exactly.
+
+##### The overhead is higher than I predicted, and why
+
+Measured **1.078x** on this configuration, against the **1.018x** predicted in Step 9. The
+prediction counted only the scalar hot loop, which is 0.49 % of the work. It missed that the two
+**vectorized** mirrors also move from a division to `searchsorted`, and those account for ~9 % of
+wake-mesh time between them. So the honest figure for a non-uniform run is a few per cent rather
+than under two, still against §6bb's 22-32 GB versus 0.15 GB, and only non-uniform runs pay it.
+
+**Files.** `pyDFCSR_2D/lookup.py` (new), `pyDFCSR_2D/deposit_smooth.py` (`build_interpolant`
+retains times and builds the table), `pyDFCSR_2D/interp3D.py`
+(`interpolate3D_comoving_fields` signature and lookup), `pyDFCSR_2D/CSR.py` (both vectorized
+mirrors, and the call site), `test_frame_blend.py` / `test_ghosting.py` (direct calls updated).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

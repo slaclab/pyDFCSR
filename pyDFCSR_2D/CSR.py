@@ -14,6 +14,7 @@ from .interp1D import interpolate1D
 from .interp3D import (interpolate3D, interpolate3D_transformed,
                        interpolate3D_comoving_fields)
 from .lattice import Lattice  # , get_referece_traj
+from .lookup import lookup_vec
 from .waist import (scan_waists, sigma_from_coords, format_report,
                     retention_schedule)
 from .params import Integration_params, CSR_params
@@ -654,8 +655,9 @@ class CSR2D:
             t_ret = t - np.sqrt(dx * dx + dy * dy)
             z_ret = sp - t_ret
 
-            t_idx = (t_ret - tr.min_x) / tr.delta_x
-            k = np.clip(np.floor(t_idx).astype(int), 0, max(n_t - 2, 0))
+            # shares its arithmetic with the interpolant via lookup_vec: a band located with a
+            # different blend than the interpolant uses will not sit where the density is
+            k, a_w = lookup_vec(t_ret, tr.t_arr, tr.is_uniform, tr.min_x, tr.delta_x, n_t)
             k1 = np.minimum(k + 1, n_t - 1)
 
             if self.use_comoving:
@@ -663,7 +665,7 @@ class CSR2D:
                 # BLENDED frame, so the band is one interval. Mirror its blending
                 # exactly -- linear in the poly and the means, log-linear in the
                 # sigmas -- or the band will not sit where the density is.
-                a = np.clip(t_idx - k, 0.0, 1.0)
+                a = a_w
                 b = 1.0 - a
                 p_a = (b * self._eval_poly_rows(tr.poly_coeffs_interp[k], z_ret)
                        + a * self._eval_poly_rows(tr.poly_coeffs_interp[k1], z_ret))
@@ -761,10 +763,8 @@ class CSR2D:
         """
         tr = self.DF_tracker
         n_t = tr.poly_coeffs_interp.shape[0]
-        t_idx = (t_ret - tr.min_x) / tr.delta_x
-        k = np.clip(np.floor(t_idx).astype(int), 0, max(n_t - 2, 0))
+        k, a = lookup_vec(t_ret, tr.t_arr, tr.is_uniform, tr.min_x, tr.delta_x, n_t)
         k1 = np.minimum(k + 1, n_t - 1)
-        a = np.clip(t_idx - k, 0.0, 1.0)
         b = 1.0 - a
 
         if tr.frame_blend_code != tr.BLEND_COEFF:
@@ -1437,7 +1437,9 @@ class CSR2D:
             tr.u_start, tr.delta_u, tr.w_start, tr.delta_w,
             tr.min_x, tr.delta_x,
             tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr,
-            tr.x_bar_arr)
+            tr.x_bar_arr,
+            tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
+            tr.is_uniform)
 
     def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None):
         """
