@@ -37,6 +37,8 @@ element boundaries. That is deliberate: boundary nodes add snapshots and change 
 bmad-x calls, so `manual` and `auto` cannot be bit-identical to previously recorded results and
 are not expected to be. Only `legacy` carries that guarantee.
 """
+import math
+
 import numpy as np
 
 
@@ -387,3 +389,191 @@ def build_manual(lattice_config, distance, lattice_length, n_element,
                         mode='manual', lattice_length=lattice_length,
                         spe=spe, is_step=is_step, nsep=nsep, step_size=step_size,
                         kick_interval=kick_interval)
+
+
+# ---------------------------------------------------------------------------------------------
+# `auto`: refine where the physics demands it, coarsen where it does not.
+#
+# PROVISIONAL CONSTANTS. m_steps inherits §6x's calibration (min_steps = 2, measured against wake
+# convergence at a waist). eps_tr and kappa are first estimates and have NOT been calibrated
+# against anything -- doing so is a measured campaign in its own right, like §6x. They are exposed
+# in the config for exactly that reason. Do not treat them as validated.
+# ---------------------------------------------------------------------------------------------
+AUTO_DEFAULTS = dict(
+    m_steps=2.0,        # steps across the longitudinal scale L_z; from §6x
+    eps_tr=0.25,        # fraction of a formation length near a bend edge; PROVISIONAL
+    kappa=8.0,          # kick spacing as a multiple of the snapshot spacing; PROVISIONAL
+    h_min=None,         # hard floor; defaults to lattice_length / 2e6
+    h_max=None,         # hard ceiling; defaults to step_size
+    dyadic=True,        # snap step sizes to h_max / 2^j
+)
+
+
+def _dyadic_snap(h, h_max):
+    """
+    Snap DOWN to h_max / 2^j.
+
+    Quantizing to a dyadic ladder is what makes the realised schedule piecewise uniform in long
+    stretches, which keeps the history's segment structure simple, gives integer step counts per
+    element for free, and makes a single-rung schedule reduce to the uniform case exactly.
+    """
+    h = np.asarray(h, dtype=np.float64)
+    j = np.ceil(np.log2(np.maximum(h_max / np.maximum(h, 1e-300), 1.0)))
+    return h_max / np.power(2.0, j)
+
+
+def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts):
+    """
+    The local required step h_eff(s), and the pieces that made it, for reporting.
+
+    Four drivers, but only three terms -- "the beam varies fast" and "the wake varies fast" are
+    the SAME curve, because the 1D steady-state wake scales as W ~ Q/(R^(2/3) sigma_z^(4/3)), so
+    d ln W/ds = -(4/3) d ln sigma_z/ds.
+
+    1. Longitudinal scale.
+
+           L_z = sz / sqrt( (dsz/ds)^2 + sz*|d2sz/ds2| )
+
+       The second term is not decoration. A plain sz/|dsz/ds| criterion DIVIDES BY ZERO at a
+       waist minimum -- exactly where the finest steps are needed, since dsz/ds vanishes there.
+       L_z instead reduces to sz/|sz'| on the slopes and to the waist half-width sqrt(sz/sz'') at
+       the minimum, so it matches waist_width to O(1) and inherits §6x's m_steps calibration.
+
+    2. Bend transient: eps_tr * max(L_f, |s - nearest edge|). Growing linearly away from the edge
+       gives geometric refinement -- a handful of steps near the edge rather than a uniformly fine
+       window across the whole formation length.
+
+    3. Relevance, which is what PERMITS coarsening: r = (W/W_max) * exp(-d_after_bend/(n_fl*L_f)).
+       Far down a drift after a bend, the transient has decayed and there is nothing to resolve.
+
+    Combined RECIPROCALLY rather than by min(), so h_eff is smooth. A min() has kinks, and the
+    equidistribution integrator below would chase them.
+    """
+    s = np.asarray(s, float)
+    sz = np.asarray(sz, float)
+    h_max = opts['h_max']
+    h_min = opts['h_min']
+
+    d1 = np.gradient(sz, s)
+    d2 = np.gradient(d1, s)
+    L_z = sz / np.sqrt(d1 ** 2 + sz * np.abs(d2) + 1e-300)
+    h_1 = np.maximum(L_z / opts['m_steps'], h_min)
+
+    # distance to the nearest element edge that is a bend edge
+    edges = np.concatenate([[0.0], np.asarray(distance, float)])
+    d_edge = np.min(np.abs(s[:, None] - edges[None, :]), axis=1)
+    h_2 = opts['eps_tr'] * np.maximum(L_f, d_edge)
+    h_2 = np.maximum(h_2, h_min)
+
+    # relevance: wake magnitude proxy, damped by distance since the last bend
+    inbend = np.abs(rho) > 0.0
+    R = np.where(inbend, 1.0 / np.maximum(np.abs(rho), 1e-30), np.inf)
+    W = np.where(np.isfinite(R), 1.0 / (np.maximum(R, 1e-30) ** (2.0 / 3.0)
+                                        * np.maximum(sz, 1e-30) ** (4.0 / 3.0)), 0.0)
+    # carry the wake forward through drifts, decaying over a formation length
+    d_since = np.zeros_like(s)
+    last_bend_s = -np.inf
+    W_carry = np.zeros_like(s)
+    w_last = 0.0
+    for i in range(s.size):
+        if inbend[i]:
+            last_bend_s = s[i]
+            w_last = W[i]
+        d_since[i] = 0.0 if not np.isfinite(last_bend_s) else s[i] - last_bend_s
+        W_carry[i] = w_last
+    Wmax = W_carry.max() if W_carry.max() > 0 else 1.0
+    decay = np.exp(-d_since / np.maximum(L_f, 1e-12))
+    r = np.clip(W_carry / Wmax, 0.0, 1.0) * decay
+
+    inv_req = 1.0 / h_max + 1.0 / h_1 + 1.0 / h_2
+    inv_eff = r * inv_req + (1.0 - r) / h_max
+    h_eff = np.clip(1.0 / inv_eff, h_min, h_max)
+    if opts['dyadic']:
+        h_eff = _dyadic_snap(h_eff, h_max)
+    return h_eff, dict(L_z=L_z, h_1=h_1, h_2=h_2, r=r, d_edge=d_edge)
+
+
+def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_scan,
+               rho_scan, L_f_scan, step_size=None, kick_interval='trailing', nsep=None,
+               **overrides):
+    """
+    Build a schedule by equidistributing 1/h_eff, so element boundaries land exactly.
+
+    phi(s) = integral of 1/h_eff. Element e then gets
+        n_e = max(ceil(phi(b_e) - phi(a_e)), ceil(L_e/h_max), 1)
+    steps, placed at equal increments of phi via inverse interpolation. Boundaries are exact by
+    construction and every count is an integer, which is what `init_statistics` needs.
+    """
+    opts = dict(AUTO_DEFAULTS)
+    opts.update({k: v for k, v in overrides.items() if v is not None})
+    if opts['h_max'] is None:
+        opts['h_max'] = float(step_size) if step_size else lattice_length / 100.0
+    if opts['h_min'] is None:
+        opts['h_min'] = lattice_length / 2.0e6
+
+    h_eff, parts = auto_step_profile(s_scan, sz_scan, rho_scan, L_f_scan,
+                                     distance, lattice_length, opts)
+
+    phi = np.concatenate([[0.0], np.cumsum(0.5 * (1.0 / h_eff[1:] + 1.0 / h_eff[:-1])
+                                          * np.diff(s_scan))])
+    distance = np.asarray(distance, float)
+    starts = np.concatenate([[0.0], distance[:-1]])
+
+    s_list = [0.0]
+    ele_list = [0]
+    spe = np.zeros(n_element, dtype=int)
+    for e in range(n_element):
+        a, b = float(starts[e]), float(distance[e])
+        pa, pb = np.interp([a, b], s_scan, phi)
+        L_e = b - a
+        n_e = int(max(math.ceil(pb - pa), math.ceil(L_e / opts['h_max']), 1))
+        targets = pa + (pb - pa) * np.arange(1, n_e + 1) / n_e
+        nodes = np.interp(targets, phi, s_scan)
+        nodes[-1] = b                      # boundary exact
+        # guard against a non-monotone node from interpolation flatness
+        prev = s_list[-1]
+        for k in range(n_e):
+            nk = max(float(nodes[k]), prev + opts['h_min'] * 1e-6)
+            if k == n_e - 1:
+                nk = b
+            s_list.append(nk)
+            ele_list.append(e)
+            prev = nk
+        spe[e] = n_e
+
+    s_nodes = np.asarray(s_list, float)
+    ele_of = np.asarray(ele_list, np.int64)
+    is_step = np.ones(s_nodes.size, bool)
+    is_step[0] = False
+    is_snap = is_step.copy()
+
+    # kicks: coarser than snapshots by kappa, snapped to snapshot nodes, forced at every boundary
+    is_kick = np.zeros(s_nodes.size, bool)
+    kick_h = opts['kappa'] * np.interp(s_nodes, s_scan, h_eff)
+    nxt = s_nodes[0]
+    for i in range(1, s_nodes.size):
+        if s_nodes[i] >= nxt or np.any(np.abs(distance - s_nodes[i]) < 1e-12):
+            is_kick[i] = True
+            nxt = s_nodes[i] + kick_h[i]
+
+    if kick_interval == 'midpoint':
+        kick_lo, kick_hi = midpoint_intervals(s_nodes, np.flatnonzero(is_kick),
+                                              distance, lattice_length)
+    else:
+        kick_lo = np.zeros(s_nodes.size)
+        kick_hi = np.zeros(s_nodes.size)
+        last = 0.0
+        for i in np.flatnonzero(is_kick):
+            kick_lo[i] = last
+            kick_hi[i] = s_nodes[i]
+            last = s_nodes[i]
+
+    sch = StepSchedule(s_nodes, ele_of, is_snap, is_kick, kick_lo, kick_hi,
+                       mode='auto', lattice_length=lattice_length,
+                       spe=spe, is_step=is_step, nsep=nsep, step_size=step_size,
+                       kick_interval=kick_interval)
+    sch.auto_opts = opts
+    sch.auto_parts = parts
+    sch.auto_h_eff = h_eff
+    sch.auto_s_scan = np.asarray(s_scan, float)
+    return sch

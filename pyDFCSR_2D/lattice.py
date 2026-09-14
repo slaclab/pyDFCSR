@@ -1,6 +1,6 @@
 import numpy as np
 
-from .schedule import build_legacy, build_manual
+from .schedule import build_legacy, build_manual, build_auto
 from .yaml_parser import parse_yaml
 
 def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
@@ -123,7 +123,7 @@ class Lattice():
     maybe install a pointer for the position of the current beam
     """
 
-    def __init__(self, input_lattice, step_control=None):
+    def __init__(self, input_lattice, step_control=None, sigma0=None):
 
         assert 'lattice_input_file' in input_lattice, 'Error in parsing lattice: must include the keyword <lattice_input_file>'
         self.lattice_input_file = input_lattice['lattice_input_file']
@@ -132,6 +132,10 @@ class Lattice():
         self.check_input(lattice_config)
         self.lattice_config = lattice_config
         self.step_control = step_control or input_lattice.get('step_control', None)
+        # initial 6x6 beam moments, needed only by mode 'auto' to run the linear-optics
+        # scan. The beam is constructed before the Lattice in CSR2D.parse_input, so it
+        # is available here.
+        self.sigma0 = sigma0
         self._Nelement = len([k for k in lattice_config if k != 'step_size'])
         self.get_ref_traj()
         self.get_steps()
@@ -179,6 +183,22 @@ class Lattice():
             self.schedule = build_legacy(self.distance, self.nsep, self.lattice_length,
                                          self.step_size, self.Nelement,
                                          kick_interval=kick_interval)
+        elif mode == 'auto':
+            if self.sigma0 is None:
+                raise ValueError("step_control mode 'auto' needs the initial beam moments; "
+                                 "they are passed from CSR2D.parse_input")
+            from .waist import propagate_var_z, formation_length_profile
+            s_scan, vz, rho = propagate_var_z(self.lattice_config, self.sigma0,
+                                              n_sub=cfg.get('n_sub', 400))
+            sz = np.sqrt(np.maximum(vz, 0.0))
+            L_f = formation_length_profile(self.lattice_config, s_scan, sz, rho)
+            self.schedule = build_auto(
+                self.lattice_config, self.distance, self.lattice_length, self.Nelement,
+                s_scan, sz, rho, L_f, step_size=self.step_size,
+                kick_interval=kick_interval, nsep=self.nsep,
+                m_steps=cfg.get('m_steps'), eps_tr=cfg.get('eps_tr'),
+                kappa=cfg.get('kappa'), h_min=cfg.get('h_min'), h_max=cfg.get('h_max'),
+                dyadic=cfg.get('dyadic'))
         elif mode == 'manual':
             self.schedule = build_manual(
                 self.lattice_config, self.distance, self.lattice_length, self.Nelement,

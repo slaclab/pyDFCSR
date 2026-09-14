@@ -56,8 +56,13 @@ class CSR2D:
         self.check_input_consistency(input)
         self.input = input
         self.beam = Beam(input['input_beam'])
-        self.lattice = Lattice(input['input_lattice'],
-                               step_control=input.get('step_control'))
+        sc = input.get('step_control') or {}
+        sigma0 = None
+        if sc.get('mode') == 'auto':
+            b = self.beam
+            sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py, b.z, b.pz)
+        self.lattice = Lattice(input['input_lattice'], step_control=sc or None,
+                               sigma0=sigma0)
 
         if 'particle_deposition' in input:
             deposition_config = input['particle_deposition']
@@ -303,6 +308,45 @@ class CSR2D:
             self._retention_short += 1
             self._retention_worst = max(self._retention_worst, have - need)
 
+    def report_schedule(self):
+        """
+        Print the realised schedule, and REFUSE up front if it will not fit in memory.
+
+        §6bb measured a chicane demanding 22-32 GB of history under uniform stepping. Failing at
+        step 0 with the number and the knob that would fix it beats an OOM kill at step 8000, and
+        the total is known before tracking precisely because the schedule is precomputed.
+        """
+        sch = getattr(self.lattice, 'schedule', None)
+        if sch is None:
+            return
+        print(sch.summary())
+        dep = self.DF_tracker
+        nx = getattr(dep, 'xbins', 0)
+        nz = getattr(dep, 'zbins', 0)
+        per = 5 * nx * nz * 8 / 1e9 if (nx and nz) else 0.0
+        plan = getattr(self, '_retention', None)
+        # worst-case retained snapshots: the deepest retention window at the finest local spacing
+        n_hold = sch.n_snap
+        if plan is not None:
+            fine = float(np.min(sch.dl[1:])) if sch.n_steps else self.lattice.step_size
+            n_hold = min(sch.n_snap, int(np.ceil(plan.max_depth / max(fine, 1e-12))) + 8)
+        gb = n_hold * per
+        budget = (self.lattice.step_control or {}).get('max_memory_gb')
+        if per:
+            print(f'  [schedule] history at most {n_hold} snapshots x {per*1e3:.2f} MB '
+                  f'= {gb:.2f} GB at {nx}x{nz} deposition')
+        if budget is not None and gb > float(budget):
+            raise MemoryError(
+                f'schedule needs up to {gb:.2f} GB of density history but max_memory_gb is '
+                f'{float(budget):.2f}. Raise h_max, raise max_memory_gb, or reduce the '
+                f'deposition grid ({nx}x{nz} costs {per*1e3:.2f} MB per snapshot).')
+        if sch.mode != 'legacy' and not self.use_comoving:
+            raise ValueError(
+                f"step_control mode '{sch.mode}' produces non-uniform snapshot times, but the "
+                f"deposition method is not 'bspline_comoving'. The legacy and bspline_fft "
+                f"interpolation paths still assume uniform times and would read the history "
+                f"with the wrong index.")
+
     def report_waists(self):
         """
         Warn, before tracking, about longitudinal waists step_size cannot resolve.
@@ -338,6 +382,7 @@ class CSR2D:
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
             self.report_waists()
+            self.report_schedule()
         self.build_retention_plan()
 
         step_count = 1

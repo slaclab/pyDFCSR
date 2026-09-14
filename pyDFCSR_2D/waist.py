@@ -181,6 +181,45 @@ def scan_waists(lattice_config, sigma0, step_size, min_steps=2.0, n_sub=2000):
                 min_steps=min_steps)
 
 
+
+def formation_length_profile(lattice_config, s, sz, rho):
+    """
+    L_f(s), mirroring CSR2D's three regimes exactly.
+
+    Shared by `retention_schedule` and the `auto` step scheduler, because a disagreement between
+    the retention floor and the step schedule about where the formation length is long would be
+    silent and confusing. The three regimes must match CSR.py or both are wrong:
+
+      before any bend       formation_length accumulates ELEMENT lengths at element entry
+                            (CSR.py:336), so it is constant within an element
+      inside a bend         (24 R^2 * 5 sigma_z)^(1/3)                 (CSR.py:157, 175)
+      drift after a bend    the same expression with the LAST bend's R (CSR.py:179)
+
+    Note the factor 5 on sigma_z; dropping it understates L_f by 5^(1/3) = 1.71.
+    """
+    keys = [k for k in lattice_config if k != 'step_size']
+    lengths = np.array([float(lattice_config[k]['L']) for k in keys])
+    edges = np.cumsum(lengths)
+    is_bend = np.array([lattice_config[k].get('type') == 'dipole'
+                        and float(lattice_config[k].get('angle', 0.0)) != 0.0 for k in keys])
+    angles = np.array([float(lattice_config[k].get('angle', 1.0)) or 1.0 for k in keys])
+    R_el = np.where(is_bend, np.abs(lengths / angles), np.nan)
+    first_bend = int(np.argmax(is_bend)) if is_bend.any() else len(keys)
+    predrift = np.cumsum(lengths)
+
+    out = np.empty_like(np.asarray(s, dtype=float))
+    R_rec = np.nan
+    for i, si in enumerate(np.asarray(s, dtype=float)):
+        j = min(int(np.searchsorted(edges, si, side='left')), len(keys) - 1)
+        if is_bend[j]:
+            R_rec = R_el[j]
+        if j < first_bend and np.isnan(R_rec):
+            out[i] = predrift[j]
+        else:
+            out[i] = (24.0 * R_rec ** 2 * 5.0 * max(float(sz[i]), 1e-30)) ** (1.0 / 3.0)
+    return out
+
+
 class RetentionPlan:
     """
     How far back the density history must reach at every point in the lattice,
@@ -270,16 +309,7 @@ def retention_schedule(lattice_config, sigma0, n_formation_length, safety=1.25,
     first_bend = int(np.argmax(is_bend)) if is_bend.any() else len(keys)
     predrift = np.cumsum(lengths)
 
-    L_f = np.empty_like(s)
-    R_rec = np.nan
-    for i, si in enumerate(s):
-        j = min(int(np.searchsorted(edges, si, side='left')), len(keys) - 1)
-        if is_bend[j]:
-            R_rec = R_el[j]
-        if j < first_bend and np.isnan(R_rec):
-            L_f[i] = predrift[j]                       # pre-first-bend accumulation
-        else:
-            L_f[i] = (24.0 * R_rec ** 2 * 5.0 * max(sz[i], 1e-30)) ** (1.0 / 3.0)
+    L_f = formation_length_profile(lattice_config, s, sz, rho)
 
     start_point = np.maximum(0.0, s - n_formation_length * safety * L_f)
     floor = np.minimum.accumulate(start_point[::-1])[::-1]   # suffix minimum

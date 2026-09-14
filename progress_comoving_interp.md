@@ -4995,6 +4995,97 @@ Per-element `steps` and `kick_every` must be stripped before the element dict re
 **Files.** `pyDFCSR_2D/schedule.py` (`build_manual`, `SCHEDULE_ELEMENT_KEYS`),
 `pyDFCSR_2D/lattice.py` (dispatch), `pyDFCSR_2D/CSR.py` (strip schedule keys).
 
+#### 11f. `auto` mode: refine on the physics ⚠️ **works; two of three constants are NOT calibrated**
+
+```yaml
+step_control:
+  mode: auto
+  kick_interval: midpoint
+  h_max: 0.05          # coarse ceiling; refine below it only where needed
+  max_memory_gb: 8     # refuse up front rather than OOM at step 8000
+```
+
+##### The criteria
+
+Four drivers, three terms -- because "the beam varies fast" and "the wake varies fast" are the
+**same curve**: the 1D steady-state wake goes as `W ~ Q/(R^(2/3) sigma_z^(4/3))`, so
+`d ln W/ds = -(4/3) d ln sigma_z/ds`.
+
+```
+  L_z  = sz / sqrt( (dsz/ds)^2 + sz*|d2sz/ds2| )      h_1 = L_z / m_steps
+  h_2  = eps_tr * max(L_f, |s - nearest edge|)
+  r    = clip(W/W_max,0,1) * exp(-d_since_bend / L_f)      the RELEVANCE that permits coarsening
+  1/h_req = 1/h_max + 1/h_1 + 1/h_2
+  1/h_eff = r/h_req + (1-r)/h_max ,  clipped, then snapped DOWN to h_max/2^j
+```
+
+`L_z`'s second term is not decoration. A plain `sz/|dsz/ds|` criterion **divides by zero at a
+waist minimum** -- exactly where the finest steps are needed, since `dsz/ds` vanishes there. `L_z`
+reduces to `sz/|sz'|` on the slopes and to the waist half-width `sqrt(sz/sz'')` at the minimum, so
+it matches `waist_width` to O(1) and inherits §6x's `m_steps` calibration.
+
+Terms are combined **reciprocally** rather than by `min()`, so `h_eff` is smooth -- a `min()` has
+kinks and the equidistribution integrator below would chase them. Nodes are then placed by
+equidistributing `phi = integral of 1/h_eff`, per element, so **boundaries land exactly** and every
+count is an integer, which is what `init_statistics` requires.
+
+##### It does what it was built to do
+
+The §6x waist: `s = 0.400 m`, width 2.394 mm, calibrated requirement >= 2 steps across.
+
+```
+  configuration        snaps   kicks   h coarse   h @waist  across  meets
+  uniform h=0.05          37      37    0.05000    0.05000    0.05     no
+  uniform h=0.001       1850    1850    0.00100    0.00100    2.39    YES
+  auto h_max=0.05         76       9    0.05000    0.00103    2.32    YES
+```
+
+**`auto` resolves the waist with 24.3x fewer snapshots than uniform fine stepping, and 206x fewer
+kicks.** Since kicks cost ~5-7 s each and snapshots ~0.08 s + 0.7 MB, that is the run-time and the
+memory win simultaneously -- the whole point of separating the two grids. Realised step ratio
+h_max/h_min = 48.5.
+
+##### Refusals, verified to fire
+
+Both fail **before tracking**, since a precomputed schedule knows its own cost:
+
+```
+  max_memory_gb exceeded ->
+    schedule needs up to 0.05 GB of density history but max_memory_gb is 0.00. Raise h_max,
+    raise max_memory_gb, or reduce the deposition grid (128x128 costs 0.66 MB per snapshot).
+
+  non-uniform schedule + non-comoving deposition ->
+    step_control mode 'auto' produces non-uniform snapshot times, but the deposition method is
+    not 'bspline_comoving'. The legacy and bspline_fft interpolation paths still assume uniform
+    times and would read the history with the wrong index.
+```
+
+That second guard is required by the §11c scope decision to leave the legacy and `bspline_fft`
+lookup sites on the uniform-only path.
+
+##### What is NOT yet trustworthy
+
+`m_steps = 2.0` inherits §6x's calibration, which was measured against wake convergence. **`eps_tr`
+(bend-edge refinement) and `kappa` (kick sparsity) are first estimates and have been calibrated
+against nothing.** They are exposed in the config precisely so that can be fixed. Calibrating them
+the way §6x calibrated `min_steps` -- refine, measure the wake, find the knee -- is a measured
+campaign and is the honest remaining work before `auto` should be recommended over `manual`.
+
+`L_f` is now shared with the retention floor through `waist.formation_length_profile`, so the step
+schedule and the history retention cannot disagree about where the formation length is long.
+
+##### Default untouched
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  default (legacy) cached wake cut: max |diff| = 0.000e+00
+```
+
+**Files.** `pyDFCSR_2D/schedule.py` (`build_auto`, `auto_step_profile`, `_dyadic_snap`,
+`AUTO_DEFAULTS`), `pyDFCSR_2D/waist.py` (`formation_length_profile` factored out and shared),
+`pyDFCSR_2D/lattice.py` (auto dispatch, `sigma0`), `pyDFCSR_2D/CSR.py` (`report_schedule` with the
+budget refusal and the deposition-method guard).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
