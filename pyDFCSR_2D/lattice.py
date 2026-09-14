@@ -196,8 +196,9 @@ class Lattice():
                 self.lattice_config, self.distance, self.lattice_length, self.Nelement,
                 s_scan, sz, rho, L_f, step_size=self.step_size,
                 kick_interval=kick_interval, nsep=self.nsep,
-                m_steps=cfg.get('m_steps'), eps_tr=cfg.get('eps_tr'),
+                m_steps=cfg.get('m_steps'), edge_steps=cfg.get('edge_steps'),
                 kappa=cfg.get('kappa'), h_min=cfg.get('h_min'), h_max=cfg.get('h_max'),
+                r_floor=cfg.get('r_floor'),
                 dyadic=cfg.get('dyadic'))
         elif mode == 'manual':
             self.schedule = build_manual(

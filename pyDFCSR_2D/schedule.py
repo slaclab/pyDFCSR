@@ -401,28 +401,36 @@ def build_manual(lattice_config, distance, lattice_length, n_element,
 # ---------------------------------------------------------------------------------------------
 AUTO_DEFAULTS = dict(
     m_steps=2.0,        # steps across the longitudinal scale L_z; from §6x
-    eps_tr=0.25,        # fraction of a formation length near a bend edge; PROVISIONAL
+    edge_steps=20.0,    # steps across a formation length at a bend edge; PROVISIONAL
     kappa=8.0,          # kick spacing as a multiple of the snapshot spacing; PROVISIONAL
     h_min=None,         # hard floor; defaults to lattice_length / 2e6
     h_max=None,         # hard ceiling; defaults to step_size
     dyadic=True,        # snap step sizes to h_max / 2^j
+    r_floor=1e-3,       # relevance below this counts as zero: do not refine at all
 )
 
 
-def _dyadic_snap(h, h_max):
+def _dyadic_snap(h, h_max, tol=0.01):
     """
-    Snap DOWN to h_max / 2^j.
+    Snap DOWN to h_max / 2^j, with a tolerance so a near-rung value stays on its rung.
 
     Quantizing to a dyadic ladder is what makes the realised schedule piecewise uniform in long
     stretches, which keeps the history's segment structure simple, gives integer step counts per
     element for free, and makes a single-rung schedule reduce to the uniform case exactly.
+
+    The tolerance is not cosmetic. Without it, an h a hair below a rung snaps a full factor of 2
+    finer: measured, a relevance of exp(-2.8/0.18) ~ 1e-7 in a far drift was enough to put h_eff
+    just under h_max and cost a uniform 2x over-refinement across the whole drift, for nothing.
     """
     h = np.asarray(h, dtype=np.float64)
-    j = np.ceil(np.log2(np.maximum(h_max / np.maximum(h, 1e-300), 1.0)))
+    ratio = np.maximum(h_max / np.maximum(h, 1e-300), 1.0)
+    j = np.ceil(np.log2(ratio) - np.log2(1.0 + tol))
+    j = np.maximum(j, 0.0)
     return h_max / np.power(2.0, j)
 
 
-def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts):
+def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
+                      bend_edges=None, bend_R=None):
     """
     The local required step h_eff(s), and the pieces that made it, for reporting.
 
@@ -459,11 +467,38 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts):
     L_z = sz / np.sqrt(d1 ** 2 + sz * np.abs(d2) + 1e-300)
     h_1 = np.maximum(L_z / opts['m_steps'], h_min)
 
-    # distance to the nearest element edge that is a bend edge
-    edges = np.concatenate([[0.0], np.asarray(distance, float)])
-    d_edge = np.min(np.abs(s[:, None] - edges[None, :]), axis=1)
-    h_2 = opts['eps_tr'] * np.maximum(L_f, d_edge)
-    h_2 = np.maximum(h_2, h_min)
+    # Distance to the nearest BEND edge -- not to any element boundary. A drift-drift junction
+    # has no transient and must not attract refinement.
+    if bend_edges is None or len(bend_edges) == 0:
+        d_edge = np.full_like(s, np.inf)
+        L_f_edge = np.maximum(L_f, h_min)
+    else:
+        be = np.asarray(bend_edges, float)
+        dmat = np.abs(s[:, None] - be[None, :])
+        near = np.argmin(dmat, axis=1)
+        d_edge = dmat[np.arange(s.size), near]
+        # The transient scale belongs to the BEND, not to the upstream drift. L_f as passed in
+        # follows CSR2D's convention, where in the pre-first-bend drift it is the ACCUMULATED
+        # DRIFT LENGTH -- 0.35 m for a 0.35 m drift. Using that as the decay scale made
+        # exp(-d_edge/L_f) ~ 0.5 across the entire drift, so the whole drift was refined uniformly
+        # and there was no differential at the edge at all (measured). Recompute it from the
+        # nearest bend's radius instead: L_f = (24 R^2 * 5 sigma_z)^(1/3).
+        Rn = np.asarray(bend_R, float)[near]
+        L_f_edge = np.maximum((24.0 * Rn ** 2 * 5.0 * np.maximum(sz, 1e-30)) ** (1.0 / 3.0),
+                              h_min)
+
+    # Steps across the transient. This is a DIVISOR, not a fraction: the CSR wake turns on over a
+    # formation length, so the requirement at the edge is L_f/edge_steps. The first version used
+    # `eps_tr * max(L_f, d_edge)` with eps_tr = 0.25, which at L_f ~ 0.4 m gives h_2 = 0.1 m --
+    # COARSER than h_max, so it could only ever relax the step and never refine it. Measured: the
+    # dipole exit got no refinement at all.
+    #
+    # max(L_f, d_edge) then relaxes the requirement linearly once further from the edge than a
+    # formation length, which is geometric refinement: a handful of steps near the edge rather than
+    # a uniformly fine window across the whole L_f.
+    h_2 = np.where(np.isfinite(d_edge),
+                   np.maximum(np.maximum(L_f_edge, d_edge) / opts['edge_steps'], h_min),
+                   h_max)
 
     # relevance: wake magnitude proxy, damped by distance since the last bend
     inbend = np.abs(rho) > 0.0
@@ -483,14 +518,29 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts):
         W_carry[i] = w_last
     Wmax = W_carry.max() if W_carry.max() > 0 else 1.0
     decay = np.exp(-d_since / np.maximum(L_f, 1e-12))
-    r = np.clip(W_carry / Wmax, 0.0, 1.0) * decay
+    r_wake = np.clip(W_carry / Wmax, 0.0, 1.0) * decay
+
+    # Proximity to a bend edge is its OWN relevance, on both sides. The first version used only
+    # r_wake, which is zero in the drift BEFORE any bend (no wake has been generated yet), and
+    # since r multiplies the whole refinement term that switched off h_2 as well -- so the
+    # approach to the first dipole entrance stayed at h_max right up to the boundary. Measured:
+    # no upstream refinement at all. Relevance must mean "something is about to happen here" as
+    # well as "something just happened here".
+    r_edge = np.where(np.isfinite(d_edge),
+                      np.exp(-d_edge / L_f_edge), 0.0)
+    r = np.clip(np.maximum(r_wake, r_edge), 0.0, 1.0)
+    # A negligible relevance must mean NO refinement, not a little. Left unfloored, an r of 1e-7
+    # still pushes h_eff below h_max and the dyadic snap then charges a full factor of 2.
+    r = np.where(r < opts['r_floor'], 0.0, r)
 
     inv_req = 1.0 / h_max + 1.0 / h_1 + 1.0 / h_2
     inv_eff = r * inv_req + (1.0 - r) / h_max
     h_eff = np.clip(1.0 / inv_eff, h_min, h_max)
     if opts['dyadic']:
         h_eff = _dyadic_snap(h_eff, h_max)
-    return h_eff, dict(L_z=L_z, h_1=h_1, h_2=h_2, r=r, d_edge=d_edge)
+    h_eff = np.where(r <= 0.0, h_max, h_eff)     # irrelevant regions get the ceiling exactly
+    return h_eff, dict(L_z=L_z, h_1=h_1, h_2=h_2, r=r, d_edge=d_edge,
+                       L_f_edge=L_f_edge, r_edge=r_edge, r_wake=r_wake)
 
 
 def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_scan,
@@ -511,8 +561,22 @@ def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_s
     if opts['h_min'] is None:
         opts['h_min'] = lattice_length / 2.0e6
 
+    # bend edges only: entrance and exit s of every element that actually bends
+    ele_keys = [k for k in lattice_config if k != 'step_size']
+    lens = np.array([float(lattice_config[k]['L']) for k in ele_keys])
+    ends = np.cumsum(lens)
+    starts = np.concatenate([[0.0], ends[:-1]])
+    bend_edges, bend_R = [], []
+    for e, k in enumerate(ele_keys):
+        cfgk = lattice_config[k]
+        if cfgk.get('type') == 'dipole' and float(cfgk.get('angle', 0.0)) != 0.0:
+            Re = abs(float(lens[e]) / float(cfgk['angle']))
+            bend_edges += [float(starts[e]), float(ends[e])]
+            bend_R += [Re, Re]
+
     h_eff, parts = auto_step_profile(s_scan, sz_scan, rho_scan, L_f_scan,
-                                     distance, lattice_length, opts)
+                                     distance, lattice_length, opts,
+                                     bend_edges=bend_edges, bend_R=bend_R)
 
     phi = np.concatenate([[0.0], np.cumsum(0.5 * (1.0 / h_eff[1:] + 1.0 / h_eff[:-1])
                                           * np.diff(s_scan))])

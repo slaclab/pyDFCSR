@@ -5086,6 +5086,100 @@ schedule and the history retention cannot disagree about where the formation len
 `pyDFCSR_2D/lattice.py` (auto dispatch, `sigma0`), `pyDFCSR_2D/CSR.py` (`report_schedule` with the
 budget refusal and the deposition-method guard).
 
+#### 11g. The transient and coarsening terms were implemented but did not work (2026-09-14) ✅ **three bugs, found by measuring**
+
+§11f shipped `h_2` (bend transient) and `r` (relevance, permitting coarsening) and asserted they
+worked. They did not. Profiling the realised step size by region on a drift/dipole/drift lattice:
+
+```
+  region                                median h   vs h_max
+  drift, approaching the entrance        (none)              <- coarse right up to the edge
+  within 20 mm of entrance               0.05000     1.00x   <- NO upstream refinement at all
+  within 20 mm of exit                   0.02473     0.49x   <- same as the far drift: nothing
+```
+
+##### Bug 1: relevance switched off the very refinement it was meant to gate
+
+`r` multiplies the whole refinement term, and `r_wake` is **zero in the drift before any bend** --
+no wake has been generated yet. So `h_2` was switched off too, and the approach to the first
+dipole entrance stayed at `h_max` right up to the boundary. Relevance has to mean "something is
+about to happen here" as well as "something just happened here":
+
+```
+  r_edge = exp(-d_edge / L_f_edge)         r = max(r_wake, r_edge)
+```
+
+##### Bug 2: `eps_tr` was a fraction where a divisor was needed
+
+`h_2 = eps_tr * max(L_f, d_edge)` with `eps_tr = 0.25` and `L_f ~ 0.4 m` gives `h_2 = 0.1 m` --
+**coarser than `h_max`**, so the term could only ever relax the step, never refine it. The wake
+turns on over a formation length, so the requirement at an edge is `L_f/edge_steps`. Replaced by
+`h_2 = max(L_f_edge, d_edge) / edge_steps`, `edge_steps = 20`, which also relaxes linearly once
+further from the edge than a formation length -- geometric refinement rather than a uniformly fine
+window.
+
+##### Bug 3: the transient scale was taken from the upstream drift, not the bend
+
+`L_f` as CSR2D defines it is the **accumulated drift length** in the pre-first-bend drift (§6aa) --
+0.35 m for a 0.35 m drift. Using that as the decay scale made `exp(-d_edge/L_f) ~ 0.5` across the
+*entire* drift, so everything was refined uniformly and there was still no differential at the
+edge. The transient scale belongs to the bend, so it is now recomputed from the nearest bend's
+radius: `L_f_edge = (24 R_near^2 * 5 sigma_z)^(1/3)`.
+
+##### And a fourth, found while checking the fix
+
+The far drift sat at `0.50x h_max` rather than `1.00x`. An infinitesimal relevance --
+`exp(-2.8/0.18) ~ 1e-7` -- put `h_eff` a hair below `h_max`, and the dyadic snap then charged a
+**full factor of 2** across the whole drift for nothing. Fixed with `r_floor = 1e-3` (negligible
+relevance means no refinement, not a little) plus a 1 % tolerance in `_dyadic_snap` so a near-rung
+value stays on its rung. That alone removed 68 wasted snapshots of 376.
+
+##### Result, on drift 3.0 / dipole 1.0 / drift 3.0 with h_max = 0.05
+
+```
+  region                                median h   vs h_max
+  drift, FAR before the bend             0.04994     1.00x
+  drift, one L_f before the entrance     0.00624     0.12x
+  just inside the entrance               0.00310     0.06x
+  dipole body / approaching the exit     0.01240     0.25x
+  drift, FAR after the bend              0.04976     1.00x
+```
+
+All three requested behaviours now hold: finer entering the dipole, finer at the exit, and full
+`h_max` in a drift far from any bend.
+
+##### Why the exit looks less refined, and why that is correct
+
+```
+  edge                        L_f there   h there   steps across L_f   meets (>=20)
+  entrance 3.00 (inside)         0.1687   0.00310               54.4   YES
+  exit 4.00 (inside)             0.4555   0.01240               36.7   YES
+  exit 4.00 (just outside)       0.4565   0.01244               36.7   YES
+```
+
+The exit's step is 4x coarser than the entrance's only because `L_f` is **2.7x larger** there --
+`sigma_z` has grown through the bend, so the transient is physically spread out and the same number
+of steps spans it with a coarser step. **The criterion is what must hold, not the step size**, and
+it holds at both edges with margin.
+
+##### Lesson
+
+§11f asserted these terms worked on the strength of having written them. Three of the four bugs
+would have shipped invisibly, because the schedule still *looked* plausible -- it refined
+somewhere, produced integer counts and passed every existing test. Only profiling `h` against `s`
+by region exposed them. Any future refinement criterion needs the same treatment before it is
+believed.
+
+##### Default untouched
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  default (legacy) cached wake cut: max |diff| = 0.000e+00
+```
+
+**Files.** `pyDFCSR_2D/schedule.py` (`auto_step_profile`, `_dyadic_snap`, `AUTO_DEFAULTS`:
+`eps_tr` -> `edge_steps`, new `r_floor`), `pyDFCSR_2D/lattice.py` (config pass-through).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
