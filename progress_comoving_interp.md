@@ -4503,6 +4503,27 @@ uncapped.
 
 #### Why the lookup cost turned out not to matter
 
+Measured directly on a full production-size mesh (10x30 wake points,
+`CSR_integration` 100x100), rather than extrapolated:
+
+```
+  wall time  : 4.85 s
+  lookups    : 32,298,835   (107,663 per wake point)
+
+  uniform  (today, 0.74 ns)      lookup total  0.024 s =  0.49% of the mesh
+  hybrid non-uniform (3.5 ns)    lookup total  0.113 s =  2.33% of the mesh
+
+  0.74 -> 3.5 ns adds 0.089 s to a 4.85 s mesh = +1.84%,  total x1.018, NOT x4.7
+```
+
+**A 4.7x slowdown on the lookup is a 1.8x *percent* slowdown on the run**, because the lookup is
+0.49% of the work. 32 million lookups come to 24 ms; the 160-tap B-spline evaluation that
+follows each one is ~50x more expensive than finding the index. And with the hybrid, uniform
+histories -- every run today -- pay **nothing**, since they keep the exact current expression.
+
+Set against §6bb's 22-32 GB versus 0.15 GB for a chicane, ~2% wall time buys a run that fits in
+memory at all.
+
 Instrumented in a real run: `interpolate3D_comoving_fields` receives query arrays of median
 **34 200** entries, ~6 calls per wake point, so a 21x51 mesh is **~2.2e8 lookups**. The
 uniform-to-non-uniform delta of ~2.3 ns is therefore **~0.5 s against a 30-40 s wake mesh,
