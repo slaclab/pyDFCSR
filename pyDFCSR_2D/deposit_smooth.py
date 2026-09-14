@@ -281,9 +281,12 @@ class DF_tracker_smooth:
             self.poly_coeffs_log.popleft()
             self.start_time = self.time_log[0]
 
-    def append_interpolant(self, formation_length, n_formation_length):
+    def append_interpolant(self, formation_length, n_formation_length,
+                           min_start_time=None):
         """Truncate history and build interpolant. No re-gridding needed."""
         start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
+        if min_start_time is not None:
+            start_point = min(start_point, float(min_start_time))
         self.pop_left_DF(new_start_time=start_point)
         self.build_interpolant()
 
@@ -364,6 +367,24 @@ class DF_tracker_comoving:
         self.sigma_z_log = deque([])
         self.poly_coeffs_log = deque([])
         self.clipped_log = deque([])
+
+        # ---- ring buffer for the five large field arrays -------------------------
+        # The deque only changes by one append and a few poplefts per step, but
+        # build_interpolant used to rebuild the whole stack with
+        # np.array([e[k] for e in DF_log]) -- O(N) copying for an O(1) change, every
+        # step. Since N is bounded by the history window n_fl*L_f/step_size, total
+        # cost went as (1/step_size)^2, and allocating a fresh 164 MB set of arrays
+        # every step drove peak RSS to 8.75 GB at 200^2, which is what blocked the
+        # fine stepping 6x showed is needed at a waist.
+        #
+        # Storage is preallocated and written one slice at a time. The live region is
+        # kept CONTIGUOUS (compacted when the cursor reaches the end) rather than
+        # wrapping modularly, so the interpolant is a zero-copy VIEW and
+        # interpolate3D_comoving_fields needs no change at all.
+        self._ring = None            # (NFIELD, cap, xbins, zbins)
+        self._ring_head = 0          # one past the newest live slice
+        self._ring_tail = 0          # index of the oldest live slice
+        self._ring_cap0 = 64         # grows by doubling; L_f is not known this early
 
         # The normalized grid, fixed once and shared by every snapshot.
         # Registration matches histogram_bspline_2d: nodes sit at BIN CENTRES,
@@ -523,10 +544,60 @@ class DF_tracker_comoving:
         self.delta_xi_phys = self.delta_u * sigma_xi
         self.delta_z_phys = self.delta_w * sigma_z
 
+    NFIELD = 5      # density, density_u, density_w, vx, vx_u
+
+    def _ring_push(self, fields):
+        """
+        Write one snapshot's five field arrays into the ring. O(1) amortised.
+
+        Compaction (not modular wrapping) keeps the live region contiguous, which is
+        what lets build_interpolant hand out a view instead of a copy. The memmove
+        costs O(n) but runs only once per (cap - n) pushes.
+        """
+        nx, nz = fields[0].shape
+        if self._ring is None:
+            self._ring = np.empty((self.NFIELD, self._ring_cap0, nx, nz))
+            self._ring_head = self._ring_tail = 0
+        assert self._ring.shape[2:] == (nx, nz), (
+            f'snapshot grid changed from {self._ring.shape[2:]} to {(nx, nz)}; the '
+            f'co-moving normalized grid is supposed to be fixed for all time')
+
+        cap = self._ring.shape[1]
+        n = self._ring_head - self._ring_tail
+        # Shrink is tested on EVERY push, not only when the cursor reaches the end.
+        # The history grows deep during the pre-first-bend drift, where
+        # formation_length is an accumulated drift length and nothing is truncated,
+        # then collapses once a bend sets L_f from sigma_z. Checking only at
+        # compaction meant the cursor needed cap - n further pushes to notice, which
+        # is more than a short run has: the buffer sat at 1.64 GB for 251 live slices
+        # needing 0.40 GB. After shrinking, cap = 2n, so the condition is immediately
+        # false again and this cannot thrash.
+        target = None
+        if self._ring_head == cap:
+            target = 2 * cap if 2 * n > cap else cap
+        elif cap > self._ring_cap0 and 4 * n < cap:
+            target = max(self._ring_cap0, 2 * n)
+
+        if target is not None:
+            if target != cap:
+                resized = np.empty((self.NFIELD, target, nx, nz))
+                resized[:, :n] = self._ring[:, self._ring_tail:self._ring_head]
+                self._ring = resized
+            else:
+                self._ring[:, :n] = self._ring[:, self._ring_tail:self._ring_head]
+            self._ring_tail, self._ring_head = 0, n
+
+        for k in range(self.NFIELD):
+            self._ring[k, self._ring_head] = fields[k]
+        self._ring_head += 1
+
     def append_DF(self):
-        self.DF_log.append((
-            self.density, self.density_u, self.density_w, self.vx, self.vx_u,
-            self.poly_coeffs, self.xi_bar, self.sigma_xi, self.z_bar, self.sigma_z))
+        self._ring_push((self.density, self.density_u, self.density_w,
+                         self.vx, self.vx_u))
+        # the small per-snapshot scalars stay in a deque: N * ~6 floats is free, and
+        # keeping them here avoids duplicating the popleft bookkeeping
+        self.DF_log.append((self.poly_coeffs, self.xi_bar, self.sigma_xi,
+                            self.z_bar, self.sigma_z))
         self.time_log.append(self.t)
         self.sigma_xi_log.append(self.sigma_xi)
         self.sigma_z_log.append(self.sigma_z)
@@ -537,6 +608,7 @@ class DF_tracker_comoving:
     def pop_left_DF(self, new_start_time):
         while self.start_time < new_start_time:
             self.DF_log.popleft()
+            self._ring_tail += 1        # must stay in lockstep with DF_log
             self.time_log.popleft()
             self.sigma_xi_log.popleft()
             self.sigma_z_log.popleft()
@@ -544,8 +616,11 @@ class DF_tracker_comoving:
             self.clipped_log.popleft()
             self.start_time = self.time_log[0]
 
-    def append_interpolant(self, formation_length, n_formation_length):
+    def append_interpolant(self, formation_length, n_formation_length,
+                           min_start_time=None):
         start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
+        if min_start_time is not None:
+            start_point = min(start_point, float(min_start_time))
         self.pop_left_DF(new_start_time=start_point)
         self.build_interpolant()
 
@@ -562,17 +637,23 @@ class DF_tracker_comoving:
         self.max_x = times[-1]
         self.delta_x = (self.max_x - self.min_x) / (n_t - 1) if n_t > 1 else 1.0
 
-        self.data_density_interp = np.array([e[0] for e in self.DF_log])
-        self.data_density_u_interp = np.array([e[1] for e in self.DF_log])
-        self.data_density_w_interp = np.array([e[2] for e in self.DF_log])
-        self.data_vx_interp = np.array([e[3] for e in self.DF_log])
-        self.data_vx_u_interp = np.array([e[4] for e in self.DF_log])
+        # Zero-copy views into the ring. A slice along the outermost axis of a
+        # C-contiguous array is itself C-contiguous, so Numba sees exactly the same
+        # array layout it saw when these were freshly stacked every step.
+        lo, hi = self._ring_tail, self._ring_head
+        assert hi - lo == n_t, (f'ring holds {hi - lo} slices but DF_log has {n_t}; '
+                                f'the popleft bookkeeping is out of lockstep')
+        self.data_density_interp = self._ring[0, lo:hi]
+        self.data_density_u_interp = self._ring[1, lo:hi]
+        self.data_density_w_interp = self._ring[2, lo:hi]
+        self.data_vx_interp = self._ring[3, lo:hi]
+        self.data_vx_u_interp = self._ring[4, lo:hi]
 
-        self.poly_coeffs_interp = np.array([e[5] for e in self.DF_log])
-        self.xi_bar_arr = np.array([e[6] for e in self.DF_log])
-        self.sigma_xi_arr = np.array([e[7] for e in self.DF_log])
-        self.z_bar_arr = np.array([e[8] for e in self.DF_log])
-        self.sigma_z_arr = np.array([e[9] for e in self.DF_log])
+        self.poly_coeffs_interp = np.array([e[0] for e in self.DF_log])
+        self.xi_bar_arr = np.array([e[1] for e in self.DF_log])
+        self.sigma_xi_arr = np.array([e[2] for e in self.DF_log])
+        self.z_bar_arr = np.array([e[3] for e in self.DF_log])
+        self.sigma_z_arr = np.array([e[4] for e in self.DF_log])
         self._build_moment_arrays()
 
     def _build_moment_arrays(self):

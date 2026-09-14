@@ -3838,6 +3838,176 @@ been worse than crashing. The check now runs before tracking, and the control us
 
 **Files.** `pyDFCSR_2D/test/test_waist_wake_xz.py` (new).
 
+#### 6z. Ring-buffer history storage (2026-09-13) ✅ **bitwise identical, 2.6x faster, peak RSS 8.75 -> 3.78 GB**
+
+##### What was wrong, in one paragraph
+
+Each step appends one snapshot to the history and pops a few off the far end. But
+`build_interpolant` rebuilt the entire stack every step with
+`np.array([e[k] for e in DF_log])` for five 128x128 field arrays -- **O(N) copying for an
+O(1) change**. Since N is bounded by the history window `n_fl*L_f/step_size`, total cost went
+as `(1/step_size)^2`, and allocating a fresh 164 MB set of arrays 750 times is what drove
+peak RSS to 8.75 GB. That memory ceiling, not the arithmetic, is what blocked the fine
+stepping §6x showed a waist needs.
+
+The fix is to allocate once and write one slice per step. The subtlety is that
+`interpolate3D_comoving_fields` needs a **contiguous** array, so instead of a textbook
+circular buffer (which wraps modularly and can split the live region across the array end)
+the live region is kept contiguous by **compaction**: when the write cursor reaches the end
+of the array, the live slices are slid back to the front, reclaiming the space vacated by
+popping. That costs O(n) but only once every `cap - n` pushes, so it is amortised O(1) -- and
+the interpolant becomes a zero-copy **view**, `self._ring[k, tail:head]`, so `interp3D`
+needed no change whatsoever.
+
+##### Measured
+
+Isolated benchmark at 251 snapshots x 5 fields x 128^2 (164.5 MB of live history):
+
+```
+  re-stack whole deque (old) :  8.04 ms/call, copies 164.5 MB
+  ring-buffer append (new)   :  0.01 ms/call, copies   0.655 MB   -> 722x
+```
+
+End to end, and the correctness check that matters:
+
+```
+                                     before      after   wake
+  0.003 rung, 52 snapshots            9.9 s      8.2 s   bitwise identical
+  0.0006 rung, 251 snapshots, 128^2  77.9 s     29.5 s   bitwise identical
+  200^2 deposition, tracking only    73.1 s     39.8 s
+  peak RSS at 200^2                 8.75 GB    3.78 GB
+```
+
+**Bitwise identical** (`max |diff| = 0.000e+00`) against the pre-refactor cached cuts at two
+step sizes. For a pure storage refactor anything else would have been a bug.
+
+Resize behaviour over the 750-step run: 6 events, 1212 slices copied in total, i.e. **1.62
+slices per push** against the old code's ~250.
+
+##### One thing this exposed
+
+The buffer grew 64 -> 1024 during the pre-first-bend drift (where nothing is ever truncated,
+so N reaches 584) and then kept that capacity after the live set collapsed to 251 -- 1.64 GB
+held for 0.40 GB of data. Fixed by testing the shrink condition on **every** push rather than
+only at compaction; checking only at compaction meant the cursor needed `cap - n` further
+pushes to notice, which is more than a short run has. Capacity now settles at 504 rather
+than 1024.
+
+**Files.** `pyDFCSR_2D/deposit_smooth.py` (`DF_tracker_comoving._ring_push`, `append_DF`,
+`pop_left_DF`, `build_interpolant`). `DF_tracker_smooth` deliberately left alone: it is not
+the active path and stores per-snapshot grid metadata that would need its own identity check.
+
+#### 6aa. Precomputed retention floor: the history truncation assumed monotonic sigma_z (2026-09-13) ✅ **author-identified design bug, now fixed**
+
+##### The bug, in plain terms
+
+The retained history is `[end_time - n_fl*L_f, end_time]`, enforced by `pop_left_DF`, which
+**only ever pops**. With `L_f = (24 R^2 * 5 sigma_z)^(1/3)` that is safe exactly as long as
+`sigma_z` decreases monotonically -- then the required window shrinks monotonically too and
+popping never discards anything that will be wanted again. **That was the assumption the
+original design was built on** (confirmed by the author).
+
+A longitudinal waist breaks it: `sigma_z` decreases and then **increases**. `L_f` collapses
+and recovers with it, so the required start time moves *backwards* to where snapshots have
+already been thrown away. The retained depth ends up set by the **minimum `L_f` ever seen**,
+not the current one. Measured at shear 20, drift 0.35 m:
+
+```
+      s sigma_z/um      L_f  start_pt  ratchet     n
+ 0.3498     50.000  0.35000   0.00000  0.00000   584   drift: L_f = accumulated distance
+ 0.4002      2.517  0.06710   0.29956  0.29956   168   <-- waist: L_f minimum
+ 0.4500     50.084  0.18181   0.17728  0.29956   251   wants 0.1773, has 0.2996
+```
+
+The left edge is a **ratchet** -- the running maximum of `start_point` -- and it is stuck at
+0.29956 while the integration asks for 0.17728, a **0.1227 m / 45 % shortfall**. What makes
+this easy to miss is that `n` is still *increasing* through phase 3 (168 -> 251): the window
+grows at the right edge from new snapshots while the left edge stays frozen.
+
+And it fails **silently**: `interpolate3D_comoving_fields` clamps `k` to 0 and substitutes
+the oldest surviving snapshot with no warning -- exactly the "fall back to the nearest
+snapshot" behaviour §6n's plan explicitly ruled out.
+
+##### The fix: a suffix minimum, precomputed
+
+The quantity that must be retained at `s` is not `start_point(s)` but
+
+```
+    floor(s) = min over all s' >= s of start_point(s')
+```
+
+the oldest time any **future** step will still ask for. `floor` is non-decreasing by
+construction, so retaining back to it is both correct (nothing needed later is discarded) and
+minimal (nothing is kept that will not be used). It is a suffix minimum over the whole
+lattice, so it needs `sigma_z(s)` **in advance** -- which §6w's `propagate_var_z` already
+supplies from linear transport before any particle moves. One precomputation now serves three
+purposes: the waist warning (§6w), the retention floor, and a reportable memory ceiling.
+
+The schedule mirrors all three of `CSR2D`'s formation-length regimes, which it must or the
+floor is wrong: pre-first-bend accumulation of **element** lengths (CSR.py:336), the in-bend
+expression, and the after-bend drift using the last bend's R (CSR.py:179). Including the
+factor 5 on `sigma_z` -- dropping it would understate `L_f` by 5^(1/3) = 1.71.
+
+##### It predicts the tracked values almost exactly
+
+```
+              L_f predicted   L_f measured
+  s = 0.3498       0.35000        0.35000
+  s = 0.4003       0.06715        0.06710      (the waist)
+  s = 0.4500       0.18181        0.18181
+```
+
+##### Result in a real run
+
+```
+  [retention] precomputed floor: max depth 0.8559 m -> 1435 snapshots at step 0.0006
+  history [0.0594, 0.4500], 652 snapshots      (ratchet gave [0.3000, 0.4500], 251)
+  needs back to 0.1773, retained to 0.0594  -> shortfall 0.0000 m  (was 0.1227)
+  shortfall steps flagged during the run: 0
+  wake rel L2 vs the ratchet result: 0.000016
+  wall 32.0 s (was 31.8 s), peak RSS 1.99 GB
+```
+
+**The correctness fix costs 0.2 s.** 2.6x more snapshots is essentially free *because* of
+§6z -- pre-ring-buffer, 652 snapshots would have paid O(N) re-stacking every step. The two
+changes are coupled: the storage fix is what makes the correctness fix affordable.
+
+##### Honest accounting of the impact
+
+The wake moves by **1.6e-5**. This is a real design bug with, at this configuration, almost
+no numerical consequence -- consistent with an independent check that never popping at all
+(751 snapshots, 3x memory) also changed the wake by 2e-5. The reason is the same one §6v
+found: the missing history lies in the far tail where `1/|r - r'|` has already damped the
+integrand, and §6t's `_layout_bounds` region (`d ~ 99 mm`) is much smaller than the nominal
+reach (`n_fl*L_f = 273 mm`). So this was fixed on correctness grounds, not because it was
+distorting present results, and nothing guarantees the impact stays at 1e-5 for a stronger
+waist, a larger `n_formation_length`, or a lattice where the effective region is closer to
+the nominal reach.
+
+##### Guards, because the plan is only linear optics
+
+No CSR, no space charge. `L_f ~ sigma_z^(1/3)` is forgiving -- a factor 2 error in `sigma_z`
+is 26 % in `L_f` -- and `safety = 1.25` widens it further. But it is still a prediction, so
+`_check_retention` compares the **actual** requirement against what survived at **every**
+step and counts shortfalls; the run above reports 0. Precomputation must not become a silent
+assumption, and the specific thing being guarded is the silent clamp in `interp3D`.
+Precomputation failure is non-fatal and restores the previous instantaneous behaviour exactly.
+
+`max_snapshots` is **reported, not preallocated**: the lattice-wide maximum (1435 at step
+0.0006) exceeds what a partial run needs (652 here), so allocating it up front would waste
+memory. Growth by doubling adapts; the number is printed so the ceiling is known in advance.
+
+##### Regressions
+
+`test_two_branch_bands` baselines **unchanged** at 1.06497 / 0.39062; 18 tests pass. The
+§6x cached ladder cuts are now stale by 1.6e-5, far below the 0.007-0.8 differences that
+study measured, so its conclusions stand.
+
+**Files.** `pyDFCSR_2D/waist.py` (`RetentionPlan`, `retention_schedule`),
+`pyDFCSR_2D/CSR.py` (`build_retention_plan`, `_retention_floor`, `_check_retention`, wired
+into `run`), `pyDFCSR_2D/deposit.py` and `pyDFCSR_2D/deposit_smooth.py`
+(`append_interpolant(..., min_start_time=None)`, defaulting to the old behaviour).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

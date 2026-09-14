@@ -14,7 +14,8 @@ from .interp1D import interpolate1D
 from .interp3D import (interpolate3D, interpolate3D_transformed,
                        interpolate3D_comoving_fields)
 from .lattice import Lattice  # , get_referece_traj
-from .waist import scan_waists, sigma_from_coords, format_report
+from .waist import (scan_waists, sigma_from_coords, format_report,
+                    retention_schedule)
 from .params import Integration_params, CSR_params
 # from .physical_constants import c, e, qe, me, MC2
 from .r_gen6 import r_gen6
@@ -237,6 +238,64 @@ class CSR2D:
         return element
 
 #    @profile
+    def build_retention_plan(self):
+        """
+        Precompute how far back the history must reach at every point in the lattice.
+
+        pop_left_DF only ever pops, so truncating on the INSTANTANEOUS L_f is safe only
+        while sigma_z decreases monotonically. At a waist L_f collapses and then
+        recovers, and the snapshots the later steps need are already gone -- measured as
+        a 0.123 m shortfall at shear 20, which interp3D absorbed silently by clamping to
+        the oldest surviving snapshot. The plan supplies the suffix-minimum floor
+        instead, so nothing needed later is ever discarded.
+
+        Failure is non-fatal and leaves self._retention = None, which restores the old
+        instantaneous behaviour exactly.
+        """
+        self._retention = None
+        self._retention_short = 0
+        self._retention_worst = 0.0
+        if not self.use_comoving:
+            return
+        try:
+            b = self.beam
+            sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py,
+                                       b.z, b.pz)
+            self._retention = retention_schedule(
+                self.lattice.lattice_config, sigma0,
+                self.integration_params.n_formation_length)
+            plan = self._retention
+            print(f'  [retention] precomputed floor from linear optics: max depth '
+                  f'{plan.max_depth:.4f} m -> '
+                  f'{plan.max_snapshots(self.lattice.step_size)} snapshots at '
+                  f'step_size {self.lattice.step_size:g} m (safety {plan.safety:g})')
+        except Exception as exc:                       # noqa: BLE001
+            print(f'  [retention] precomputation skipped '
+                  f'({type(exc).__name__}: {exc}); falling back to instantaneous L_f')
+
+    def _retention_floor(self):
+        return (self._retention.floor_at(self.beam.position)
+                if self._retention is not None else None)
+
+    def _check_retention(self):
+        """
+        Did the retained history actually cover what the integration asked for?
+
+        The plan is linear optics, so it can be wrong. This compares the ACTUAL
+        requirement against what survived, every step, so a bad prediction cannot pass
+        unnoticed -- the failure mode being guarded is precisely the silent clamp in
+        interpolate3D_comoving_fields (k < 0 -> k = 0), which substitutes the oldest
+        surviving snapshot with no complaint.
+        """
+        if self.formation_length is None or not len(self.DF_tracker.time_log):
+            return
+        need = max(0.0, self.beam.position
+                   - self.integration_params.n_formation_length * self.formation_length)
+        have = self.DF_tracker.time_log[0]
+        if have > need + 1e-9:
+            self._retention_short += 1
+            self._retention_worst = max(self._retention_worst, have - need)
+
     def report_waists(self):
         """
         Warn, before tracking, about longitudinal waists step_size cannot resolve.
@@ -272,6 +331,7 @@ class CSR2D:
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
             self.report_waists()
+        self.build_retention_plan()
 
         step_count = 1
 
@@ -373,8 +433,10 @@ class CSR2D:
                     self.DF_tracker.append_DF()
                     # append 3D matrix for interpolation with the new DFs by interpolation
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
-                                                       n_formation_length=self.integration_params.n_formation_length)
+                                                       n_formation_length=self.integration_params.n_formation_length,
+                                                       min_start_time=self._retention_floor())
                     self.DF_tracker.build_interpolant()
+                    self._check_retention()
 
                 # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
                 #Todo: formation length not correct here

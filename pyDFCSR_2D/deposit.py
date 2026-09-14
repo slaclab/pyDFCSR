@@ -309,8 +309,11 @@ class DF_tracker:
         return interp((X,Z))
 
 
-    def append_interpolant(self, formation_length, n_formation_length):
+    def append_interpolant(self, formation_length, n_formation_length,
+                           min_start_time=None):
         start_point = np.amax(a=(0, self.end_time - n_formation_length * formation_length))
+        if min_start_time is not None:
+            start_point = min(start_point, float(min_start_time))
         self.pop_left_DF(new_start_time=start_point)
 
         #xlim_interp = interpolation.xlim

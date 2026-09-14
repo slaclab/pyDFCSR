@@ -181,6 +181,111 @@ def scan_waists(lattice_config, sigma0, step_size, min_steps=2.0, n_sub=2000):
                 min_steps=min_steps)
 
 
+class RetentionPlan:
+    """
+    How far back the density history must reach at every point in the lattice,
+    precomputed from linear optics before tracking starts.
+
+    The problem this solves. The history is truncated to
+    [end_time - n_fl*L_f, end_time] by pop_left_DF, which only ever POPS. With
+    L_f = (24 R^2 * 5 sigma_z)^(1/3) that is safe exactly as long as sigma_z decreases
+    monotonically, because then the required window shrinks monotonically too -- the
+    assumption the original design was built on. At a waist sigma_z decreases and then
+    INCREASES, L_f collapses and recovers with it, and the required start time moves
+    back to where snapshots have already been discarded. Measured at shear 20: the
+    history was cut to start at 0.2996 at the waist, and five steps later the
+    integration wanted 0.1773, a 0.123 m shortfall that interp3D silently absorbed by
+    clamping to the oldest surviving snapshot.
+
+    The fix. The quantity that must be retained at s is not start_point(s) but
+
+        floor(s) = min over all s' >= s of start_point(s')
+
+    the oldest time any FUTURE step will still ask for. That is a suffix minimum over
+    the whole lattice, so it needs sigma_z(s) in advance -- which propagate_var_z
+    already supplies. floor is non-decreasing in s by construction, so retaining back
+    to it is both correct (nothing needed later is discarded) and minimal (nothing is
+    kept that will not be used).
+
+    Accuracy. This is linear optics: no CSR, no space charge. L_f ~ sigma_z^(1/3) is
+    forgiving -- a factor 2 error in sigma_z is only 26% in L_f -- and `safety` widens
+    L_f further. It is still a prediction, so CSR2D also checks the ACTUAL requirement
+    against what was retained at every step and reports any shortfall; this must not
+    become a silent assumption.
+    """
+
+    def __init__(self, s, L_f, start_point, floor, n_formation_length, safety):
+        self.s = s
+        self.L_f = L_f
+        self.start_point = start_point
+        self.floor = floor
+        self.n_formation_length = n_formation_length
+        self.safety = safety
+        self.max_depth = float(np.max(s - floor))
+
+    def floor_at(self, s_now):
+        """
+        Retention floor at s_now, taken at the grid point at or below it.
+
+        floor is non-decreasing, so using the left node returns a value <= floor(s_now)
+        and therefore retains slightly MORE than strictly necessary. Interpolating
+        would be tighter and could round the wrong way.
+        """
+        i = int(np.searchsorted(self.s, s_now, side='right')) - 1
+        if i < 0:
+            return 0.0
+        return float(self.floor[min(i, len(self.floor) - 1)])
+
+    def max_snapshots(self, step_size, pad=8):
+        return int(np.ceil(self.max_depth / step_size)) + pad
+
+
+def retention_schedule(lattice_config, sigma0, n_formation_length, safety=1.25,
+                       n_sub=2000):
+    """
+    Build a RetentionPlan by mirroring CSR2D's own formation-length regimes.
+
+    Three regimes, and they must match CSR.py exactly or the floor is wrong:
+      * before any bend  -- formation_length accumulates ELEMENT lengths at element
+                            entry (CSR.py:336), so it is constant within an element
+      * inside a bend    -- (24 R^2 * 5 sigma_z)^(1/3)          (CSR.py:157, 175)
+      * drift after a bend -- same expression with the LAST bend's R (CSR.py:179)
+    Note the factor 5 on sigma_z; dropping it would understate L_f by 5^(1/3) = 1.71.
+    """
+    s, vz, rho = propagate_var_z(lattice_config, sigma0, n_sub=n_sub)
+    sz = np.sqrt(np.maximum(vz, 0.0))
+
+    keys = list(lattice_config.keys())[1:]
+    lengths = np.array([float(lattice_config[k]['L']) for k in keys])
+    edges = np.cumsum(lengths)
+    is_bend = np.array([lattice_config[k].get('type') == 'dipole'
+                        and float(lattice_config[k].get('angle', 0.0)) != 0.0
+                        for k in keys])
+    # R per element, and the cumulative pre-first-bend drift length at each element
+    R_el = np.where(is_bend,
+                    np.abs(lengths / np.where(is_bend, np.array(
+                        [float(lattice_config[k].get('angle', 1.0)) for k in keys]),
+                        1.0)),
+                    np.nan)
+    first_bend = int(np.argmax(is_bend)) if is_bend.any() else len(keys)
+    predrift = np.cumsum(lengths)
+
+    L_f = np.empty_like(s)
+    R_rec = np.nan
+    for i, si in enumerate(s):
+        j = min(int(np.searchsorted(edges, si, side='left')), len(keys) - 1)
+        if is_bend[j]:
+            R_rec = R_el[j]
+        if j < first_bend and np.isnan(R_rec):
+            L_f[i] = predrift[j]                       # pre-first-bend accumulation
+        else:
+            L_f[i] = (24.0 * R_rec ** 2 * 5.0 * max(sz[i], 1e-30)) ** (1.0 / 3.0)
+
+    start_point = np.maximum(0.0, s - n_formation_length * safety * L_f)
+    floor = np.minimum.accumulate(start_point[::-1])[::-1]   # suffix minimum
+    return RetentionPlan(s, L_f, start_point, floor, n_formation_length, safety)
+
+
 def format_report(report, max_lines=8):
     """Human-readable warning block, or '' when there is nothing to say."""
     ws = report['waists']
