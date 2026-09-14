@@ -4375,66 +4375,6 @@ the scheduler work, not here.
 
 **Files.** `pyDFCSR_2D/CSR.py` (`_s_last_kick`, `L_kick`).
 
-### Step 7 — Remaining secondary fixes ⬜
-
-Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
-the clipped-charge diagnostic, (f) snapshot-independent vx floor, (d) `poly_degree=1` with the fit
-restricted to |z| < 3σ_z, and (g) the C² evaluation kernel with `math.floor` closing the `int()`
-truncation hole. **On the co-moving path only.** Still outstanding:
-
-- (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
-  and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
-- `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
-- `test_deposit_smooth.py::test_zero_field_gives_zero_derivative` **fails, and did so before this
-  work.** It asserts a constant field has zero spectral derivative, but `smooth_and_differentiate`
-  zero-pads before the FFT, so the array edge is a genuine step:
-  `max|dfdx|` = 1.8e+01 untrimmed, 2.6e-02 trimming 5 cells, 8.8e-03 trimming 31. Boundary-only, and
-  harmless for real densities which vanish at ±5σ — but the *test* asserts an invariant the padding
-  breaks by design and should trim the boundary. The other 13 tests in that file pass.
-- The older one-off diagnostics (`test_region1_nonzero.py`, `test_integrand_diagnostic.py`,
-  `test_integrand_step17.py`, `test_integrand_anatomy.py`) unpack `get_CSR_wake(debug=True)`
-  positionally and need `CSR_integration: {xi_bands: False}` since Step 4 returns a dict on that path.
-- **The `|τ| → ∞` degeneracy of the localization** (§6m) — the most substantive open item. As `|τ|` grows,
-  `tan 2α = 2τ/(1−τ²) → 0`: the two Eq 4.24 branches become **parallel** rather than coincident, and
-  `d = 10σ_x/|tan 2α|` diverges — 154 mm at slope −12.5. The integrand then carries structure across the
-  whole reach (measured: `|inner|·u` varies 1000× and peaks at `u = 58 mm`) and **neither uniform nor
-  graded nodes converge affordably**. Thesis §4.4.2 treats only the `|τ| = 1` degeneracy, where the
-  branches coincide in position. The fix is presumably to integrate the two as a *single* band when nearly
-  parallel. Until then, any wake computed near a bend entrance with strong chirp is suspect, and
-  `near_grade` is regime-dependent — the failure mode this work exists to remove.
-- ~~`formation_length` computed only on element entry~~ — **fixed in §6h.**
-- ~~The **history step size** axis has never been varied~~ — **done in §6i: converged**, 0.11% at 23
-  snapshots, ~2nd order.
-- **`run(stop_time=T)` overshoots by up to a full step, silently.** At the default `step_size = 0.1`,
-  `run(stop_time=0.60)` lands at `s = 0.700000` — 17% past the request, with a 27% different beam slope.
-  This confounded a whole convergence study in §6i before it was caught. Either stop at the requested
-  `s` by splitting the final step, or warn. Until then, any script comparing runs at different
-  `step_size` must assert on `beam.position`.
-- **`compute_CSR: 0` silently produces a beam with no density history** (`CSR.py:311` gates
-  `get_DF`/`append_DF`/`append_interpolant`/`build_interpolant` on `debug or compute_CSR`). Anything that
-  calls `get_CSR_integrand` afterwards gets near-zeros with no error raised — see §6f, where it cost a
-  full set of wrong figures. The name suggests a pure output switch and it is not. Either rename it,
-  split history-building from wake-evaluation, or raise if `get_CSR_integrand` is called with fewer than
-  two snapshots. The last is cheapest and would have caught this immediately.
-
-### Step 8 — Validate and document ⬜
-
-- Re-run Step 3 → nodes-in-support and the 100²-vs-400² gap are the primary acceptance metrics.
-- Re-run Step 1 → co-moving must be exact for affine shear. ✅ **already met in Step 5**
-- Axis A of `test_xi_bands_converge.py` on the co-moving path must read ~0 — currently 0.99, the
-  outstanding correctness gap (Step 6).
-- `test/test_tilt_sweep.py`, `test/benchmark_chirp_highres_sweep.py`: the error-vs-tilt curve should
-  flatten instead of blowing up past |slope| ≈ 2–5.
-- **Three-way convergence study** at one high-tilt case, varying independently: history step size,
-  deposition bins, CSR integration bins. A converged answer must be insensitive to all three. Then
-  compare the joint-limit result against legacy *at legacy's own resolution* — this shows whether
-  legacy was the under-resolved one, and settles whether the remaining chicane-B2 disagreement is
-  physics (cancellation regime) or numerics.
-- Save all plots under `pyDFCSR_2D/test/benchmark_results/` and append a summary step to
-  `progress.md`.
-
----
-
 ### Step 9 — Non-uniform snapshot times: prototype validated, PARKED ⏸️
 
 **Status: the lookup algorithm is proven and benchmarked. Nothing in production uses it yet.**
@@ -4615,6 +4555,66 @@ The next targets, well behind: `get_CSR_integrand` at 16 %, and the Python-level
 `_comoving_frame_at` at ~9 % combined (3 672 and 3 978 calls per 51 wake points).
 
 **Files.** `pyDFCSR_2D/interp3D.py` (`interpolate3D_comoving_fields`).
+
+### Step 7 — Remaining secondary fixes ⬜
+
+Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
+the clipped-charge diagnostic, (f) snapshot-independent vx floor, (d) `poly_degree=1` with the fit
+restricted to |z| < 3σ_z, and (g) the C² evaluation kernel with `math.floor` closing the `int()`
+truncation hole. **On the co-moving path only.** Still outstanding:
+
+- (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
+  and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
+- `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
+- `test_deposit_smooth.py::test_zero_field_gives_zero_derivative` **fails, and did so before this
+  work.** It asserts a constant field has zero spectral derivative, but `smooth_and_differentiate`
+  zero-pads before the FFT, so the array edge is a genuine step:
+  `max|dfdx|` = 1.8e+01 untrimmed, 2.6e-02 trimming 5 cells, 8.8e-03 trimming 31. Boundary-only, and
+  harmless for real densities which vanish at ±5σ — but the *test* asserts an invariant the padding
+  breaks by design and should trim the boundary. The other 13 tests in that file pass.
+- The older one-off diagnostics (`test_region1_nonzero.py`, `test_integrand_diagnostic.py`,
+  `test_integrand_step17.py`, `test_integrand_anatomy.py`) unpack `get_CSR_wake(debug=True)`
+  positionally and need `CSR_integration: {xi_bands: False}` since Step 4 returns a dict on that path.
+- **The `|τ| → ∞` degeneracy of the localization** (§6m) — the most substantive open item. As `|τ|` grows,
+  `tan 2α = 2τ/(1−τ²) → 0`: the two Eq 4.24 branches become **parallel** rather than coincident, and
+  `d = 10σ_x/|tan 2α|` diverges — 154 mm at slope −12.5. The integrand then carries structure across the
+  whole reach (measured: `|inner|·u` varies 1000× and peaks at `u = 58 mm`) and **neither uniform nor
+  graded nodes converge affordably**. Thesis §4.4.2 treats only the `|τ| = 1` degeneracy, where the
+  branches coincide in position. The fix is presumably to integrate the two as a *single* band when nearly
+  parallel. Until then, any wake computed near a bend entrance with strong chirp is suspect, and
+  `near_grade` is regime-dependent — the failure mode this work exists to remove.
+- ~~`formation_length` computed only on element entry~~ — **fixed in §6h.**
+- ~~The **history step size** axis has never been varied~~ — **done in §6i: converged**, 0.11% at 23
+  snapshots, ~2nd order.
+- **`run(stop_time=T)` overshoots by up to a full step, silently.** At the default `step_size = 0.1`,
+  `run(stop_time=0.60)` lands at `s = 0.700000` — 17% past the request, with a 27% different beam slope.
+  This confounded a whole convergence study in §6i before it was caught. Either stop at the requested
+  `s` by splitting the final step, or warn. Until then, any script comparing runs at different
+  `step_size` must assert on `beam.position`.
+- **`compute_CSR: 0` silently produces a beam with no density history** (`CSR.py:311` gates
+  `get_DF`/`append_DF`/`append_interpolant`/`build_interpolant` on `debug or compute_CSR`). Anything that
+  calls `get_CSR_integrand` afterwards gets near-zeros with no error raised — see §6f, where it cost a
+  full set of wrong figures. The name suggests a pure output switch and it is not. Either rename it,
+  split history-building from wake-evaluation, or raise if `get_CSR_integrand` is called with fewer than
+  two snapshots. The last is cheapest and would have caught this immediately.
+
+### Step 8 — Validate and document ⬜
+
+- Re-run Step 3 → nodes-in-support and the 100²-vs-400² gap are the primary acceptance metrics.
+- Re-run Step 1 → co-moving must be exact for affine shear. ✅ **already met in Step 5**
+- Axis A of `test_xi_bands_converge.py` on the co-moving path must read ~0 — currently 0.99, the
+  outstanding correctness gap (Step 6).
+- `test/test_tilt_sweep.py`, `test/benchmark_chirp_highres_sweep.py`: the error-vs-tilt curve should
+  flatten instead of blowing up past |slope| ≈ 2–5.
+- **Three-way convergence study** at one high-tilt case, varying independently: history step size,
+  deposition bins, CSR integration bins. A converged answer must be insensitive to all three. Then
+  compare the joint-limit result against legacy *at legacy's own resolution* — this shows whether
+  legacy was the under-resolved one, and settles whether the remaining chicane-B2 disagreement is
+  physics (cancellation regime) or numerics.
+- Save all plots under `pyDFCSR_2D/test/benchmark_results/` and append a summary step to
+  `progress.md`.
+
+---
 
 ## 5. Verification suite
 
