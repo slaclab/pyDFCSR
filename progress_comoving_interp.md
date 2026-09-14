@@ -4309,6 +4309,72 @@ and the invariant to preserve is that a snapshot index still maps to the same st
 **Files audited (no changes).** `deposit.py`, `deposit_smooth.py` (both history classes),
 `interp3D.py`, `interp1D.py`, `CSR.py`.
 
+#### 6dd. The CSR kick used the wrong integration length (2026-09-14) ✅ **+14.3% error at nsep > 1**
+
+##### What was wrong
+
+The kick is a rectangle-rule quadrature of `int(W ds)`: `beams.py:110` forms
+`dE_E1 = step_size * dE_dct * 1e6 / init_energy`, so the length passed in is a physical
+integration weight. `CSR.py` passed `DL * nsep`.
+
+That is wrong whenever the arc actually covered since the previous kick is not `nsep` full
+steps, and there are two such cases in ordinary lattices:
+
+- **The first kick of a run.** It fires at `step == 0` (since `0 % nsep == 0` always) after a
+  single step, but is weighted by `nsep` steps.
+- **Every element boundary.** The kick condition is `step % nsep == 0` and `step` **restarts at
+  0 in each element**, so the gap between the last kick of one element and the first of the next
+  is shorter than `nsep` steps. The boundary step is also split into `DL_1` (previous element,
+  tracked outside the step loop) plus `DL_2` (new element), which `DL * nsep` does not know
+  about.
+
+Measured on a 4-element lattice (L = 0.35, 0.22, 0.33, 0.22 m, `step_size` 0.05, `nsep` 3), so
+that boundaries are deliberately non-commensurate with the step grid:
+
+```
+ kick at s  true interval  length used     error
+    0.0500         0.0500       0.1500  +200.0%   <- first kick of the run
+    0.2000         0.1500       0.1500    +0.0%
+    0.3500         0.1500       0.1500    +0.0%
+    0.5000         0.1500       0.1500    +0.0%
+    0.6000         0.1000       0.1500   +50.0%   <- element boundary
+    0.7500         0.1500       0.1500    +0.0%
+    0.9000         0.1500       0.1500    +0.0%
+    1.0500         0.1500       0.1500    +0.0%
+
+sum of lengths used 1.2000 m vs arc covered 1.0500 m  ->  +14.3% net over-weighting
+```
+
+So the integrated CSR kick was **14.3 % too large** on that lattice.
+
+##### The fix
+
+Track the arc position of the previous kick in `self._s_last_kick`, initialised at run start and
+**persisting across elements** -- the per-element `step` counter resetting is precisely what
+broke the old formula -- and pass `L_kick = beam.position - self._s_last_kick`. Correct for
+uniform, non-uniform, first-kick and boundary cases alike, and it is the form non-uniform steps
+will need.
+
+```
+after the fix, same lattice:  0 of 8 kicks wrong (was 2 of 8),  net +0.00% (was +14.3%)
+```
+
+##### Why no recorded baseline moves
+
+At `nsep = 1` the fix is a **provable no-op**: the elapsed arc since the previous kick is exactly
+one step, which is what `DL * 1` already gave. Verified directly on a lattice with
+non-commensurate boundaries -- **0 of 17 kicks differ** from the old formula. Every config in
+this work uses `nsep: 1`, which is why this went unnoticed; `test_two_branch_bands` is unchanged
+at 1.06497 / 0.39062.
+
+##### Deferred
+
+Centring the kick interval on its sample point (midpoint rule, O(h^2) instead of O(h)) needs the
+*next* kick position, which only exists once the step schedule is precomputed. It belongs with
+the scheduler work, not here.
+
+**Files.** `pyDFCSR_2D/CSR.py` (`_s_last_kick`, `L_kick`).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

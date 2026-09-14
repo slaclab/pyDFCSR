@@ -334,6 +334,9 @@ class CSR2D:
         self.build_retention_plan()
 
         step_count = 1
+        # arc position of the previous CSR kick; must persist ACROSS elements, since the
+        # per-element `step` counter restarting is exactly what broke the old DL*nsep
+        self._s_last_kick = self.beam.position
 
         DL = self.lattice.step_size
         ele_count = 0
@@ -461,9 +464,23 @@ class CSR2D:
                             self.calculate_2D_CSR()
                         # Apply CSR kick to the beam
                         if self.CSR_params.apply_CSR:
+                            # The kick is a rectangle-rule quadrature of int(W ds), so the
+                            # length must be the arc ACTUALLY covered since the previous
+                            # kick. DL*nsep is wrong in two cases that both occur in
+                            # ordinary lattices:
+                            #   * the first kick of the run, applied after a single step
+                            #     but weighted by nsep steps  (+200% at nsep = 3)
+                            #   * element boundaries, where `step` restarts at 0 so the
+                            #     gap since the last kick is shorter than nsep steps
+                            #     (+50% measured), and where the boundary step is split
+                            #     into DL_1 + DL_2 across two elements
+                            # On a 4-element test lattice with nsep = 3 this over-weighted
+                            # the integrated CSR kick by 14.3%.
+                            L_kick = self.beam.position - self._s_last_kick
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
-                                              self.CSR_xrange_transformed, self.CSR_zrange, DL*self.lattice.nsep[ele_count],
+                                              self.CSR_xrange_transformed, self.CSR_zrange, L_kick,
                                                   self.CSR_params.transverse_on)
+                            self._s_last_kick = self.beam.position
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
                             self.dump_beam(label = step_count)
