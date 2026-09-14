@@ -5180,6 +5180,105 @@ believed.
 **Files.** `pyDFCSR_2D/schedule.py` (`auto_step_profile`, `_dyadic_snap`, `AUTO_DEFAULTS`:
 `eps_tr` -> `edge_steps`, new `r_floor`), `pyDFCSR_2D/lattice.py` (config pass-through).
 
+#### 11h. The transient scales, from Stupakov & Emma (2026-09-14) ✅ **one scale was wrong; one refinement was pointless**
+
+Raised by the author: `L_f = (24 R^2 sigma_z)^(1/3)` is the **steady-state** formation length in the
+body of a bend, so using it for the entrance and exit transients needs justification. Reference
+supplied and now in `reference/Stupakov_transient_wake.pdf`: G. Stupakov and P. Emma, *CSR Wake for
+a Short Magnet in Ultrarelativistic Limit*, EPAC 2002, pp. 1479-1481 (SLAC-PUB-9242).
+
+##### What the paper actually gives
+
+**Case A, entrance** (P inside the bend, P' upstream in the straight):
+`W(s) = -(4/(R phi)) lambda(s - R phi^3/6)` [Eq. 5], with the A/B boundary at
+`s - s' = R phi^3/24`. Section 3.1 and Fig. 4 state steady state is nearly reached at the
+**overtaking length** `L_0 = (24 sigma_z R^2)^(1/3)` -- 14 cm for their R = 1.5 m, sigma_z = 50 um
+example.
+
+**So the steady-state form IS the right scale for how far the entrance transient extends INTO the
+magnet.** That use was correct and is now cited.
+
+**Case C, exit** (both points outside, `x` = downstream distance / R):
+`W(s) = -(4/R) (1/(phi_m + 2x)) lambda(s - (R/6) phi_m^2 (phi_m + 3x))` [Eq. 10]. The amplitude
+decays as `1/(phi_m + 2x)`, so it **halves at `x = phi_m/2`**, a physical `R phi_m/2`.
+gamma-independent, always positive, pole-free.
+
+**Case D** [Eq. 13]: `ds_max = (R phi_m^3/24)(phi_m + 4x)/(phi_m + x)`, so the longitudinal reach
+saturates at 4x its exit value.
+
+##### Error 1: the exit was using the steady-state scale
+
+```
+  case                              R   phi_m  sig_z   L_f used   R phi/2   ratio
+  test lattice, strong bend        1.0   1.00   500u     0.3915    0.5000    0.8x
+  chicane theta=0.10               2.0   0.10  1000u     0.7830    0.1000    7.8x
+  chicane theta=0.20               1.0   0.20  1000u     0.4932    0.1000    4.9x
+  LCLS-like weak bend             10.0   0.05   200u     1.3389    0.2500    5.4x
+```
+
+For a **strong** bend the two nearly coincide, which is precisely why the strong-bend test lattice
+hid this. For a **weak** bend the steady-state form is 5-8x too large, so `h_2 = L_f/edge_steps`
+came out 5-8x too coarse at the exit -- in the chicane regime, where the paper's Fig. 3 shows the
+wake still changing shape. Now uses `R phi_m/2` at exit faces and `L_0` at entrance faces.
+
+Related: the code's own unused out-of-bend branch, `3 R^2 phi^4 / (4 (R phi^3 - 6 sigma_z))`,
+descends from Eq. 13 (that denominator is the signature of solving it for `x`) but has a **pole at
+`R phi^3 = 6 sigma_z` and goes negative below it** -- `-0.0750` for a theta = 0.10 chicane. That is
+presumably why it was disabled, and why everything fell back to the steady-state form.
+
+##### Error 2: refining the drift BEFORE a bend does nothing, and the reason is instructive
+
+The paper notes the Case A formation length is `l_form ~ gamma R phi^2` -- **proportional to
+gamma**, ~100 m at 5 GeV -- so `L_0` was never the right scale upstream either. Rather than guess,
+measured it. Manual mode, identical dipole stepping, only the pre-bend drift varied, observing 5
+steps inside the entrance:
+
+```
+   drift steps   h drift  upstream snaps    sigma_z  rel L2 vs finest
+            20   0.05000               5    25.034u          0.000000
+            40   0.02500              11    25.034u          0.000000
+            80   0.01250              23    25.034u          0.000000
+           160   0.00625              46    25.034u          0.000000
+           320   0.00313              93    25.034u          0.000000
+```
+
+Zero to six decimals, every successive difference. **Not because the drift is irrelevant** -- the
+opposite. Instrumented at the same point: the drift carries **64.6 %** of all sampled integrand
+points, `s'` reaches back to 0.587 for an observation at 1.025, and the integrand there is large
+(6.8e11). The drift dominates the integral.
+
+What it lacks is fast **variation**. In a drift `sigma_z` is constant and the tilt evolves linearly,
+so linear interpolation of the frame is already exact and extra snapshots buy nothing.
+**Contributing a lot is not the same as needing fine sampling** -- and `L_z` already encodes that
+correctly, since `sigma_z'` and `sigma_z''` both vanish in a drift, sending `L_z -> infinity`. The
+`r_edge` term was overriding a criterion that was right.
+
+Upstream refinement removed. On drift 3 / dipole 1 / drift 3 at `h_max = 0.05`:
+
+```
+  region                                median h   vs h_max
+  drift, FAR before the bend             0.04918     0.98x
+  drift, one L_f before the entrance     0.04918     0.98x   <- correctly NOT refined
+  just inside the entrance               0.00311     0.06x
+  dipole body / just outside the exit     0.01245     0.25x
+  drift, one R*phi/2 after the exit      0.01245     0.25x
+  drift, FAR after the bend              0.04797     0.96x
+
+  272 snapshots, 27 kicks   (was 309 / 35)
+```
+
+12 % fewer snapshots and 23 % fewer kicks, for a measured-zero change in accuracy.
+
+##### Default untouched
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  default (legacy) cached wake cut: max |diff| = 0.000e+00
+```
+
+**Files.** `pyDFCSR_2D/schedule.py` (`auto_step_profile`: direction-dependent edge scale, upstream
+suppression), `reference/Stupakov_transient_wake.pdf` (added).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

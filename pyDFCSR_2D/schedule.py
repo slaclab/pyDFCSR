@@ -430,7 +430,7 @@ def _dyadic_snap(h, h_max, tol=0.01):
 
 
 def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
-                      bend_edges=None, bend_R=None):
+                      bend_edges=None, bend_R=None, bend_phi=None, bend_is_exit=None):
     """
     The local required step h_eff(s), and the pieces that made it, for reporting.
 
@@ -472,6 +472,7 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
     if bend_edges is None or len(bend_edges) == 0:
         d_edge = np.full_like(s, np.inf)
         L_f_edge = np.maximum(L_f, h_min)
+        upstream_of_entrance = np.zeros_like(s, dtype=bool)
     else:
         be = np.asarray(bend_edges, float)
         dmat = np.abs(s[:, None] - be[None, :])
@@ -484,8 +485,49 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
         # and there was no differential at the edge at all (measured). Recompute it from the
         # nearest bend's radius instead: L_f = (24 R^2 * 5 sigma_z)^(1/3).
         Rn = np.asarray(bend_R, float)[near]
-        L_f_edge = np.maximum((24.0 * Rn ** 2 * 5.0 * np.maximum(sz, 1e-30)) ** (1.0 / 3.0),
-                              h_min)
+        phin = np.asarray(bend_phi, float)[near]
+        is_exit = np.asarray(bend_is_exit, bool)[near]
+
+        # The transient scale is DIRECTION-DEPENDENT. Stupakov & Emma, EPAC 2002
+        # (SLAC-PUB-9242) give different physics at the two faces:
+        #
+        #   ENTRANCE (their Case A / Sec 3.1, Fig 4): steady state is reached after the
+        #   "overtaking length" L_0 = (24 sigma_z R^2)^(1/3). That is the scale over which the
+        #   entrance transient dies away INSIDE the magnet, and it is what this code already
+        #   used -- correctly.
+        #
+        #   EXIT (their Case C, Eq. 10): W ~ (1/(phi_m + 2x)) with x the downstream distance in
+        #   units of R, so the amplitude HALVES at x = phi_m/2, i.e. a physical R*phi_m/2. That
+        #   is gamma-independent, always positive and pole-free.
+        #
+        # Using the steady-state form at the exit too was wrong. For a strong bend the two
+        # nearly coincide (0.39 m vs 0.50 m at R=1, phi=1), which is exactly why the strong-bend
+        # test lattice hid it; for a weak bend it is 5-8x too large, so the exit step came out
+        # 5-8x too coarse in precisely the chicane regime (their Fig. 3 shows the wake still
+        # changing shape there).
+        #
+        # Note the code's own unused out-of-bend branch,
+        # 3 R^2 phi^4 / (4 (R phi^3 - 6 sigma_z)), descends from their Eq. 13 but has a pole at
+        # R phi^3 = 6 sigma_z and goes NEGATIVE below it -- true for a weak bend with a long
+        # bunch, which is presumably why it was disabled.
+        L_entrance = (24.0 * Rn ** 2 * 5.0 * np.maximum(sz, 1e-30)) ** (1.0 / 3.0)
+        L_exit = 0.5 * Rn * np.abs(phin)
+        L_f_edge = np.maximum(np.where(is_exit, L_exit, L_entrance), h_min)
+
+        # Do NOT refine the straight section UPSTREAM of an entrance. Measured directly: refining
+        # the pre-bend drift from 5 to 93 snapshots changed the wake 5 steps inside the entrance
+        # by < 1e-6 relative -- successive differences all zero to 6 decimals.
+        #
+        # The drift is not irrelevant to the integral; the opposite. It carries 64.6% of the
+        # sampled integrand points, reaching back to s' = 0.587 for an observation at 1.025, and
+        # the integrand there is large. What it does not have is fast VARIATION: in a drift sigma_z
+        # is constant and the tilt evolves linearly, so linear interpolation of the frame is
+        # already exact and extra snapshots buy nothing. Contributing a lot is not the same as
+        # needing fine sampling.
+        #
+        # L_z encodes this correctly on its own -- sigma_z' and sigma_z'' both vanish in a drift, so
+        # L_z -> infinity and no refinement is asked for. The edge term was overriding that.
+        upstream_of_entrance = (~is_exit) & (s < np.asarray(bend_edges, float)[near])
 
     # Steps across the transient. This is a DIVISOR, not a fraction: the CSR wake turns on over a
     # formation length, so the requirement at the edge is L_f/edge_steps. The first version used
@@ -528,6 +570,7 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
     # well as "something just happened here".
     r_edge = np.where(np.isfinite(d_edge),
                       np.exp(-d_edge / L_f_edge), 0.0)
+    r_edge = np.where(upstream_of_entrance, 0.0, r_edge)
     r = np.clip(np.maximum(r_wake, r_edge), 0.0, 1.0)
     # A negligible relevance must mean NO refinement, not a little. Left unfloored, an r of 1e-7
     # still pushes h_eff below h_max and the dyadic snap then charges a full factor of 2.
@@ -566,17 +609,21 @@ def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_s
     lens = np.array([float(lattice_config[k]['L']) for k in ele_keys])
     ends = np.cumsum(lens)
     starts = np.concatenate([[0.0], ends[:-1]])
-    bend_edges, bend_R = [], []
+    bend_edges, bend_R, bend_phi, bend_is_exit = [], [], [], []
     for e, k in enumerate(ele_keys):
         cfgk = lattice_config[k]
         if cfgk.get('type') == 'dipole' and float(cfgk.get('angle', 0.0)) != 0.0:
-            Re = abs(float(lens[e]) / float(cfgk['angle']))
+            ang = float(cfgk['angle'])
+            Re = abs(float(lens[e]) / ang)
             bend_edges += [float(starts[e]), float(ends[e])]
             bend_R += [Re, Re]
+            bend_phi += [ang, ang]
+            bend_is_exit += [False, True]
 
     h_eff, parts = auto_step_profile(s_scan, sz_scan, rho_scan, L_f_scan,
                                      distance, lattice_length, opts,
-                                     bend_edges=bend_edges, bend_R=bend_R)
+                                     bend_edges=bend_edges, bend_R=bend_R,
+                                     bend_phi=bend_phi, bend_is_exit=bend_is_exit)
 
     phi = np.concatenate([[0.0], np.cumsum(0.5 * (1.0 / h_eff[1:] + 1.0 / h_eff[:-1])
                                           * np.diff(s_scan))])
