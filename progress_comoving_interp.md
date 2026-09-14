@@ -4556,6 +4556,58 @@ The next targets, well behind: `get_CSR_integrand` at 16 %, and the Python-level
 
 **Files.** `pyDFCSR_2D/interp3D.py` (`interpolate3D_comoving_fields`).
 
+#### Why it is 5x slower than the legacy path (2026-09-14)
+
+The author reported the legacy code at ~1 s per wake mesh. Measured on the same lattice, beam
+and 10x30 wake mesh, legacy comes out at **1.45 s** -- so the comparison is fair and the
+question is real.
+
+```
+configuration                 snapshots   mesh s   ms/pt  vs legacy
+legacy int100                        52     1.45    4.84      1.00x
+bspline_comoving int100             131     4.79   15.97      3.30x
+bspline_comoving int200             131     7.35   24.49      5.07x
+```
+
+The 5x splits cleanly:
+
+**1.48x is a config choice, and it is free to reclaim.** The legacy example configs use
+`CSR_integration: 100x100`; this work has been running 200x200. The integration grid is already
+converged at 100:
+
+```
+ int bins   rel L2 vs 300x300
+      100         0.00087        <- 0.09%
+      150         0.00011
+      200         0.00004
+```
+
+200x200 buys 0.04% instead of 0.09%, for 1.48x the runtime. Not worth it.
+
+**3.30x is algorithmic**, and each piece was measured to be necessary:
+
+- **Cubic B-spline instead of bilinear.** 4x4 = 16 taps x 5 fields x 2 snapshots = **160 taps**
+  per query, against legacy trilinear's 8 taps x 5 fields = 40. Bilinear's first derivative
+  jumps at every cell boundary, which degrades the outer trapezoid rule to first order --
+  the reason recorded in `bspline_eval_single`'s docstring.
+- **Two-branch bands** (Step 6) roughly double the integration points. Step 6 measured the
+  second branch as a rel L2 change of **1.06 in dE**: it was worth the entire wake.
+- **Region-based node allocation** (§6l-§6t) partially *offsets* both, which is why the product
+  of 4x and 2x shows up as 3.3x rather than 8x.
+
+**The §6aa retention floor is not the cause.** Measured directly: 131 snapshots vs 52 costs
+**1.01x** wake time. Deeper history costs memory, not wake time, because the lookup is O(1) and
+only two snapshots are ever read.
+
+Note the 1.57x hoisting gain above is already included in these numbers; pre-hoist, `int100`
+would have been ~7.5 s, i.e. 5.2x legacy on its own.
+
+**Actionable:** move `CSR_integration` to 100x100 for production runs -- 1.48x for a 0.09%
+error. Beyond that, further gains need an accuracy decision (is cubic necessary, or would a
+quadratic B-spline do?), not micro-optimisation.
+
+
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
