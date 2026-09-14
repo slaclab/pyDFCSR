@@ -4242,6 +4242,73 @@ Linear optics with CSR off; the chicane parameters are illustrative rather than 
 machine; and `min_steps = 2` is calibrated on the single waist of §6x -- though relaxing it to
 1 only halves these numbers, which does not change the conclusion.
 
+#### 6cc. Audit: what actually assumes uniform time spacing (2026-09-13) ✅ **contained — zero physics to re-derive**
+
+Read-only audit before attempting Phase 5.3, to answer one question: apart from the index
+lookup (which a bucket table fixes), **where else** is constant snapshot spacing silently
+assumed?
+
+##### The distinction that matters
+
+Two very different kinds of site:
+
+- **(a) locating a snapshot index** -- `k = floor((t - min_t)/delta_t)`. Mechanical. A bucket
+  table replaces it and keeps O(1).
+- **(b) using `delta_t` as a physical time step** -- a finite-difference denominator, a time
+  derivative, a width, a tolerance, a normalisation. These would be **silently wrong** under
+  non-uniform spacing and each would need its own re-derivation.
+
+Category (b) is what would make Phase 5.3 expensive. The audit was aimed at finding it.
+
+##### Result: there are no category (b) sites
+
+`delta_t` / `delta_x` (time) appears in `interp3D.py` at **only** these places, and every one
+is an index lookup:
+
+```
+  interp3D.py:24    xval = (xval - min_x) / delta_x            interpolate3D
+  interp3D.py:228   t_idx = (tval[i] - min_t) / delta_t        interpolate3D_transformed
+  interp3D.py:288   t_idx = (tval[i] - min_t) / delta_t        ..._transformed_with_derivs
+  interp3D.py:500   t_idx = (tval[i] - min_t) / delta_t        ..._comoving_fields
+  CSR.py:629        t_idx = (t_ret - tr.min_x) / tr.delta_x    _comoving_frame_at
+  CSR.py:736        t_idx = (t_ret - tr.min_x) / tr.delta_x    band/frame mirror
+```
+
+Six sites, all doing the identical thing. Confirmed by grep that `delta_t` is **never** a
+denominator anywhere else, never a width, never a tolerance.
+
+The finite differences that do exist (`interp3D.py:317,321`) divide by `delta_xi_arr[kk]` and
+`delta_z_arr[kk]` -- per-snapshot **spatial** grid spacing, already stored per snapshot and
+completely unaffected by how snapshots are spaced in time.
+
+Nothing iterates the history assuming `time[k] == min_x + k*delta_x`; the interpolators only
+ever bracket an adjacent pair and blend. So the architecture is already snapshot-pair
+agnostic, which is the property that makes this tractable.
+
+##### The one real gap
+
+`build_interpolant` (deposit_smooth.py:299) does `times = list(self.time_log)` and then uses
+only `times[0]`, `times[-1]` and `n_t` to form `delta_x`. **The actual snapshot times are
+discarded**, and `time_log` is never passed to any interpolator -- verified: `CSR.py` hands
+over only `min_x` and `delta_x` (lines 1410, 1433-1434). So the times must be retained and
+threaded through, which is what touches the function signatures.
+
+Note the interpolation **weight** needs the same treatment as the index: `a = t_idx - k` is
+only the fractional position under uniform spacing; in general it is
+`a = (t - t_k)/(t_{k+1} - t_k)`, which needs `t_k` and `t_{k+1}` -- two more O(1) reads from
+the retained times array. Same fix, not a separate problem.
+
+##### Verdict
+
+**Contained but wide.** Six mechanical call sites, all identical in form, plus threading a
+times array and a bucket table through three interpolator signatures. There is **no physics
+to re-derive** -- no time derivative, width, or tolerance expressed in `delta_t` anywhere --
+which was the risk that would have made Phase 5.3 expensive. The remaining work is plumbing,
+and the invariant to preserve is that a snapshot index still maps to the same stored frame.
+
+**Files audited (no changes).** `deposit.py`, `deposit_smooth.py` (both history classes),
+`interp3D.py`, `interp1D.py`, `CSR.py`.
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
