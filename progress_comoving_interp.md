@@ -4559,6 +4559,187 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 
 ---
 
+### Step 9 — Non-uniform snapshot times: prototype validated, PARKED ⏸️
+
+**Status: the lookup algorithm is proven and benchmarked. Nothing in production uses it yet.**
+Resume here when returning to adaptive stepping.
+
+#### Why non-uniform times are needed
+
+§6bb measured a realistic chicane at 22-32 GB with uniform stepping against 0.15 GB with local
+refinement, a 150-200x reduction, because the constraint is *local*: the waist is sub-millimetre
+while the retention depth is metres. That moved non-uniform snapshots from "cost optimisation"
+to prerequisite.
+
+#### What must be reproduced
+
+The lookup finds the bracketing snapshot for a retarded time and a blend weight; the caller
+forms `(1-a)*f[k] + a*f[k+1]`. Today, uniform, it is one division (`interp3D.py:499-510`):
+
+```
+t_idx = (q - min_t) / delta_t
+k = floor(t_idx),  clamped to [0, n-2]
+a = t_idx - k,     clamped to [0, 1]
+```
+
+#### The algorithm selected: HYBRID
+
+One branch on a precomputed `is_uniform` flag. Uniform histories (every run today) take the
+exact expression above; non-uniform take a bucket table:
+
+```
+build:   M = min(ceil(span/h_min), 4n);  inv_h = M/span
+         j_k = int((t[k]-t0)*inv_h)              <- the EXACT runtime expression
+         bucket[j] = max{k : j_k < j}            <- strict predecessor
+lookup:  j = int((q-t0)*inv_h);  k = bucket[j]
+         while t[k+1] <= q: k += 1               <- bound verified at build time
+         a = (q - t[k]) / (t[k+1] - t[k])
+```
+
+Building `j_k` from the runtime expression rather than from `t0 + j*h` is load-bearing: if the
+two rounded differently, `j` could come out one too high, `t[bucket[j]] > q`, and an
+increment-only loop could never recover -- wrong `k`, negative weight. `M` is capped so the
+table stays cache-resident; the real max-nodes-per-bucket is then measured at build time and
+stored as the loop bound rather than asserted in a comment.
+
+#### The measurement that overturned the plan
+
+The plan had per-segment piecewise-uniform as primary. ns per lookup:
+
+```
+node set               S order         uniform   segment    bucket    hybrid    binary  srchsrt
+uniform  n=20000       1 sorted           0.74      1.03      2.42      0.73     22.63    23.79
+piecewise S=3          3 random           0.74      4.19      3.03      3.02      8.40     9.71
+piecewise S=8          6 random           0.74      6.72      2.98      2.97      9.79     9.76
+random ratio 1e3    1499 random           0.75    196.58      3.26      3.32     26.49    25.52
+```
+
+Per-segment is fine on sorted queries but degrades to 4-7 ns on random ones (its linear segment
+scan defeats branch prediction) and collapses to **196 ns** when times are not segmentable.
+Bucket is flat at 1.47-3.48 ns everywhere. **Hybrid wins both ways**: 0.73 ns at `S == 1`
+against the 0.74 ns baseline, so the bit-for-bit guarantee is free, and 1.47-3.49 ns otherwise.
+Binary search and `np.searchsorted` are 7-38 ns, unusable.
+
+#### Correctness, all green
+
+Bit-for-bit vs the production expression at `S == 1` for n = 50/1500/20000. Oracle equivalence
+on interpolated **value** to <= 2.1e-13 on piecewise, one-tiny-gap and random node sets. **Zero
+bracket violations** for `q` one ulp either side of every bucket edge. Build-time loop bound
+exactly predictive (1/3/7/9 observed == bound); uncapped the bound is 1. Edge cases: `n = 2`,
+`q = t[0]`, `q = t[n-1]` giving `k = n-2` not `n-1`, and a 1-ulp gap not blowing up the weight.
+
+One test failure was **mine, not the code's**: I asserted the loop bound `<= 2`
+unconditionally, but capping `M` to stay cache-resident deliberately trades a longer loop for
+fewer cache misses. Corrected to assert the build-time bound is predictive, plus `<= 1` when
+uncapped.
+
+#### Why the lookup cost turned out not to matter
+
+Instrumented in a real run: `interpolate3D_comoving_fields` receives query arrays of median
+**34 200** entries, ~6 calls per wake point, so a 21x51 mesh is **~2.2e8 lookups**. The
+uniform-to-non-uniform delta of ~2.3 ns is therefore **~0.5 s against a 30-40 s wake mesh,
+about 1.5 %**. The lookup was never the bottleneck (see Step 10), so the operative criterion is
+robustness and the bit-for-bit guarantee, not speed. Query order measured at the same time:
+median 96.3 % of adjacent pairs non-decreasing but **0 %** of arrays fully sorted (min 49.3 %),
+consistent with a flattened 2D (x', s') grid resetting each row.
+
+#### What remains when we resume
+
+1. Thread the actual snapshot times through to the interpolators. Today `build_interpolant`
+   (`deposit_smooth.py:299`) does `times = list(self.time_log)` and keeps only `times[0]`,
+   `times[-1]` and `n_t`; `CSR.py` passes only `min_x`/`delta_x` (lines 1410, 1433-1434). The
+   times are **discarded**, so they must be retained and passed. This is what touches the
+   function signatures.
+2. Replace the six index-lookup sites (`interp3D.py:24, 228, 288, 500`; `CSR.py:629, 736`) with
+   the hybrid. §6cc confirmed there is **no physics to re-derive** -- `delta_t` is never a
+   finite-difference denominator, width or tolerance anywhere.
+3. Element boundary coverage (Part B of the approved plan, not yet done): boundaries currently
+   get no snapshot at all.
+4. The adaptive scheduler itself: criteria, tolerance calibration, `step_control` config
+   surface, predictor-corrector mode, the CSR-vs-linear-optics deviation monitor, and writing
+   the realised schedule to the output HDF5.
+
+**Files.** `pyDFCSR_2D/test/prototype_nonuniform_lookup.py` (standalone; not imported by
+production).
+
+### Step 10 — Where the wake-mesh time actually goes (2026-09-14) ✅ **1.57x, bit-identical**
+
+#### The question
+
+The non-uniform lookup prototype (Step 9) showed the index lookup is ~1.5 % of wake-mesh time.
+So what is the other 98.5 %?
+
+#### Profile
+
+51-point wake cut, `cProfile`, JIT pre-warmed:
+
+```
+ tottime   %tot  ncalls  function
+   1.355  67.4%     626  _comoving_fields      <- the Numba interpolation kernel
+   0.324  16.1%     313  get_CSR_integrand
+   0.091   4.5%    3672  _eq424
+   0.084   4.2%    3978  _comoving_frame_at
+   0.033   1.6%     153  _integrate_xi_region
+   0.030   1.5%     153  _retarded_xi_bands
+```
+
+**`_comoving_fields` is 67 %**, and inside it the cost is the cubic B-spline field evaluation,
+not the lookup.
+
+#### The mechanism
+
+Per query the kernel made **ten `bspline_eval_single` calls** -- 5 fields x snapshots `k` and
+`k+1` (`interp3D.py:573-582`) -- each up to a 4x4 = 16-tap stencil, so **160 taps drawn from ten
+separate 128 KB arrays**.
+
+All ten share the same `(u_cell, w_cell)`, hence the same stencil and the same **eight** basis
+weights. But `cubic_bspline_w(w_cell - j)` sat *inside* the `dj` loop (`interp3D.py:441`), so
+each call recomputed the four w-weights sixteen times, and LLVM cannot common that up across ten
+separate calls over ten different arrays. That is ~200 weight evaluations per query where only 8
+distinct values exist.
+
+#### The fix, and why it is bit-identical
+
+Compute the eight weights once, then fill all ten accumulators in a single pass over the
+stencil. Each accumulator receives **the same terms in the same order** as before, and the
+multiply keeps the original left-to-right association `(d * wi) * ww` -- writing the
+algebraically equal `d * (wi * ww)` would change the last bits. `cubic_bspline_w` is pure, so
+hoisting it cannot change a value.
+
+```
+                      time for 51 wake points      per point
+  pre-hoist    2.0494 s  +- 0.0524                 40.18 ms
+  post-hoist   1.3074 s  +- 0.0282                 25.64 ms
+  speedup      1.57x  (three alternating reps, ranges do not overlap)
+  bit-identity max |diff| = 0.000e+00 on every rep pair
+```
+
+`test_two_branch_bands` unchanged at 1.06497 / 0.39062.
+
+#### Two measurement mistakes worth recording
+
+- **I first compared a `cProfile`-instrumented run against an uninstrumented one** and reported
+  "1.61x". The profiler inflates the Python-level baseline, so that comparison was invalid. The
+  1.57x above is from three alternating A/B reps with identical instrumentation.
+- **My first micro-benchmark used random `k` over a 39 MB working set** and reported 607 ns per
+  query, i.e. the cache-miss-bound regime. Real queries are 96 % monotone; with realistic
+  locality the same benchmark gave 237 ns. Interleaving the five fields into one
+  `(n_t, nu, nw, 5)` array, which looked attractive in the miss-bound regime, gave **nothing**
+  once the data was cache-hot (45.9 vs 46.9 ns) and was therefore not done.
+
+#### What bounds any further gain
+
+Of 2 118 466 queries in a real run, only **46.3 %** have a stencil that hits the deposited grid;
+the other 53.7 % return 0 immediately and are nearly free. So optimisation only acts on that
+46.3 %, and what remains there is the 160 taps themselves -- irreducible without an algorithmic
+change (fewer fields, a smaller stencil, or a coarser deposition grid), not more
+micro-optimisation.
+
+The next targets, well behind: `get_CSR_integrand` at 16 %, and the Python-level `_eq424` and
+`_comoving_frame_at` at ~9 % combined (3 672 and 3 978 calls per 51 wake points).
+
+**Files.** `pyDFCSR_2D/interp3D.py` (`interpolate3D_comoving_fields`).
+
 ## 5. Verification suite
 
 ```bash

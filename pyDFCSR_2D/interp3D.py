@@ -570,16 +570,65 @@ def interpolate3D_comoving_fields(xval, zval, tval,
         w_cell = (w - w_start) / delta_w - 0.5
 
         # --- evaluate both snapshots at the SAME (u, w), then blend ---
-        rho_h = (b * bspline_eval_single(data_rho[k], u_cell, w_cell, n_u, n_w)
-                 + a * bspline_eval_single(data_rho[k + 1], u_cell, w_cell, n_u, n_w))
-        rho_hu = (b * bspline_eval_single(data_rho_u[k], u_cell, w_cell, n_u, n_w)
-                  + a * bspline_eval_single(data_rho_u[k + 1], u_cell, w_cell, n_u, n_w))
-        rho_hw = (b * bspline_eval_single(data_rho_w[k], u_cell, w_cell, n_u, n_w)
-                  + a * bspline_eval_single(data_rho_w[k + 1], u_cell, w_cell, n_u, n_w))
-        vx_h = (b * bspline_eval_single(data_vx[k], u_cell, w_cell, n_u, n_w)
-                + a * bspline_eval_single(data_vx[k + 1], u_cell, w_cell, n_u, n_w))
-        vx_hu = (b * bspline_eval_single(data_vx_u[k], u_cell, w_cell, n_u, n_w)
-                 + a * bspline_eval_single(data_vx_u[k + 1], u_cell, w_cell, n_u, n_w))
+        #
+        # This used to be ten bspline_eval_single calls (5 fields x snapshots k, k+1). All
+        # ten share the same (u_cell, w_cell), hence the same 4x4 stencil and the same eight
+        # basis weights -- but cubic_bspline_w(w_cell - j) sat INSIDE the dj loop, so every
+        # call recomputed the four w-weights sixteen times, and LLVM cannot common that up
+        # across ten separate calls over ten different arrays. It came to ~200 weight
+        # evaluations per query where only 8 distinct values exist. Profiling put this
+        # kernel at 67% of wake-mesh time, so this was the whole hot spot.
+        #
+        # Weights are now computed once and all ten accumulators filled in one pass.
+        #
+        # BIT-IDENTICAL, deliberately: each accumulator receives the same terms in the same
+        # order as before, and the multiply keeps the original left-to-right association
+        # (d * wi) * ww -- the algebraically equal d * (wi * ww) would change the last bits.
+        # cubic_bspline_w is pure, so hoisting it cannot change a value.
+        i0 = int(math.floor(u_cell)) - 1
+        j0 = int(math.floor(w_cell)) - 1
+
+        r0 = 0.0
+        r1 = 0.0
+        ru0 = 0.0
+        ru1 = 0.0
+        rw0 = 0.0
+        rw1 = 0.0
+        v0 = 0.0
+        v1 = 0.0
+        vu0 = 0.0
+        vu1 = 0.0
+
+        # the same whole-stencil-misses-the-grid early out each of the ten calls performed
+        if not (i0 + 3 < 0 or i0 >= n_u or j0 + 3 < 0 or j0 >= n_w):
+            for di in range(4):
+                ii = i0 + di
+                if ii < 0 or ii >= n_u:
+                    continue
+                wi = cubic_bspline_w(u_cell - ii)
+                if wi == 0.0:
+                    continue
+                for dj in range(4):
+                    jj = j0 + dj
+                    if jj < 0 or jj >= n_w:
+                        continue
+                    ww = cubic_bspline_w(w_cell - jj)
+                    r0 += (data_rho[k, ii, jj] * wi) * ww
+                    r1 += (data_rho[k + 1, ii, jj] * wi) * ww
+                    ru0 += (data_rho_u[k, ii, jj] * wi) * ww
+                    ru1 += (data_rho_u[k + 1, ii, jj] * wi) * ww
+                    rw0 += (data_rho_w[k, ii, jj] * wi) * ww
+                    rw1 += (data_rho_w[k + 1, ii, jj] * wi) * ww
+                    v0 += (data_vx[k, ii, jj] * wi) * ww
+                    v1 += (data_vx[k + 1, ii, jj] * wi) * ww
+                    vu0 += (data_vx_u[k, ii, jj] * wi) * ww
+                    vu1 += (data_vx_u[k + 1, ii, jj] * wi) * ww
+
+        rho_h = b * r0 + a * r1
+        rho_hu = b * ru0 + a * ru1
+        rho_hw = b * rw0 + a * rw1
+        vx_h = b * v0 + a * v1
+        vx_hu = b * vu0 + a * vu1
 
         # --- back to physical units ---
         # the shear xi = x - p(z) has unit Jacobian, so the area element is
