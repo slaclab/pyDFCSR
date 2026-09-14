@@ -3859,6 +3859,104 @@ popping. That costs O(n) but only once every `cap - n` pushes, so it is amortise
 the interpolant becomes a zero-copy **view**, `self._ring[k, tail:head]`, so `interp3D`
 needed no change whatsoever.
 
+##### The algorithm, explicitly
+
+**State.** One preallocated array and two integer cursors. Nothing else.
+
+```
+  ring   : float64 array, shape (5, cap, xbins, zbins)     the 5 field arrays per snapshot
+  tail   : int, index of the OLDEST live slice
+  head   : int, one past the NEWEST live slice
+  cap    : ring.shape[1]
+  n      : head - tail                                     the live snapshot count
+  CAP0   : 64, the initial capacity
+```
+
+**Invariant.** `0 <= tail <= head <= cap`, and the live slices are `ring[:, tail:head]` --
+always a single **contiguous** run, never split across the array end. That invariant is the
+whole design; everything below exists to maintain it.
+
+**Operation 1: push a snapshot** (once per step, from `append_DF`)
+
+```
+  push(fields):
+      if ring is None:  allocate (5, CAP0, nx, nz);  tail = head = 0
+      n = head - tail
+
+      if head == cap:                            # cursor at the end: nowhere to write
+          target = 2*cap  if 2*n > cap  else cap      # live set fills >half -> grow
+      elif cap > CAP0 and 4*n < cap:             # live set collapsed -> reclaim
+          target = max(CAP0, 2*n)
+      else:
+          target = None                          # room available, just write
+
+      if target is not None:
+          if target != cap:
+              new = empty((5, target, nx, nz))
+              new[:, :n] = ring[:, tail:head]     # GROW or SHRINK: copy live to new array
+              ring = new
+          else:
+              ring[:, :n] = ring[:, tail:head]    # COMPACT: slide live to front, in place
+          tail, head = 0, n
+
+      ring[:, head] = fields
+      head += 1
+```
+
+**Operation 2: drop the oldest snapshot** (from `pop_left_DF`)
+
+```
+  pop_oldest():
+      tail += 1          # no array element is read, written, or freed
+```
+
+**Operation 3: expose the history to the interpolant** (from `build_interpolant`)
+
+```
+  live_view(k):
+      return ring[k, tail:head]      # zero-copy VIEW, C-contiguous
+```
+
+##### Why each choice
+
+**Why compaction rather than modular wrapping.** Both cursors only ever move *right*, so the
+live window marches through the array and `head` eventually reaches `cap` -- while the slots
+below `tail`, vacated by popping, sit unused:
+
+```
+  cap = 8, tail = 5, head = 8, n = 3
+    index:   0    1    2    3    4    5    6    7
+           [ x    x    x    x    x   S0   S1   S2 ]      head = cap: full
+             \___ vacated by popping ___/   ^tail
+  after compaction:
+    index:   0    1    2    3    4    5    6    7
+           [ S0   S1   S2   .    .    .    .    .  ]      5 slots free again
+             ^tail          ^head
+```
+
+A textbook ring buffer would instead set `head = (head+1) % cap` and never copy. It was
+**deliberately not used**: with wrapping the live region can straddle the array end (indices
+6,7,0,1), so it is no longer contiguous, `build_interpolant` could not hand out a view, and
+`interpolate3D_comoving_fields` would need modular indexing in its innermost loop. Compaction
+trades an occasional O(n) memmove for keeping `interp3D` completely untouched -- which is also
+why the wake came out bitwise identical.
+
+**Why the factor 2 headroom.** Compaction costs O(n) and buys `cap - n` free pushes. With
+`cap ~ 2n` that is n pushes per compaction, so the amortised cost is O(n)/n = **O(1) per
+push**. At `cap = 1.25n` it would still be O(1) but with a 4x larger constant. Measured
+outcome: 1.62 slices copied per push, versus ~250 for the old rebuild-everything code.
+
+**Why shrink is tested on every push, not only at compaction.** The condition is
+`4n < cap`. Checking it only inside the `head == cap` branch means the cursor must advance
+`cap - n` more times before the buffer notices the live set has collapsed -- more pushes than
+a short run contains. That left 1.64 GB allocated for 0.40 GB of live data. After a shrink
+`cap = 2n`, so `4n < cap` is immediately false again and this cannot thrash.
+
+**What this does NOT do.** `pop_oldest` genuinely destroys nothing -- popped slices remain in
+memory below `tail`. But all three of grow/shrink/compact copy only `[tail, head)`, so the
+next one discards them. Recovering popped snapshots would need a third cursor (a `floor`
+below `tail`) and the scalar deques kept too, since `deque.popleft()` does drop those.
+
 ##### Measured
 
 Isolated benchmark at 251 snapshots x 5 fields x 128^2 (164.5 MB of live history):
@@ -3948,6 +4046,73 @@ floor is wrong: pre-first-bend accumulation of **element** lengths (CSR.py:336),
 expression, and the after-bend drift using the last bend's R (CSR.py:179). Including the
 factor 5 on `sigma_z` -- dropping it would understate `L_f` by 5^(1/3) = 1.71.
 
+##### The algorithm, explicitly
+
+**How `n` was determined BEFORE this change.** Not from an initial `L_f`, and not from the
+current one. Every step recomputed `start_point` from the instantaneous `L_f` and popped
+anything older; since `pop_left_DF` cannot restore, the window's left edge is a **ratchet**:
+
+```
+  n = (s - ratchet) / step_size + 1,
+      ratchet = max over all PAST steps s' of  start_point(s') = s' - n_fl*L_f(s')
+```
+
+Under monotonically decreasing `sigma_z`, `start_point` increases monotonically and the
+ratchet always equals the current `start_point`, so the two coincide -- which is why the
+original design was self-consistent. A waist makes `start_point` non-monotonic and the two
+diverge.
+
+**Precomputation, once, before any particle moves:**
+
+```
+  1. sigma_z(s) on a fine grid (n_sub = 2000 slices per element):
+         propagate the 6x6 beam sigma matrix with r_gen6, slice by slice,
+         sigma(s) = M(s) sigma0 M(s)^T,   sigma_z(s) = sqrt(sigma[4,4])
+
+  2. L_f(s), mirroring CSR2D's three regimes exactly:
+         s in the first drift, before any bend : L_f = sum of ELEMENT lengths so far
+                                                (CSR.py:336, added at element entry)
+         s inside a bend                       : L_f = (24 R^2 * 5 sigma_z(s))^(1/3)
+                                                (CSR.py:157 with CSR.py:175's factor 5)
+         s in a drift after a bend             : same expression, last bend's R (CSR.py:179)
+
+  3. start_point(s) = max(0, s - n_fl * safety * L_f(s))          safety = 1.25
+
+  4. floor(s) = suffix minimum of start_point:
+         floor[i] = min(start_point[i], start_point[i+1], ..., start_point[N-1])
+         implemented as  np.minimum.accumulate(start_point[::-1])[::-1]
+
+  5. max_depth = max over s of (s - floor(s))          -> the memory ceiling, reported
+```
+
+**Per step, during tracking:**
+
+```
+  min_start_time = floor[j],  j = largest grid index with s[j] <= s_now
+  start_point    = max(0, end_time - n_fl * L_f_actual)
+  start_point    = min(start_point, min_start_time)        # never pop past the floor
+  pop_left while start_time < start_point
+
+  # guard
+  need = max(0, s_now - n_fl * L_f_actual)
+  if time_log[0] > need:  shortfall_count += 1;  worst = max(worst, time_log[0] - need)
+```
+
+**Why a suffix minimum.** The step at `s'` needs history back to `start_point(s')`. So at the
+current `s`, the oldest thing any *future* step will ask for is `min` over all `s' >= s` --
+a suffix minimum, not a value at a point. This is what requires knowing `sigma_z(s)` ahead of
+time; there is no way to compute it from the past alone.
+
+**Why the left grid node in the lookup.** `floor` is **non-decreasing** in `s`: as `s` grows
+the set `{s' >= s}` shrinks, so its minimum can only rise. Therefore `floor[j]` at the node
+at-or-below `s_now` is `<= floor(s_now)`, and using it retains slightly *more* than needed.
+Interpolating would be tighter but could round the wrong way.
+
+**Why `safety = 1.25` on `L_f`.** The prediction is linear optics, so it can be short.
+`L_f ~ sigma_z^(1/3)` is forgiving -- a factor 2 error in `sigma_z` is only 26 % in `L_f` --
+so 1.25 covers roughly a factor 2 error in the predicted bunch length. It is a margin, not a
+proof, which is why the per-step guard exists.
+
 ##### It predicts the tracked values almost exactly
 
 ```
@@ -4007,6 +4172,75 @@ study measured, so its conclusions stand.
 `pyDFCSR_2D/CSR.py` (`build_retention_plan`, `_retention_floor`, `_check_retention`, wired
 into `run`), `pyDFCSR_2D/deposit.py` and `pyDFCSR_2D/deposit_smooth.py`
 (`append_interpolant(..., min_start_time=None)`, defaulting to the old behaviour).
+
+#### 6bb. Chicane memory: uniform stepping does not survive a real compressor (2026-09-13) ⚠️ **Phase 5.3 promoted from optimisation to prerequisite**
+
+##### The question
+
+Raised by the author: in a chicane the bunch is compressed 20x to 100x. Can memory hold the
+history that the (now correct) retention floor demands?
+
+##### Why the answer is not obvious
+
+Two competing dependencies, pulling opposite ways:
+
+- **Depth** is set by the LARGEST `sigma_z`, because `L_f = (24 R^2 * 5 sigma_z)^(1/3)`
+- **`step_size`** is set by the SMALLEST `sigma_z`, because it must resolve the waist
+
+and `n = depth / step_size` is their ratio, so the compression ratio enters directly. A priori
+it could go either way, so it was measured on a 4-dipole chicane (`sigma_z0` = 1 mm,
+`sigma_x0` = 200 um, uncorrelated `sigma_delta` = 1e-5, L = 0.2 m bends) using the §6w scan
+and the §6aa schedule.
+
+##### It is the bend angle, not the compression ratio
+
+```
+    C  theta    sz_min    waist w       step    depth   n unif   GB200 | n NONunif  GB200
+   20   0.10    50.00u   50.9419mm  25.4709mm   1.474m       66    0.11 |       47    0.08
+   50   0.10    20.00u   19.3844mm   9.6922mm   1.474m      161    0.26 |       53    0.08
+   40   0.14    24.95u    0.4772mm   0.2386mm   3.321m    13927   22.28 |       94    0.15
+   27   0.20    37.65u    0.3449mm   0.1724mm   3.468m    20121   32.19 |       97    0.16
+```
+
+At `theta` = 0.10 rad it is comfortable: 66-161 snapshots, under 0.3 GB. At 0.14-0.20 rad it
+becomes **13 900-20 100 snapshots, 22-32 GB** at 200^2 deposition -- and at *lower* compression
+(C = 27-40). So the compression ratio alone is the wrong variable to watch.
+
+**Two effects compound, both pushing the same way.** The waist narrows by ~100x
+(0.34-0.48 mm against 51 mm), forcing a finer step; and the depth *grows* 1.5 m -> 3.5 m,
+because a strongly chirped beam **over-compresses and re-lengthens inside the chicane**, so
+`sigma_z_max` -- and hence `L_f` -- is larger at the exit than at the entrance. Depth up, step
+down, and `n` is the ratio of the two.
+
+##### The cheap mitigations do not rescue it
+
+float32 storage buys 2x; dropping 200^2 to 128^2 deposition buys 2.4x. Together 32 GB -> 6.5 GB,
+still beyond comfortable, and both cost accuracy. They are not a solution.
+
+##### Non-uniform stepping is
+
+Refining only +-5 waist widths and leaving 0.05 m elsewhere in the retained depth gives
+**94-97 snapshots, 0.15 GB** -- a **150-200x** reduction. It works because the constraint is
+*local*: the waist is sub-millimetre while the retention depth is metres, so >99.9 % of the
+history has no reason to be finely sampled.
+
+##### Consequence for the roadmap
+
+In the 1 m test dipole (§6x) non-uniform stepping was worth 48x and §6v/§6x had demoted it to
+a cost optimisation. In a chicane it is worth 150-200x and is **the difference between feasible
+and infeasible on ordinary hardware**. Phase 5.3 is therefore a prerequisite for running this
+code on the machines that matter, not a nicety.
+
+Note also that §6aa's retention floor makes absolute memory *worse*, because it correctly
+retains more. The response is not to revert to the ratchet: correct retention and uniform fine
+stepping are unaffordable *together*, and non-uniform stepping is what makes both possible at
+once.
+
+##### Caveats
+
+Linear optics with CSR off; the chicane parameters are illustrative rather than a specific
+machine; and `min_steps = 2` is calibrated on the single waist of §6x -- though relaxing it to
+1 only halves these numbers, which does not change the conclusion.
 
 ### Step 7 — Remaining secondary fixes ⬜
 
