@@ -59,7 +59,7 @@ class StepSchedule:
 
     def __init__(self, s_nodes, ele_of, is_snap, is_kick, kick_lo, kick_hi,
                  mode, lattice_length, spe, is_step, nsep=None, step_size=None,
-                 dl=None):
+                 dl=None, kick_interval='trailing'):
         self.s_nodes = np.asarray(s_nodes, dtype=np.float64)
         self.ele_of = np.asarray(ele_of, dtype=np.int64)
         self.is_snap = np.asarray(is_snap, dtype=bool)
@@ -79,6 +79,7 @@ class StepSchedule:
         self.is_step = np.asarray(is_step, dtype=bool)
         self.nsep = nsep
         self.step_size = step_size
+        self.kick_interval = kick_interval
 
         if dl is None:
             self.dl = np.zeros_like(self.s_nodes)
@@ -112,6 +113,13 @@ class StepSchedule:
         bad = int((self.is_kick & ~self.is_snap).sum())
         assert bad == 0, f'{bad} kick nodes are not snapshot nodes'
         assert np.all(np.diff(self.ele_of) >= 0), 'ele_of must be non-decreasing'
+        if self.kick_interval == 'midpoint' and self.is_kick.any():
+            # The single assertion that catches almost every quadrature bug here: the kick
+            # intervals must tile the lattice exactly, with no gap and no overlap.
+            got = self.total_arc_kicked()
+            assert abs(got - self.lattice_length) < 1e-9 * max(self.lattice_length, 1.0), (
+                f'midpoint kick intervals sum to {got:.12g} m but the lattice is '
+                f'{self.lattice_length:.12g} m -- they must tile it exactly')
 
     # ---- counts -------------------------------------------------------------------------
     @property
@@ -172,7 +180,55 @@ class StepSchedule:
         return '\n'.join(lines[:max_lines])
 
 
-def build_legacy(distance, nsep, lattice_length, step_size, n_element):
+def midpoint_intervals(s_nodes, kick_idx, boundaries, s_end):
+    """
+    Centre each kick's integration interval on its own sample point.
+
+    The kick is a quadrature of int(W ds). Sampling W at s_i and applying it over the arc
+    BEHIND s_i is a trailing rectangle rule, error O(h * dW/ds). Centring the interval on s_i
+    makes it a midpoint rule, O(h^2), for free -- the wake is still evaluated at s_i using
+    history up to s_i, only the weight moves.
+
+        kick_lo[i] = (s_prev + s_i)/2        kick_hi[i] = (s_i + s_next)/2
+
+    This needs the NEXT kick position, which is why it is only possible with a precomputed
+    schedule and was deferred out of §6dd.
+
+    Intervals are clipped at element boundaries, because W genuinely jumps at a dipole edge and
+    an interval spanning one would smear the transient across it. Clipping only moves the split
+    point between two neighbouring kicks, so the total arc is preserved exactly.
+    """
+    s_nodes = np.asarray(s_nodes, dtype=np.float64)
+    ki = np.asarray(kick_idx, dtype=np.int64)
+    n = s_nodes.size
+    lo = np.zeros(n)
+    hi = np.zeros(n)
+    if ki.size == 0:
+        return lo, hi
+
+    sk = s_nodes[ki]
+    mid = 0.5 * (sk[:-1] + sk[1:])
+    lo[ki[0]] = 0.0
+    hi[ki[-1]] = float(s_end)
+    for j in range(ki.size - 1):
+        hi[ki[j]] = mid[j]
+        lo[ki[j + 1]] = mid[j]
+
+    # clip at element boundaries: move any split point that crosses one onto the boundary
+    b = np.asarray([x for x in boundaries if 0.0 < x < s_end], dtype=np.float64)
+    for j in range(ki.size - 1):
+        a0, a1 = sk[j], sk[j + 1]
+        crossed = b[(b > a0) & (b < a1)]
+        if crossed.size:
+            # the boundary nearest the current split point wins
+            cut = float(crossed[np.argmin(np.abs(crossed - hi[ki[j]]))])
+            hi[ki[j]] = cut
+            lo[ki[j + 1]] = cut
+    return lo, hi
+
+
+def build_legacy(distance, nsep, lattice_length, step_size, n_element,
+                 kick_interval='trailing'):
     """
     Reproduce the historical node set and kick cadence EXACTLY.
 
@@ -222,14 +278,18 @@ def build_legacy(distance, nsep, lattice_length, step_size, n_element):
             is_kick[i] = True
         step_in_ele += 1
 
-    # trailing intervals: each kick owns the arc since the previous kick (the §6dd form)
-    kick_lo = np.zeros(n)
-    kick_hi = np.zeros(n)
-    last = 0.0
-    for i in np.flatnonzero(is_kick):
-        kick_lo[i] = last
-        kick_hi[i] = s_nodes[i]
-        last = s_nodes[i]
+    if kick_interval == 'midpoint':
+        kick_lo, kick_hi = midpoint_intervals(s_nodes, np.flatnonzero(is_kick),
+                                              np.asarray(distance, dtype=float), lattice_length)
+    else:
+        # trailing intervals: each kick owns the arc since the previous kick (the §6dd form)
+        kick_lo = np.zeros(n)
+        kick_hi = np.zeros(n)
+        last = 0.0
+        for i in np.flatnonzero(is_kick):
+            kick_lo[i] = last
+            kick_hi[i] = s_nodes[i]
+            last = s_nodes[i]
 
     # exactly step_size, never diff(s_nodes) -- see the note in StepSchedule.__init__
     dl = np.full(n, float(step_size))
@@ -237,4 +297,5 @@ def build_legacy(distance, nsep, lattice_length, step_size, n_element):
 
     return StepSchedule(s_nodes, ele_of, is_snap, is_kick, kick_lo, kick_hi,
                         mode='legacy', lattice_length=lattice_length,
-                        spe=spe, is_step=is_step, nsep=nsep, step_size=step_size, dl=dl)
+                        spe=spe, is_step=is_step, nsep=nsep, step_size=step_size, dl=dl,
+                        kick_interval=kick_interval)

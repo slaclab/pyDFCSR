@@ -123,7 +123,7 @@ class Lattice():
     maybe install a pointer for the position of the current beam
     """
 
-    def __init__(self, input_lattice):
+    def __init__(self, input_lattice, step_control=None):
 
         assert 'lattice_input_file' in input_lattice, 'Error in parsing lattice: must include the keyword <lattice_input_file>'
         self.lattice_input_file = input_lattice['lattice_input_file']
@@ -131,7 +131,7 @@ class Lattice():
         lattice_config = parse_yaml(self.lattice_input_file)
         self.check_input(lattice_config)
         self.lattice_config = lattice_config
-        self.step_control = input_lattice.get('step_control', None)
+        self.step_control = step_control or input_lattice.get('step_control', None)
         self._Nelement = len([k for k in lattice_config if k != 'step_size'])
         self.get_ref_traj()
         self.get_steps()
@@ -170,9 +170,15 @@ class Lattice():
         cfg = self.step_control or {}
         mode = cfg.get('mode', 'legacy')
 
+        kick_interval = cfg.get('kick_interval', 'trailing')
+        if kick_interval not in ('trailing', 'midpoint'):
+            raise ValueError(f"kick_interval must be 'trailing' or 'midpoint', got "
+                             f"'{kick_interval}'")
+
         if mode == 'legacy':
             self.schedule = build_legacy(self.distance, self.nsep, self.lattice_length,
-                                         self.step_size, self.Nelement)
+                                         self.step_size, self.Nelement,
+                                         kick_interval=kick_interval)
         else:
             raise NotImplementedError(
                 f"step_control mode '{mode}' is not implemented yet; use 'legacy'")

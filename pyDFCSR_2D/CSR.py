@@ -55,7 +55,8 @@ class CSR2D:
         self.check_input_consistency(input)
         self.input = input
         self.beam = Beam(input['input_beam'])
-        self.lattice = Lattice(input['input_lattice'])
+        self.lattice = Lattice(input['input_lattice'],
+                               step_control=input.get('step_control'))
 
         if 'particle_deposition' in input:
             deposition_config = input['particle_deposition']
@@ -146,7 +147,7 @@ class CSR2D:
         self.required_inputs = ['input_beam', 'input_lattice']
 
         allowed_params = self.required_inputs + ['particle_deposition', 'distribution_interpolation', 'CSR_integration',
-                                                 'CSR_computation']
+                                                 'CSR_computation', 'step_control']
         for input_param in input:
             assert input_param in allowed_params, f'Incorrect param given to {self.__class__.__name__}.__init__(**kwargs): {input_param}\nAllowed params: {allowed_params}'
 
@@ -488,7 +489,20 @@ class CSR2D:
                             #     into DL_1 + DL_2 across two elements
                             # On a 4-element test lattice with nsep = 3 this over-weighted
                             # the integrated CSR kick by 14.3%.
-                            L_kick = self.beam.position - self._s_last_kick
+                            if sched.kick_interval == 'midpoint':
+                                # Centred on the sample point, so the quadrature is a midpoint
+                                # rule (O(h^2)) rather than a trailing rectangle (O(h)). Needs
+                                # the NEXT kick position, hence only possible with a precomputed
+                                # schedule -- which is why §6dd deferred it.
+                                L_kick = (sched.kick_hi[step_count]
+                                          - sched.kick_lo[step_count])
+                            else:
+                                # Trailing: the arc actually covered since the previous kick.
+                                # Must NOT be taken from the schedule -- beam.position
+                                # accumulates by `position += step_size`, so it differs from the
+                                # schedule node i*h in the last bits for 31 of 38 nodes, and
+                                # substituting would break the bit-identity guarantee.
+                                L_kick = self.beam.position - self._s_last_kick
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, L_kick,
                                                   self.CSR_params.transverse_on)

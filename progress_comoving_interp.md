@@ -4862,6 +4862,73 @@ retains times and builds the table), `pyDFCSR_2D/interp3D.py`
 (`interpolate3D_comoving_fields` signature and lookup), `pyDFCSR_2D/CSR.py` (both vectorized
 mirrors, and the call site), `test_frame_blend.py` / `test_ghosting.py` (direct calls updated).
 
+#### 11d. Midpoint kick intervals ✅ **O(h) -> O(h^2), opt-in**
+
+The kick is a quadrature of `int(W ds)`. Sampling `W` at `s_i` and applying it over the arc
+*behind* `s_i` is a trailing rectangle rule, error O(h * dW/ds). Centring the interval on `s_i`
+makes it a midpoint rule, O(h^2), for free:
+
+```
+    kick_lo[i] = (s_prev + s_i)/2        kick_hi[i] = (s_i + s_next)/2
+```
+
+The wake is still **evaluated** at `s_i` using history up to `s_i`; only the weight moves. This
+needs the NEXT kick position, which is why it was impossible before a precomputed schedule existed
+and was explicitly deferred out of §6dd.
+
+Intervals are **clipped at element boundaries**, because `W` genuinely jumps at a dipole edge and
+an interval spanning one would smear the transient across it. Clipping only moves the split point
+between two neighbouring kicks, so the total arc is preserved exactly.
+
+Selected by `step_control: {kick_interval: midpoint}`; `trailing` remains the default.
+
+##### The assertion that makes this safe
+
+`_validate` asserts the midpoint intervals **tile the lattice exactly** -- no gap, no overlap. That
+single check catches almost every quadrature bug in this area, and is the generalisation of §6dd,
+where a 14.3 % error came from intervals that did not sum to the arc covered. Measured on a
+4-element lattice at `nsep = 3`:
+
+```
+  trailing  n=8  sum=1.0500  lattice=1.1200   [0.05, 0.15, 0.15, 0.15, 0.1, 0.15, 0.15, 0.15]
+  midpoint  n=8  sum=1.1200  lattice=1.1200   [0.125, 0.225, 0.075, 0.145, 0.105, 0.225, 0.075, 0.145]
+```
+
+Trailing sums only to the last kick position, by construction. Midpoint tiles the whole lattice.
+The 0.225/0.075 pairs are the boundary clipping.
+
+##### A third instance of the same floating-point trap
+
+`trailing` must keep `beam.position - self._s_last_kick` and must **not** be switched to the
+schedule's `kick_hi - kick_lo`. `Beam.track` does `self.position += step_size`, so the position
+accumulates rounding and differs from the schedule's `i*h` node in the last bits for **31 of 38**
+nodes. Substituting would break bit-identity. This is the same hazard as `dl` (§11b) and the
+uniformity tolerance (§11c) -- three separate places where an algebraically equal substitution
+would have silently changed results.
+
+##### Config surface
+
+`step_control` is now a real top-level YAML group, added to `check_input_consistency`'s allowed
+keys and passed from `CSR2D.parse_input` into `Lattice`:
+
+```yaml
+step_control:
+  mode: legacy            # legacy | manual | auto     (manual/auto not yet implemented)
+  kick_interval: trailing # trailing | midpoint
+```
+
+##### Verification
+
+```
+  9 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  default (trailing) cached wake cut: max |diff| = 0.000e+00   (bitwise identical)
+  midpoint intervals tile the lattice to machine precision, asserted in _validate
+```
+
+**Files.** `pyDFCSR_2D/schedule.py` (`midpoint_intervals`, the tiling assertion),
+`pyDFCSR_2D/lattice.py` (`kick_interval` validation), `pyDFCSR_2D/CSR.py` (`step_control` allowed
+and threaded, kick length selection).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
