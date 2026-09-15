@@ -5377,6 +5377,148 @@ calibrating `tau_frac` against wake convergence is no longer optional before `au
 terms as `inf`), `pyDFCSR_2D/waist.py` (`propagate_frame` returning the full frame),
 `pyDFCSR_2D/lattice.py` (wiring).
 
+#### 11j. Reference: the `auto` algorithm and every parameter
+
+Written out explicitly because the preceding entries recorded results and named techniques without
+ever stating the procedure.
+
+##### The algorithm, in order
+
+**Step 0 — before any particle moves.** Propagate the beam's 6x6 second-moment matrix through the
+design lattice with linear transport (`waist.propagate_frame`, using `r_gen6` slice matrices,
+`n_sub` slices per element). This yields, on a fine scan grid `s`:
+
+```
+  sigma_z(s) = sqrt(Sigma_55)          sigma_x(s) = sqrt(Sigma_11)
+  tau(s)     = Sigma_51 / Sigma_55     sigma_xi(s) = sqrt(Sigma_11 - Sigma_51^2/Sigma_55)
+  rho(s)     = 1/R, the slice curvature
+```
+
+`tau` and `sigma_xi` use the same definitions the deposition uses, so the schedule and the
+interpolant describe the same frame. The schedule must be precomputed, not adapted mid-run, because
+`init_statistics` preallocates arrays of length `total_steps` and indexes them directly.
+
+**Step 1 — the formation length**, `L_f(s)`, mirroring CSR2D's three regimes exactly
+(`waist.formation_length_profile`, shared with the retention floor so the two cannot disagree):
+
+```
+  before any bend      L_f = accumulated ELEMENT lengths        (CSR.py:336)
+  inside a bend        L_f = (24 R^2 * 5 sigma_z)^(1/3)         (CSR.py:157,175)
+  drift after a bend   same, with the LAST bend's R             (CSR.py:179)
+```
+
+**Step 2 — four independent requirements.** Each is a local *maximum allowed step*. An idle one is
+`inf`, contributing nothing.
+
+```
+  (a) longitudinal frame
+        L_z   = sigma_z / sqrt(sigma_z'^2 + sigma_z |sigma_z''|)
+        h_1   = L_z / m_steps
+
+  (b) transverse frame
+        L_xi  = sigma_xi / sqrt(sigma_xi'^2 + sigma_xi |sigma_xi''|)
+        h_xi  = L_xi / m_steps_xi
+
+  (c) tilt, from §6r's band tolerance
+        h_tau = tau_frac * sigma_xi / (|dtau/ds| * sigma_z)
+
+  (d) bend transient, direction-dependent (Stupakov & Emma, §11h)
+        L_f_edge = (24 R^2 * 5 sigma_z)^(1/3)   at an ENTRANCE face  (overtaking length)
+                 = R * phi_m / 2                at an EXIT face      (Eq. 10 amplitude decay)
+        h_2      = max(L_f_edge, d_edge) / edge_steps
+        suppressed entirely in the straight section UPSTREAM of an entrance
+```
+
+The `sqrt(y'^2 + y|y''|)` form in (a) and (b) is not decoration: a plain `y/|y'|` divides by zero at
+a turning point -- exactly where the finest steps are needed. This form reduces to `y/|y'|` on a
+slope and to the half-width `sqrt(y/|y''|)` at a minimum.
+
+**Step 3 — relevance**, which gates only (d):
+
+```
+  r_wake = clip(W/W_max, 0, 1) * exp(-d_since_bend / L_f),   W ~ Q / (R^(2/3) sigma_z^(4/3))
+  r_edge = exp(-d_edge / L_f_edge)          (zero upstream of an entrance)
+  r      = max(r_wake, r_edge),  set to 0 below r_floor
+```
+
+**Step 4 — combine reciprocally**, never by `min()`, so `h_eff` is smooth and the integrator in
+Step 5 has no kinks to chase:
+
+```
+  1/h_eff = 1/h_max + 1/h_1 + 1/h_xi + 1/h_tau + r/h_2
+  h_eff   = clip(h_eff, h_min, h_max),  then snapped DOWN to h_max/2^j if dyadic
+  h_eff   = h_max exactly where nothing asks for refinement
+```
+
+Frame terms (a)-(c) are deliberately **not** gated by `r`: a drift far from any magnet carries 64.6 %
+of the sampled integrand, so if its frame varies fast the interpolant needs the resolution
+regardless (§11i).
+
+**Step 5 — place the nodes by equidistribution.** With `phi(s) = integral of ds/h_eff`, element `e`
+spanning `[a,b]` gets
+
+```
+  n_e = max( ceil(phi(b) - phi(a)), ceil(L_e/h_max), 1 )
+```
+
+steps, at equal increments of `phi` found by inverse interpolation. Boundaries land **exactly** and
+every count is an integer, which `init_statistics` requires.
+
+**Step 6 — choose the kicks** as a subset of the snapshots: walk forward, taking a kick whenever
+`kappa * h_eff` of arc has elapsed, and force one at every element boundary. Then build the kick
+intervals, trailing or midpoint (§11d).
+
+**Step 7 — report and refuse.** Print the schedule, and if the projected history exceeds
+`max_memory_gb`, raise **before tracking**. Also refuse a non-uniform schedule combined with a
+deposition method whose interpolator still assumes uniform times.
+
+##### Every parameter
+
+```yaml
+step_control:
+  mode: legacy            # legacy | manual | auto
+  kick_interval: trailing # trailing | midpoint
+  max_memory_gb: null     # refuse up front if the history would exceed this
+  # -- manual only --
+  default_steps: null     # fallback when an element gives no `steps`
+  default_kick_every: 1
+  # -- auto only --
+  n_sub: 400              # linear-optics scan slices per element
+  h_max: null             # coarse CEILING; defaults to the lattice `step_size`
+  h_min: null             # hard FLOOR; defaults to lattice_length / 2e6
+  m_steps: 2.0            # steps across L_z            CALIBRATED, §6x
+  m_steps_xi: 2.0         # steps across L_xi           PROVISIONAL
+  tau_frac: 0.5           # band-centre drift per step, as a fraction of the band
+                          #   half-width                PROVISIONAL, and it usually BINDS
+  edge_steps: 20.0        # steps across L_f at a bend face   PROVISIONAL
+  kappa: 8.0              # kick spacing / snapshot spacing   PROVISIONAL
+  r_floor: 1.0e-3         # relevance below this means no refinement at all
+  dyadic: true            # snap step sizes to h_max/2^j
+```
+
+Per element, in the lattice YAML (`manual` mode; stripped before reaching bmad-x):
+
+```yaml
+element_2:
+  steps: 200          # exactly this many equal steps in this element
+  kick_every: 10      # a kick on every 10th step (the last step is always a kick)
+```
+
+##### Which constants are trustworthy
+
+| parameter | status | basis |
+|---|---|---|
+| `m_steps = 2.0` | **calibrated** | §6x measured wake error vs steps across a waist; the knee is at 0.8, error 1.7 % there and 0.7 % at 2.4 |
+| `tau_frac = 0.5` | **guess, and it dominates** | §6r establishes the tolerance *form* and that it is the tightest, but not this coefficient. It sets the step almost everywhere inside a bend and accounts for the whole 3.9x cost of §11i |
+| `edge_steps = 20` | guess | the *scale* is now right (§11h) but not the divisor |
+| `m_steps_xi = 2.0` | guess | mirrors `m_steps` by analogy only |
+| `kappa = 8.0` | guess | no wake-convergence measurement of kick spacing yet |
+| `r_floor = 1e-3` | pragmatic | chosen so a relevance of ~1e-7 stops costing a dyadic factor of 2 |
+| `dyadic = true` | design choice | keeps the schedule piecewise uniform; costs up to a factor 2 in step size |
+
+`tau_frac` is the one to calibrate first: it is the single number deciding whether adaptive stepping
+costs 4x or 1x.
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
