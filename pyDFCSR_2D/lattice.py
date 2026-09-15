@@ -187,16 +187,17 @@ class Lattice():
             if self.sigma0 is None:
                 raise ValueError("step_control mode 'auto' needs the initial beam moments; "
                                  "they are passed from CSR2D.parse_input")
-            from .waist import propagate_var_z, formation_length_profile
-            s_scan, vz, rho = propagate_var_z(self.lattice_config, self.sigma0,
-                                              n_sub=cfg.get('n_sub', 400))
-            sz = np.sqrt(np.maximum(vz, 0.0))
+            from .waist import propagate_frame, formation_length_profile
+            s_scan, sz, sx, tau, sxi, rho = propagate_frame(
+                self.lattice_config, self.sigma0, n_sub=cfg.get('n_sub', 400))
             L_f = formation_length_profile(self.lattice_config, s_scan, sz, rho)
             self.schedule = build_auto(
                 self.lattice_config, self.distance, self.lattice_length, self.Nelement,
                 s_scan, sz, rho, L_f, step_size=self.step_size,
+                sxi_scan=sxi, tau_scan=tau, sx_scan=sx,
                 kick_interval=kick_interval, nsep=self.nsep,
-                m_steps=cfg.get('m_steps'), edge_steps=cfg.get('edge_steps'),
+                m_steps=cfg.get('m_steps'), m_steps_xi=cfg.get('m_steps_xi'),
+                tau_frac=cfg.get('tau_frac'), edge_steps=cfg.get('edge_steps'),
                 kappa=cfg.get('kappa'), h_min=cfg.get('h_min'), h_max=cfg.get('h_max'),
                 r_floor=cfg.get('r_floor'),
                 dyadic=cfg.get('dyadic'))

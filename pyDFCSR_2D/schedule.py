@@ -401,6 +401,8 @@ def build_manual(lattice_config, distance, lattice_length, n_element,
 # ---------------------------------------------------------------------------------------------
 AUTO_DEFAULTS = dict(
     m_steps=2.0,        # steps across the longitudinal scale L_z; from §6x
+    m_steps_xi=2.0,     # steps across the TRANSVERSE scale L_xi; PROVISIONAL
+    tau_frac=0.5,       # band-centre drift per step, as a fraction of the band half-width
     edge_steps=20.0,    # steps across a formation length at a bend edge; PROVISIONAL
     kappa=8.0,          # kick spacing as a multiple of the snapshot spacing; PROVISIONAL
     h_min=None,         # hard floor; defaults to lattice_length / 2e6
@@ -429,8 +431,22 @@ def _dyadic_snap(h, h_max, tol=0.01):
     return h_max / np.power(2.0, j)
 
 
+def _robust_scale(y, s):
+    """
+    L = y / sqrt(y'^2 + y|y''|).
+
+    Reduces to y/|y'| on a slope and to the half-width sqrt(y/|y''|) at a turning point, where
+    y' vanishes and a plain y/|y'| would divide by zero -- which is exactly where the finest
+    steps are needed.
+    """
+    d1 = np.gradient(y, s)
+    d2 = np.gradient(d1, s)
+    return y / np.sqrt(d1 ** 2 + y * np.abs(d2) + 1e-300)
+
+
 def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
-                      bend_edges=None, bend_R=None, bend_phi=None, bend_is_exit=None):
+                      bend_edges=None, bend_R=None, bend_phi=None, bend_is_exit=None,
+                      sxi=None, tau=None, sx=None):
     """
     The local required step h_eff(s), and the pieces that made it, for reporting.
 
@@ -462,10 +478,36 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
     h_max = opts['h_max']
     h_min = opts['h_min']
 
-    d1 = np.gradient(sz, s)
-    d2 = np.gradient(d1, s)
-    L_z = sz / np.sqrt(d1 ** 2 + sz * np.abs(d2) + 1e-300)
+    L_z = _robust_scale(sz, s)
     h_1 = np.maximum(L_z / opts['m_steps'], h_min)
+
+    # --- the TRANSVERSE frame, which sigma_z alone cannot see ------------------------------
+    # The interpolant blends five frame numbers, not one. In a DRIFT sigma_z is exactly constant,
+    # so L_z is infinite and the sigma_z criterion asks for h_max -- but sigma_xi can be doing
+    # anything, because var_x grows quadratically with s while var_z does not. Measured on a beam
+    # with a transverse waist mid-drift: L_z = 9e10 m while L_xi = 0.31 m, so auto would have
+    # stepped straight over a 3.2x transverse compression.
+    if sxi is not None:
+        h_xi = np.maximum(_robust_scale(np.maximum(sxi, 1e-30), s) / opts['m_steps_xi'], h_min)
+    else:
+        h_xi = np.full_like(s, np.inf)
+
+    # --- the tilt, whose tolerance is the tightest of all ----------------------------------
+    # §6r measured the consequence of a tau error: the band CENTRE moves by dtau*(z_ret - z_bar)
+    # while the band half-width is only margin*xlim*sigma_xi, so the tolerance is
+    # dtau/|tau| <~ margin*sigma_xi/sigma_x -- 0.38% at amplification 525. Requiring the centre
+    # to drift less than tau_frac of a half-width per step gives
+    #     h_tau = tau_frac * sigma_xi / (|dtau/ds| * sigma_z)
+    if tau is not None:
+        dtau = np.abs(np.gradient(np.asarray(tau, float), s))
+        h_tau = np.where(dtau > 0.0,
+                         opts['tau_frac'] * np.maximum(sxi if sxi is not None else sz, 1e-30)
+                         / (np.maximum(dtau, 1e-300) * np.maximum(sz, 1e-30)),
+                         np.inf)
+        # floor only; do NOT clip to h_max, or an unconstrained tau still charges 1/h_max
+        h_tau = np.maximum(h_tau, h_min)
+    else:
+        h_tau = np.full_like(s, np.inf)
 
     # Distance to the nearest BEND edge -- not to any element boundary. A drift-drift junction
     # has no transient and must not attract refinement.
@@ -540,7 +582,7 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
     # a uniformly fine window across the whole L_f.
     h_2 = np.where(np.isfinite(d_edge),
                    np.maximum(np.maximum(L_f_edge, d_edge) / opts['edge_steps'], h_min),
-                   h_max)
+                   np.inf)
 
     # relevance: wake magnitude proxy, damped by distance since the last bend
     inbend = np.abs(rho) > 0.0
@@ -576,19 +618,33 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
     # still pushes h_eff below h_max and the dyadic snap then charges a full factor of 2.
     r = np.where(r < opts['r_floor'], 0.0, r)
 
-    inv_req = 1.0 / h_max + 1.0 / h_1 + 1.0 / h_2
-    inv_eff = r * inv_req + (1.0 - r) / h_max
+    # Frame-variation terms are NOT gated by wake relevance; the edge term is.
+    #
+    # The earlier structure multiplied every refinement term by r, which is wrong for the frame
+    # terms: r is near zero in a drift far from any bend, yet that drift was measured to carry
+    # 64.6% of the sampled integrand points. If the frame varies fast there, the interpolant
+    # needs the resolution regardless of how far the nearest magnet is. Relevance is about how
+    # fast the WAKE evolves, which is what the edge/transient term describes -- not about whether
+    # the density history must be reconstructible.
+    # Every term is a REQUIREMENT: an idle one contributes 0, never 1/h_max. Defaulting idle
+    # terms to h_max instead made each of them add 1/h_max, so three idle terms gave
+    # h_eff = h_max/3 -- measured as a uniform 2-4x over-refinement of every quiet drift, and
+    # 1199 snapshots where 272 were needed.
+    inv_frame = 1.0 / h_1 + 1.0 / h_xi + 1.0 / h_tau
+    inv_eff = 1.0 / h_max + inv_frame + r / h_2
     h_eff = np.clip(1.0 / inv_eff, h_min, h_max)
     if opts['dyadic']:
         h_eff = _dyadic_snap(h_eff, h_max)
-    h_eff = np.where(r <= 0.0, h_max, h_eff)     # irrelevant regions get the ceiling exactly
-    return h_eff, dict(L_z=L_z, h_1=h_1, h_2=h_2, r=r, d_edge=d_edge,
-                       L_f_edge=L_f_edge, r_edge=r_edge, r_wake=r_wake)
+    # exactly h_max where NOTHING asks for refinement -- neither the frame nor an edge
+    quiet = (r <= 0.0) & (inv_frame <= 1e-9 / h_max)
+    h_eff = np.where(quiet, h_max, h_eff)
+    return h_eff, dict(L_z=L_z, h_1=h_1, h_xi=h_xi, h_tau=h_tau, h_2=h_2, r=r,
+                       d_edge=d_edge, L_f_edge=L_f_edge, r_edge=r_edge, r_wake=r_wake)
 
 
 def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_scan,
                rho_scan, L_f_scan, step_size=None, kick_interval='trailing', nsep=None,
-               **overrides):
+               sxi_scan=None, tau_scan=None, sx_scan=None, **overrides):
     """
     Build a schedule by equidistributing 1/h_eff, so element boundaries land exactly.
 
@@ -623,7 +679,8 @@ def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_s
     h_eff, parts = auto_step_profile(s_scan, sz_scan, rho_scan, L_f_scan,
                                      distance, lattice_length, opts,
                                      bend_edges=bend_edges, bend_R=bend_R,
-                                     bend_phi=bend_phi, bend_is_exit=bend_is_exit)
+                                     bend_phi=bend_phi, bend_is_exit=bend_is_exit,
+                                     sxi=sxi_scan, tau=tau_scan, sx=sx_scan)
 
     phi = np.concatenate([[0.0], np.cumsum(0.5 * (1.0 / h_eff[1:] + 1.0 / h_eff[:-1])
                                           * np.diff(s_scan))])

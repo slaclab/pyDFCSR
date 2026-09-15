@@ -79,6 +79,54 @@ def propagate_var_z(lattice_config, sigma0, n_sub=2000):
     return np.array(s_all), np.array(vz_all), np.array(rho_all)
 
 
+
+def propagate_frame(lattice_config, sigma0, n_sub=400):
+    """
+    The full co-moving frame along the lattice: sigma_z, sigma_x, tau and sigma_xi.
+
+    propagate_var_z returns only var_z, which is blind to the transverse frame. In a DRIFT
+    sigma_z is exactly constant while sigma_xi can be doing anything, because var_x grows
+    quadratically in s and var_z does not -- so a step criterion built on sigma_z alone will
+    step straight over a transverse waist. The interpolant blends all of
+    (tau, sigma_z, sigma_xi, centroids), so the schedule has to see all of them.
+
+    tau = cov_zx/var_z and sigma_xi = sqrt(var_x - cov^2/var_z), the same definitions the
+    deposition uses, so the schedule and the interpolant are talking about the same frame.
+    """
+    M = np.eye(6)
+    keys = [k for k in lattice_config if k != 'step_size']
+    s_all, sz, sx, tau, sxi, rho_all = [], [], [], [], [], []
+
+    def push(s_pos, g, rho):
+        vz, vx, cov = g[4, 4], g[0, 0], g[4, 0]
+        s_all.append(s_pos)
+        sz.append(np.sqrt(max(vz, 0.0)))
+        sx.append(np.sqrt(max(vx, 0.0)))
+        tau.append(cov / vz if vz > 0 else 0.0)
+        sxi.append(np.sqrt(max(vx - (cov ** 2) / vz, 0.0)) if vz > 0 else 0.0)
+        rho_all.append(rho)
+
+    push(0.0, sigma0, 0.0)
+    s0 = 0.0
+    for key in keys:
+        el = lattice_config[key]
+        L = float(el['L'])
+        if L <= 0:
+            continue
+        etype = el.get('type', 'drift')
+        angle = float(el.get('angle', 0.0)) if etype == 'dipole' else 0.0
+        k1 = float(el.get('k1', 0.0)) if etype in ('quad', 'quadrupole') else 0.0
+        rho = angle / L if L else 0.0
+        R_slice = r_gen6(L=L / n_sub, angle=angle / n_sub, k1=k1)
+        for _ in range(n_sub):
+            M = R_slice @ M
+            s0 += L / n_sub
+            push(s0, M @ sigma0 @ M.T, rho)
+
+    return (np.array(s_all), np.array(sz), np.array(sx), np.array(tau),
+            np.array(sxi), np.array(rho_all))
+
+
 def find_waists(s, var_z, rho, sigma_x_of_s=None, rel_depth=0.5):
     """
     Interior local minima of var_z(s).

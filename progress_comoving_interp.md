@@ -5279,6 +5279,104 @@ Upstream refinement removed. On drift 3 / dipole 1 / drift 3 at `h_max = 0.05`:
 **Files.** `pyDFCSR_2D/schedule.py` (`auto_step_profile`: direction-dependent edge scale, upstream
 suppression), `reference/Stupakov_transient_wake.pdf` (added).
 
+#### 11i. sigma_z alone was not enough: adding sigma_xi and tau (2026-09-14) ⚠️ **tau now dominates; cost 3.9x, constants uncalibrated**
+
+Raised by the author: the criterion should also track `sigma_x`, and what happens at a point far
+down a drift where the beam size changes fast?
+
+##### The gap was real, and it exposed a limitation in §11h's measurement
+
+The interpolant blends **five** frame numbers -- `tau`, `sigma_z`, `sigma_xi` and the two centroids
+-- but `auto` was watching only `sigma_z`. In a drift `sigma_z` is exactly constant, so `L_z` is
+infinite and the criterion asks for `h_max`, while `sigma_xi` can be doing anything: `var_x` grows
+quadratically in `s` and `var_z` does not.
+
+Worse, §11h's conclusion that "refining the drift changes nothing" was measured on a beam whose
+transverse frame was **frozen**:
+
+```
+  over the 1 m drift of the §11h test:  sigma_z +0.000%,  sigma_x +0.001%,  tau unchanged
+```
+
+So that result is true for that beam and says nothing about the general case. The author was right
+to push.
+
+##### Two structural bugs the question exposed
+
+**Frame terms must not be gated by wake relevance.** `r` multiplied every refinement term, and `r`
+is near zero in a drift far from any magnet -- yet §11h measured that such a drift carries **64.6 %**
+of all sampled integrand points. If the frame varies fast there, the interpolant needs the
+resolution regardless of how far the nearest bend is. Relevance describes how fast the **wake**
+evolves, which is the edge term's business, not whether the density history is reconstructible.
+Now: `inv_eff = 1/h_max + 1/h_1 + 1/h_xi + 1/h_tau + r/h_2`, with only the edge term gated.
+
+**An idle term must contribute zero, not `1/h_max`.** My first version defaulted unconstrained
+terms to `h_max`, so each idle term added `1/h_max` to the reciprocal sum and three idle terms gave
+`h_eff = h_max/3` -- a uniform 2-4x over-refinement of every quiet drift, **1199 snapshots where
+272 were needed**. Idle terms are now `inf`.
+
+##### The new terms
+
+```
+  h_xi  = L_xi / m_steps_xi,     L_xi = robust scale of sigma_xi
+  h_tau = tau_frac * sigma_xi / (|dtau/ds| * sigma_z)
+```
+
+`h_tau` comes straight from §6r's measured tolerance: a `tau` error moves the band **centre** by
+`dtau*(z_ret - z_bar)` while the band half-width is only `margin*xlim*sigma_xi`, so the requirement
+is that the centre drift stay a fraction of a half-width per step. §6r measured that tolerance as
+0.38 % at amplification 525, where a 5 % `tau` error becomes a **13 band-half-width** displacement.
+
+##### tau is now the binding constraint, and that matches §6r
+
+Inside a strongly chirped dipole:
+
+```
+  h_1 (sigma_z)  0.10790
+  h_xi           0.04008
+  h_tau          0.00749      <- binds, 14x tighter than the sigma_z criterion
+  h_2 (edge)     0.01250
+  h_eff          0.00313
+```
+
+That is the whole 272 -> 1055 snapshot rise (3.9x). It is consistent with §6r having identified
+`tau` as the tightest tolerance in the whole scheme -- but **whether 3.9x is the right price depends
+entirely on `tau_frac = 0.5`, which is a guess.**
+
+##### A correction to my own earlier claim
+
+I wrote that `auto` "would step straight over a 3.2x transverse compression". That overstated it. On
+re-testing with a transverse waist 2 m upstream of a bend:
+
+```
+  sigma_xi minimum 312 um at s = 0.950 (from 1000 um), sigma_z constant
+  h_xi at the waist 0.156 m,  far from it 0.361 m      -> the criterion DOES respond, 2.3x
+  but h_max = 0.05 already gives ~6 steps across a 0.31 m wide waist, so little refinement
+  is actually required
+```
+
+The transverse waist is metres-scale, not millimetre-scale like a longitudinal one, so a sane
+`h_max` usually resolves it already. The `sigma_xi` term is correct to have, and it responds, but it
+is not the dramatic omission I implied -- `tau` is the term that actually changes the schedule.
+
+##### Status
+
+`m_steps = 2.0` is calibrated (§6x). `m_steps_xi = 2.0`, `tau_frac = 0.5`, `edge_steps = 20` and
+`kappa = 8` are **not**. With `tau` now setting the step almost everywhere inside a bend,
+calibrating `tau_frac` against wake convergence is no longer optional before `auto` is recommended
+-- it is the single number that decides whether adaptive stepping costs 4x or 1x.
+
+##### Default untouched
+
+```
+  18 tests pass; test_two_branch_bands unchanged at 1.06497 / 0.39062
+  default (legacy) cached wake cut: max |diff| = 0.000e+00
+```
+
+**Files.** `pyDFCSR_2D/schedule.py` (`_robust_scale`, `h_xi`, `h_tau`, ungated frame terms, idle
+terms as `inf`), `pyDFCSR_2D/waist.py` (`propagate_frame` returning the full frame),
+`pyDFCSR_2D/lattice.py` (wiring).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
