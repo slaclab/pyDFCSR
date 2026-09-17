@@ -5519,6 +5519,90 @@ element_2:
 `tau_frac` is the one to calibrate first: it is the single number deciding whether adaptive stepping
 costs 4x or 1x.
 
+#### 11k. `frame_blend` default, and the diagnosed fixes (2026-09-17) ✅
+
+##### Part 6: `frame_blend` default `'coeff'` -> `'orient'`
+
+§6u showed `orient` is provably inert at zero tilt (agrees with `coeff` to 1e-5, figures
+pixel-identical) and diverges only near waists, where `coeff`'s `tan(alpha)` chart is demonstrably
+wrong. It had nonetheless been shipping disabled since §6r. Now the default.
+
+Baselines move for **tilted** beams only, as predicted. `test_two_branch_bands` at shear 20:
+
+```
+                             coeff (old)   orient (new)
+  dE     single -> two          1.06497        1.07264
+  x_kick single -> two          0.39062        0.34323
+  roughness dE, single branch   0.01683        0.09242
+  roughness dE, TWO branch      0.01687        0.01571
+```
+
+The number that matters is the last: the two-branch configuration is the one actually shipped, and
+its roughness **improves** 7 %. The single-branch roughness worsening 5.5x is not a regression --
+single-branch is a deliberately broken control that §6 measured as missing the entire wake
+(rel L2 1.06), so `orient` making it *look* worse is uninformative.
+
+##### Part 7: the diagnosed fixes
+
+**`run(stop_time=T)` no longer overshoots silently.** The node grid is fixed, so a `T` between
+nodes cannot be hit exactly; the loop lands on the first node past it. That was silent and up to a
+full step -- at `step_size` 0.1, `run(stop_time=0.60)` landed at 0.700, 17 % past with a 27 %
+different beam slope, which confounded a whole convergence study in §6i. It now reports:
+
+```
+  [run] stopped at s = 0.404511, 0.004511 m past the requested stop_time = 0.400000. No node
+  lands exactly there; assert on beam.position when comparing runs at different step sizes.
+```
+
+**The wake refuses to evaluate without a history.** `compute_CSR: 0` gates `get_DF`/`append_DF`, so
+the run produces a beam with no density history, and anything calling `get_CSR_integrand` then got
+near-zeros with **no error raised**. It cost a full set of wrong figures in §6f and bit again in
+Step 10, where `debug=False` gave a one-snapshot history and `data_rho[k+1]` read out of bounds.
+Now:
+
+```
+  RuntimeError: the density history holds 1 snapshot(s); the wake needs at least 2 to interpolate
+  between. Set CSR_computation.compute_CSR = 1, or pass debug=True to run(), so that snapshots
+  are recorded.
+```
+
+**The realised schedule is written to the output HDF5.** Without it an adaptive run is not
+reproducible: the node set depends on the beam's own linear optics and on tolerances whose defaults
+may change, so `mode: auto` in the input does not pin down what was done. A `step_schedule` group
+now carries `s_nodes`, `dl`, `ele_of`, `is_snap`, `is_kick`, `kick_lo/hi`, the `auto_h_eff` profile,
+and every tolerance as attributes:
+
+```
+  mode = auto,  kick_interval = trailing,  n_nodes = 1056, n_snapshots = 1055, n_kicks = 121
+  auto_m_steps = 2.0, auto_tau_frac = 0.5, auto_edge_steps = 20.0, auto_kappa = 8.0,
+  auto_h_max = 0.05
+```
+
+##### A regression of my own, caught here
+
+`test_interp_bounds` broke at **collection**: `'DF_tracker_smooth' object has no attribute
+'t_arr'`. §11c added `t_arr` and `is_uniform` to `DF_tracker_comoving` only, but the band
+construction in `CSR.py` is **shared** with the `bspline_fft` and legacy paths and reads them
+before the `use_comoving` branch. §11c's verification batch did not include
+`test_interp_bounds`, so it shipped broken and stayed broken through §11d-§11j. Both attributes are
+now set by `DF_tracker_smooth.build_interpolant` as well; the legacy `DF_tracker` does not use
+`time_log` and does not reach that code, verified by running it.
+
+**Lesson: batching the test suite to avoid an OOM also silently narrowed what "tests pass" meant.**
+The batches must cover every deposition path, not just the one under change.
+
+##### `CSR_integration` 200x200 -> 100x100: guidance, not an edit
+
+Measured converged at 100x100 (rel L2 0.00087 vs a 300x300 reference, 0.09 %) where 200x200 buys
+0.04 % for **1.48x** the runtime. But the shipped example configs are mostly at 200x200 (102), 200x400
+(68), 300x300 (8) and 500x500 (1), with only 58 at 100x100 -- so this is worth ~1.5x on most runs.
+Silently rewriting 170+ of the author's config files is not mine to do, so it is recorded here as a
+measured recommendation to apply where wanted.
+
+**Files.** `pyDFCSR_2D/deposit_smooth.py` (`frame_blend` default; `t_arr`/`is_uniform` for
+`DF_tracker_smooth`), `pyDFCSR_2D/CSR.py` (`stop_time` report, `_assert_history`,
+`_write_schedule`).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

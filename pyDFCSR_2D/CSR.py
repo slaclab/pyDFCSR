@@ -572,6 +572,17 @@ class CSR2D:
                 step_count += 1
 
                 if stop_time and self.beam.position > stop_time:
+                    # The node grid is fixed, so a requested stop_time between nodes cannot be
+                    # hit exactly; the loop lands on the first node past it. That used to be
+                    # SILENT and overshot by up to a full step -- at step_size 0.1,
+                    # run(stop_time=0.60) landed at 0.700, 17% past the request with a 27%
+                    # different beam slope, which confounded a whole convergence study in §6i.
+                    over = self.beam.position - stop_time
+                    if over > 1e-9 * max(abs(stop_time), 1.0):
+                        print(f'  [run] stopped at s = {self.beam.position:.6f}, '
+                              f'{over:.6f} m past the requested stop_time = {stop_time:.6f}. '
+                              f'No node lands exactly there; assert on beam.position when '
+                              f'comparing runs at different step sizes.')
                     return
 
             ele_prev = ele
@@ -1505,6 +1516,23 @@ class CSR2D:
             tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
             tr.is_uniform)
 
+    def _assert_history(self):
+        """
+        Refuse to evaluate a wake without a history to interpolate.
+
+        `compute_CSR: 0` gates get_DF/append_DF, so the run produces a beam with NO density
+        history. Anything calling get_CSR_integrand afterwards then got near-zeros with no error
+        raised -- it cost a full set of wrong figures in §6f, and bit again while benchmarking
+        the B-spline hoist in Step 10, where debug=False gave a one-snapshot history and
+        data_rho[k+1] read out of bounds. The name suggests a pure output switch and it is not.
+        """
+        n = len(getattr(self.DF_tracker, 'time_log', ()))
+        if n < 2:
+            raise RuntimeError(
+                f'the density history holds {n} snapshot(s); the wake needs at least 2 to '
+                f'interpolate between. Set CSR_computation.compute_CSR = 1, or pass '
+                f'debug=True to run(), so that snapshots are recorded.')
+
     def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None):
         """
         taper: (R1, R2, keep_inner) — multiply the integrands by a radial partition
@@ -1513,6 +1541,7 @@ class CSR2D:
         it is the complement. The two pieces sum to the untapered integral exactly.
         """
 
+        self._assert_history()
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
@@ -1832,6 +1861,38 @@ class CSR2D:
         self.statistics['mean_x'][step] = self.beam._mean_x
         self.statistics['mean_z'][step] = self.beam._mean_z
         self.statistics['mean_energy'][step] = self.beam.mean_energy
+    def _write_schedule(self, hf):
+        """
+        Record the REALISED step schedule in the output.
+
+        Without this an adaptive run is not reproducible: the node set depends on the beam's own
+        linear optics and on tolerances whose defaults may change, so "mode: auto" in the input
+        YAML does not pin down what was actually done. Writing the nodes, the snapshot and kick
+        masks, and the tolerances that produced them makes a run replayable and comparable.
+        """
+        sch = getattr(self.lattice, 'schedule', None)
+        if sch is None:
+            return
+        g = hf.create_group('step_schedule')
+        g.attrs['mode'] = str(sch.mode)
+        g.attrs['kick_interval'] = str(sch.kick_interval)
+        g.attrs['n_nodes'] = int(sch.n_nodes)
+        g.attrs['n_snapshots'] = int(sch.n_snap)
+        g.attrs['n_kicks'] = int(sch.n_kick)
+        g.create_dataset('s_nodes', data=sch.s_nodes)
+        g.create_dataset('dl', data=sch.dl)
+        g.create_dataset('ele_of', data=sch.ele_of)
+        g.create_dataset('is_snap', data=sch.is_snap.astype('u1'))
+        g.create_dataset('is_kick', data=sch.is_kick.astype('u1'))
+        g.create_dataset('kick_lo', data=sch.kick_lo)
+        g.create_dataset('kick_hi', data=sch.kick_hi)
+        for k, v in (getattr(sch, 'auto_opts', None) or {}).items():
+            if isinstance(v, (int, float, bool)) or v is None:
+                g.attrs[f'auto_{k}'] = (np.nan if v is None else v)
+        if hasattr(sch, 'auto_h_eff'):
+            g.create_dataset('auto_s_scan', data=sch.auto_s_scan)
+            g.create_dataset('auto_h_eff', data=sch.auto_h_eff)
+
     def write_statistics(self):
 
         if self.parallel and self.rank != 0:
@@ -1847,6 +1908,7 @@ class CSR2D:
         print("Statistics written to ", filename)
 
         with h5py.File(filename, 'w') as hf:
+            self._write_schedule(hf)
             hf.create_dataset(name = 'step_positions', data = self.lattice.steps_record, shape = self.lattice.steps_record.shape)
             hf.create_dataset(name='coords', data=self.lattice.coords)
             hf.create_dataset(name='n_vec', data=self.lattice.n_vec)

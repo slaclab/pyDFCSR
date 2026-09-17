@@ -313,6 +313,15 @@ class DF_tracker_smooth:
         self.data_vx_x_interp = np.array([entry[6] for entry in self.DF_log])
 
         # Per-timestep grid metadata arrays
+
+        # The band construction in CSR.py is shared with the co-moving path and reads these, so
+        # every tracker must provide them. Added after a regression: only DF_tracker_comoving had
+        # them, which broke the bspline_fft and legacy paths at import time (§11c did not run
+        # test_interp_bounds).
+        self.t_arr = np.asarray(times, dtype=np.float64)
+        self.is_uniform = is_uniform_times(self.t_arr)
+        self.bucket, self.bucket_inv_h, self.bucket_t0, self.bucket_M = empty_bucket()
+        self.bucket_worst = 0
         self.min_xi_arr = np.array([entry[0][0] for entry in self.DF_log])
         self.delta_xi_arr = np.array([entry[0][1] - entry[0][0] for entry in self.DF_log])
         self.min_z_arr = np.array([entry[1][0] for entry in self.DF_log])
@@ -411,7 +420,7 @@ class DF_tracker_comoving:
                          xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
-                         clip_warn=1e-3, frame_blend='coeff'):
+                         clip_warn=1e-3, frame_blend='orient'):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
