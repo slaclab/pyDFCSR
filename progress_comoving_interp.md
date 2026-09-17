@@ -5366,6 +5366,12 @@ is not the dramatic omission I implied -- `tau` is the term that actually change
 calibrating `tau_frac` against wake convergence is no longer optional before `auto` is recommended
 -- it is the single number that decides whether adaptive stepping costs 4x or 1x.
 
+> **Superseded by §11l.** `tau_frac` was measured and the wake turned out to be **flat** over a 32x
+> range of it, at tilt amplifications of both 20x and 109x. So this section was right that
+> `tau_frac` decides the cost and wrong that the cost was needed: the default is now **2.0** and the
+> 3.9x rise recorded above is about **1.2x**. Do not use the 0.5 numbers in this section as a
+> baseline.
+
 ##### Default untouched
 
 ```
@@ -5488,12 +5494,14 @@ step_control:
   h_min: null             # hard FLOOR; defaults to lattice_length / 2e6
   m_steps: 2.0            # steps across L_z            CALIBRATED, §6x
   m_steps_xi: 2.0         # steps across L_xi           PROVISIONAL
-  tau_frac: 0.5           # band-centre drift per step, as a fraction of the band
-                          #   half-width                PROVISIONAL, and it usually BINDS
+  tau_frac: 2.0           # band-centre drift per step, as a fraction of the band
+                          #   half-width                CALIBRATED, §11l
   edge_steps: 20.0        # steps across L_f at a bend face   PROVISIONAL
   kappa: 8.0              # kick spacing / snapshot spacing   PROVISIONAL
   r_floor: 1.0e-3         # relevance below this means no refinement at all
   dyadic: true            # snap step sizes to h_max/2^j
+  force_nodes: null       # list of s where a node MUST land exactly (§11l); for
+                          #   convergence studies that observe at a fixed position
 ```
 
 Per element, in the lattice YAML (`manual` mode; stripped before reaching bmad-x):
@@ -5509,15 +5517,15 @@ element_2:
 | parameter | status | basis |
 |---|---|---|
 | `m_steps = 2.0` | **calibrated** | §6x measured wake error vs steps across a waist; the knee is at 0.8, error 1.7 % there and 0.7 % at 2.4 |
-| `tau_frac = 0.5` | **guess, and it dominates** | §6r establishes the tolerance *form* and that it is the tightest, but not this coefficient. It sets the step almost everywhere inside a bend and accounts for the whole 3.9x cost of §11i |
+| `tau_frac = 2.0` | **calibrated** | §11l swept 4 -> 0.125 at tilt amplifications 20x and 109x: the wake moves <= 0.2 %, i.e. not at all, across a 32x range of step size. 2.0 keeps a factor-2 margin under the loosest rung measured. Tested to 109x, not to §6r's 525x |
 | `edge_steps = 20` | guess | the *scale* is now right (§11h) but not the divisor |
 | `m_steps_xi = 2.0` | guess | mirrors `m_steps` by analogy only |
 | `kappa = 8.0` | guess | no wake-convergence measurement of kick spacing yet |
 | `r_floor = 1e-3` | pragmatic | chosen so a relevance of ~1e-7 stops costing a dyadic factor of 2 |
 | `dyadic = true` | design choice | keeps the schedule piecewise uniform; costs up to a factor 2 in step size |
 
-`tau_frac` is the one to calibrate first: it is the single number deciding whether adaptive stepping
-costs 4x or 1x.
+`kappa` is now the one to calibrate next, since kicks cost ~5000x a snapshot each and their spacing
+has never been measured against wake convergence.
 
 #### 11k. `frame_blend` default, and the diagnosed fixes (2026-09-17) ✅
 
@@ -5602,6 +5610,135 @@ measured recommendation to apply where wanted.
 **Files.** `pyDFCSR_2D/deposit_smooth.py` (`frame_blend` default; `t_arr`/`is_uniform` for
 `DF_tracker_smooth`), `pyDFCSR_2D/CSR.py` (`stop_time` report, `_assert_history`,
 `_write_schedule`).
+
+#### 11l. `tau_frac` calibrated: it was buying nothing (2026-09-17) ✅ **0.5 -> 2.0, 3x cheaper, wake unmoved**
+
+§11i left `tau_frac` as "the single number that decides whether adaptive stepping costs 4x or 1x",
+because `h_tau` binds almost everywhere inside a bend and the value 0.5 was a guess. This measures
+it the way §6x measured `min_steps`: sweep the constant, hold everything else fixed, and watch the
+wake.
+
+##### Why the tilt term was expected to bind, and what actually decides it
+
+A `tau` error does not move the wake directly. It mis-places the **integration band**: the band
+centre shifts by `dtau * (z_ret - z_bar)` while the band's own half-width is `margin * xlim *
+sigma_xi`. So the damage is the ratio of those two, which grows with the tilt amplification
+`sigma_x/sigma_xi` -- §6r measured the tolerance at **amplification 525**, where a 5 % `tau` error
+displaces the band by 13 half-widths. The question is therefore not "how fast does tau change" but
+"how amplified is the frame where it changes".
+
+That is why one observation point is not enough. §6x's waist point sits at amplification **20x**,
+and there the longitudinal term `h_1` is comparably tight, so relaxing `tau` cannot show up at all.
+Measured amplification along this bend:
+
+```
+  s = 0.450 (0.10 m in)   sigma_x 996 um / sigma_xi 49.7 um  =  20x
+  s = 0.750 (0.40 m in)   sigma_x 922 um / sigma_xi  8.5 um  = 109x
+```
+
+Both are now measured, per rung, from the same runs.
+
+##### The result: flat, across a 32x range of step size
+
+Uniform `step_size = 0.0006` is the reference (§6x: converged, 0.7 % already at 0.001). Deposition
+held at 128², `force_nodes` pinning both observation points so no rung is offset from another.
+
+```
+  s = 0.450 m, amplification 20x
+   tau_frac   snaps   h_eff@obs   h_tau@obs   dE relL2   xk relL2            dE range
+    uniform     652    0.000600           -  reference  reference  [-7.6704, +3.0073]
+          4      89    0.003125    0.010006    0.00161    0.00030  [-7.6758, +2.9992]
+          2      98    0.001563    0.005003    0.00175    0.00052  [-7.6739, +3.0053]
+          1     136    0.001563    0.002501    0.00055    0.00020  [-7.6708, +3.0084]
+        0.5     172    0.000781    0.001251    0.00108    0.00030  [-7.6700, +3.0130]
+       0.25     266    0.000391    0.000625    0.00114    0.00027  [-7.6695, +3.0146]
+      0.125     501    0.000195    0.000313    0.00147    0.00037  [-7.6691, +3.0158]
+
+  s = 0.750 m, amplification 109x
+    uniform    1076    0.000600           -  reference  reference  [+0.0264, +0.1808]
+          4     172    0.006250    0.011700    0.00029    0.00009  [+0.0264, +0.1808]
+          2     208    0.003125    0.005850    0.00019    0.00004  [+0.0264, +0.1808]
+          1     326    0.001563    0.002925    0.00004    0.00001  [+0.0264, +0.1808]
+        0.5     554    0.000781    0.001463    0.00001    0.00000  [+0.0264, +0.1808]
+       0.25    1032    0.000391    0.000731    0.00001    0.00000  [+0.0264, +0.1808]
+      0.125    2035    0.000195    0.000366    0.00001    0.00000  [+0.0264, +0.1808]
+```
+
+- **The wake does not move.** Over a 32x range of `tau_frac`, `dE` stays within **0.2 %** at 20x
+  amplification and within **0.03 %** at 109x. Every rung is already at or below the reference's own
+  0.7 % convergence error, so the whole column is measurement floor.
+- **It is not monotone at 20x** (0.0016, 0.0018, 0.0006, 0.0011, 0.0011, 0.0015), which is the
+  signature of noise rather than of a resolved trend. At 109x it *is* monotone but reaches 1e-5,
+  i.e. converged from the loosest rung tested.
+- **Higher amplification is the more accurate point, not the less.** The opposite of what §6r's
+  tolerance argument predicts. `sigma_xi` at 0.750 is 8.5 um against a 340 um `sigma_z`, so the band
+  is narrow in absolute terms and the wake there is 40x weaker (`dE` peak 0.18 against 7.7) -- the
+  point is deep in the steady-state regime where the wake is smooth in `s`, and `tau` is changing
+  slowly (`h_tau` 0.0117 m at `tau_frac=4`, an order of magnitude looser than at the waist).
+
+![tau_frac calibration](pyDFCSR_2D/test/benchmark_results/tau_frac/tau_frac_calibrate.png)
+
+Top row: the wake cuts at both points, all rungs on top of the reference. Bottom left/middle:
+error against `tau_frac` -- flat and non-monotone at 20x, converged at 109x. Bottom right: the
+amplification profile, with both observation points marked.
+
+##### The decision, and its cost
+
+`tau_frac` **0.5 -> 2.0**. Not 4.0: the sweep's loosest rung is not a place to sit, and 2.0 keeps a
+factor-2 margin under it while `h_tau` at 2.0 is still 2-4x tighter than `h_1`, so the term remains
+active rather than switched off. Cost, whole run to the far point, against the uniform reference:
+
+```
+  tau_frac=4     0.160x the snapshots, 0.182x the time
+  tau_frac=2     0.193x the snapshots, 0.209x the time      <- new default
+  tau_frac=1     0.303x the snapshots, 0.297x the time
+  tau_frac=0.5   0.515x the snapshots, 0.446x the time      <- old default
+  tau_frac=0.25  0.959x the snapshots, 0.768x the time
+  tau_frac=0.125 1.891x the snapshots, 1.511x the time
+```
+
+So `auto` now costs **0.21x** a converged uniform run rather than 0.45x -- a **2.1x** saving on top
+of what §11i measured, for no measurable accuracy change. The §11i claim that `tau_frac` decides
+whether adaptive stepping costs 4x or 1x was right about the *cost* and wrong about the *need*.
+
+**Scope, stated plainly.** Two observation points, one lattice, one shear, amplifications 20x and
+109x. §6r's tolerance was established at **525x**, which is not tested here, and the 109x point is a
+weak-wake steady-state region rather than a hard case. `tau_frac = 2.0` is therefore a *measured*
+default over the range tested, not a proof that the tilt term can be dropped. The term stays.
+
+##### Two bugs the measurement found
+
+**`run()` is not resumable, and used to fail silently.** The first version of this test reused one
+`CSR2D` and called `run(stop_time=0.45)` then `run(stop_time=0.75)`, since the run passes through
+both. But `run()` restarts its `for ele in lattice_config` loop at the first element with
+`step_count = 1`, so the second call re-tracked an **already-advanced** beam from the lattice
+entrance: it landed at **0.778** instead of 0.750, with a density history that was not one forward
+pass. Only the `assert abs(beam.position - s_obs) < 1e-9` caught it; the cut it produced looked
+entirely plausible. `run()` now raises on a second call. This is the same class of failure as the
+`stop_time` overshoot in §11k -- a position error that produces a believable wrong number.
+
+**`run(stop_time=T)` stepped past an exact hit.** The stop test was `position > stop_time`, so a node
+landing *exactly* on `T` -- which is precisely what `force_nodes` arranges -- failed the test and the
+loop took one more step. Now `>=` within a relative tolerance.
+
+##### New: `force_nodes`
+
+`step_control: {force_nodes: [...]}` makes `auto` place nodes at exactly those `s`. It works by
+splitting the element at each forced `s` and equidistributing each sub-interval separately, so the
+forced position is exact and the node counts stay integers. Without it, each rung of a convergence
+study lands up to half a step from the target -- up to 1.5 mm against a 2.4 mm waist, which would
+have been the dominant entry in the error column and would have had nothing to do with `tau_frac`.
+
+##### Default untouched
+
+```
+  legacy default cached wake cut: max |diff| = 0.000e+00  (HEAD vs working tree, same run)
+```
+
+**Files.** `pyDFCSR_2D/test/test_tau_frac_calibrate.py` (new),
+`pyDFCSR_2D/schedule.py` (`tau_frac` default, `force_nodes` in `build_auto`),
+`pyDFCSR_2D/lattice.py` (`force_nodes` wiring), `pyDFCSR_2D/CSR.py` (`run()` re-entry guard,
+`stop_time` exact-hit fix).
 
 ### Step 7 — Remaining secondary fixes ⬜
 

@@ -402,7 +402,12 @@ def build_manual(lattice_config, distance, lattice_length, n_element,
 AUTO_DEFAULTS = dict(
     m_steps=2.0,        # steps across the longitudinal scale L_z; from §6x
     m_steps_xi=2.0,     # steps across the TRANSVERSE scale L_xi; PROVISIONAL
-    tau_frac=0.5,       # band-centre drift per step, as a fraction of the band half-width
+    tau_frac=2.0,       # band-centre drift per step, as a fraction of the band half-width.
+                        # CALIBRATED §11l: the wake is FLAT from 4 down to 0.125 -- a 32x range of
+                        # h_eff moving dE by <= 0.2 % -- at tilt amplifications of both 20x and
+                        # 109x. So tau is NOT a binding accuracy constraint at these amplifications
+                        # and the old 0.5 was paying 3x for nothing. 2.0 keeps a factor-2 margin
+                        # under the loosest value measured.
     edge_steps=20.0,    # steps across a formation length at a bend edge; PROVISIONAL
     kappa=8.0,          # kick spacing as a multiple of the snapshot spacing; PROVISIONAL
     h_min=None,         # hard floor; defaults to lattice_length / 2e6
@@ -644,7 +649,7 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
 
 def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_scan,
                rho_scan, L_f_scan, step_size=None, kick_interval='trailing', nsep=None,
-               sxi_scan=None, tau_scan=None, sx_scan=None, **overrides):
+               sxi_scan=None, tau_scan=None, sx_scan=None, force_nodes=None, **overrides):
     """
     Build a schedule by equidistributing 1/h_eff, so element boundaries land exactly.
 
@@ -687,27 +692,35 @@ def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_s
     distance = np.asarray(distance, float)
     starts = np.concatenate([[0.0], distance[:-1]])
 
+    forced = np.unique(np.asarray(force_nodes, float)) if force_nodes is not None \
+        else np.empty(0)
+
     s_list = [0.0]
     ele_list = [0]
     spe = np.zeros(n_element, dtype=int)
     for e in range(n_element):
         a, b = float(starts[e]), float(distance[e])
-        pa, pb = np.interp([a, b], s_scan, phi)
-        L_e = b - a
-        n_e = int(max(math.ceil(pb - pa), math.ceil(L_e / opts['h_max']), 1))
-        targets = pa + (pb - pa) * np.arange(1, n_e + 1) / n_e
-        nodes = np.interp(targets, phi, s_scan)
-        nodes[-1] = b                      # boundary exact
-        # guard against a non-monotone node from interpolation flatness
-        prev = s_list[-1]
-        for k in range(n_e):
-            nk = max(float(nodes[k]), prev + opts['h_min'] * 1e-6)
-            if k == n_e - 1:
-                nk = b
-            s_list.append(nk)
-            ele_list.append(e)
-            prev = nk
-        spe[e] = n_e
+        # A forced node splits the element into sub-intervals, each equidistributed on its own,
+        # so the forced s lands EXACTLY. Without this, a convergence study observing at a fixed s
+        # sees each rung land up to half a step away -- against a 2.4 mm waist that offset is
+        # itself the measurement.
+        cuts = [a] + [float(f) for f in forced if a + 1e-12 < f < b - 1e-12] + [b]
+        for c0, c1 in zip(cuts[:-1], cuts[1:]):
+            pa, pb = np.interp([c0, c1], s_scan, phi)
+            n_e = int(max(math.ceil(pb - pa), math.ceil((c1 - c0) / opts['h_max']), 1))
+            targets = pa + (pb - pa) * np.arange(1, n_e + 1) / n_e
+            nodes = np.interp(targets, phi, s_scan)
+            nodes[-1] = c1                 # boundary (or forced node) exact
+            # guard against a non-monotone node from interpolation flatness
+            prev = s_list[-1]
+            for k in range(n_e):
+                nk = max(float(nodes[k]), prev + opts['h_min'] * 1e-6)
+                if k == n_e - 1:
+                    nk = c1
+                s_list.append(nk)
+                ele_list.append(e)
+                prev = nk
+            spe[e] += n_e
 
     s_nodes = np.asarray(s_list, float)
     ele_of = np.asarray(ele_list, np.int64)

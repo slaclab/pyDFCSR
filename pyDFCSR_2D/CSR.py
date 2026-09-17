@@ -379,6 +379,19 @@ class CSR2D:
 
     def run(self, stop_time = None, debug = False):
 
+        # `run` is not resumable. It restarts its `for ele in lattice_config` loop at the first
+        # element and `step_count` at 1, so a second call re-tracks an already-advanced beam from
+        # the lattice entrance -- asked to stop at s = 0.750 after a first call to 0.450, it landed
+        # at 0.778 with a density history that was not one forward pass. Refuse instead of
+        # returning a plausible-looking wrong answer; construct a fresh CSR2D per stop_time.
+        if getattr(self, '_has_run', False):
+            raise RuntimeError(
+                f'run() has already been called on this CSR2D (beam is at s = '
+                f'{self.beam.position:.6f} m). It is not resumable: it would restart tracking '
+                f'from the lattice entrance with the current beam. Construct a new CSR2D for '
+                f'each stop_time.')
+        self._has_run = True
+
         if (not self.parallel) or (self.rank == 0):
             print('Starting the DFCSR run')
             self.report_waists()
@@ -571,7 +584,10 @@ class CSR2D:
 
                 step_count += 1
 
-                if stop_time and self.beam.position > stop_time:
+                # `>=` within a tolerance, not `>`: with step_control's force_nodes a node can land
+                # EXACTLY on stop_time, and a strict `>` would then walk a full step past the one
+                # position the caller asked for.
+                if stop_time and self.beam.position >= stop_time - 1e-12 * max(abs(stop_time), 1.0):
                     # The node grid is fixed, so a requested stop_time between nodes cannot be
                     # hit exactly; the loop lands on the first node past it. That used to be
                     # SILENT and overshot by up to a full step -- at step_size 0.1,

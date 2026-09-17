@@ -200,7 +200,8 @@ class Lattice():
                 tau_frac=cfg.get('tau_frac'), edge_steps=cfg.get('edge_steps'),
                 kappa=cfg.get('kappa'), h_min=cfg.get('h_min'), h_max=cfg.get('h_max'),
                 r_floor=cfg.get('r_floor'),
-                dyadic=cfg.get('dyadic'))
+                dyadic=cfg.get('dyadic'),
+                force_nodes=cfg.get('force_nodes'))
         elif mode == 'manual':
             self.schedule = build_manual(
                 self.lattice_config, self.distance, self.lattice_length, self.Nelement,

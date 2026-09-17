@@ -1,0 +1,64 @@
+============================================================================================================
+Calibrating tau_frac: wake error against schedule cost, at two tilt amplifications
+============================================================================================================
+shear 20, drift 0.35 m, deposition 128^2 FIXED so only the schedule varies
+observing at s = (0.44999999999999996, 0.75), i.e. [0.1, 0.4] m into the dipole
+every auto rung pins both points with force_nodes, so no rung is offset from another
+
+  waist at s = 0.4000 m, width 2.3939 mm
+  the frame at each observation point (linear optics)
+          s  sigma_z um  sigma_xi um       tau  amplification
+      0.450       50.08      49.6970   -19.867          20.0x
+      0.750      339.99       8.4572    -2.713         109.1x
+
+  reference: uniform step_size = 0.0006 (6x: converged, 0.7% at 0.001)
+    s=0.450: landed 0.450000, 652 snapshots, dE range [-7.6704, +3.0073]
+    s=0.750: landed 0.750000, 1076 snapshots, dE range [+0.0264, +0.1808]
+    total 87.0 s
+
+  ran tau_frac=4         285 nodes,   15.8 s
+  ran tau_frac=2         368 nodes,   18.2 s
+  ran tau_frac=1         536 nodes,   25.8 s
+  ran tau_frac=0.5       888 nodes,   38.9 s
+  ran tau_frac=0.25     1603 nodes,   66.8 s
+  ran tau_frac=0.125    3095 nodes,  131.5 s
+
+  s = 0.450 m (0.10 m into the bend), tilt amplification 20x
+     tau_frac   snaps   kicks      h_eff      h_tau     rough   dE relL2   xk relL2                dE range
+      uniform     652     750   0.000600          -   0.50857  reference  reference [ -7.6704, +3.0073]
+            4      89      12   0.003125   0.010006   0.50944    0.00161    0.00030 [ -7.6758, +2.9992]
+            2      98      12   0.001563   0.005003   0.51028    0.00175    0.00052 [ -7.6739, +3.0053]
+            1     136      17   0.001563   0.002501   0.50969    0.00055    0.00020 [ -7.6708, +3.0084]
+          0.5     172      20   0.000781   0.001251   0.50995    0.00108    0.00030 [ -7.6700, +3.0130]
+         0.25     266      30   0.000391   0.000625   0.50950    0.00114    0.00027 [ -7.6695, +3.0146]
+        0.125     501      58   0.000195   0.000313   0.50955    0.00147    0.00037 [ -7.6691, +3.0158]
+    successive differences between adjacent rungs
+            4 -> 2       : 0.00188
+            2 -> 1       : 0.00149
+            1 -> 0.5     : 0.00076
+          0.5 -> 0.25    : 0.00055
+         0.25 -> 0.125   : 0.00036
+
+  s = 0.750 m (0.40 m into the bend), tilt amplification 109x
+     tau_frac   snaps   kicks      h_eff      h_tau     rough   dE relL2   xk relL2                dE range
+      uniform    1076    1250   0.000600          -   0.00632  reference  reference [ +0.0264, +0.1808]
+            4     172      22   0.006250   0.011700   0.00632    0.00029    0.00009 [ +0.0264, +0.1808]
+            2     208      24   0.003125   0.005850   0.00632    0.00019    0.00004 [ +0.0264, +0.1808]
+            1     326      41   0.001563   0.002925   0.00632    0.00004    0.00001 [ +0.0264, +0.1808]
+          0.5     554      67   0.000781   0.001463   0.00632    0.00001    0.00000 [ +0.0264, +0.1808]
+         0.25    1032     123   0.000391   0.000731   0.00632    0.00001    0.00000 [ +0.0264, +0.1808]
+        0.125    2035     242   0.000195   0.000366   0.00632    0.00001    0.00000 [ +0.0264, +0.1808]
+    successive differences between adjacent rungs
+            4 -> 2       : 0.00016
+            2 -> 1       : 0.00016
+            1 -> 0.5     : 0.00003
+          0.5 -> 0.25    : 0.00001
+         0.25 -> 0.125   : 0.00000
+
+  cost, against the uniform reference (whole run to the far point)
+    tau_frac=4       0.160x the snapshots, 0.182x the time
+    tau_frac=2       0.193x the snapshots, 0.209x the time
+    tau_frac=1       0.303x the snapshots, 0.297x the time
+    tau_frac=0.5     0.515x the snapshots, 0.446x the time
+    tau_frac=0.25    0.959x the snapshots, 0.768x the time
+    tau_frac=0.125   1.891x the snapshots, 1.511x the time
