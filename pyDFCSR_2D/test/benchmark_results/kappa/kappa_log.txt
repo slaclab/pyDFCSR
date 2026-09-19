@@ -1,0 +1,64 @@
+========================================================================================================
+Calibrating kappa: kick spacing against the INTEGRATED effect on the beam
+========================================================================================================
+unsheared beam, 0.1 rad bend, drift 0.35 m + bend 1.0 m + drift 0.5 m
+CSR computed AND applied. kappa does not change the wake at a given s -- it changes the
+quadrature of integral W ds -- so the observables are beam quantities, not a wake cut.
+running on 10 MPI ranks
+
+  reference kappa=0 (every snapshot node is a kick): 129 snapshots, 129 kicks, 925 s
+    kick intervals tile 1.850000000 m of a 1.850000000 m lattice
+
+  ran kappa=32        6 kicks,     69 s
+  ran kappa=16        9 kicks,     89 s
+  ran kappa=8        17 kicks,    141 s
+  ran kappa=4        27 kicks,    215 s
+  ran kappa=2        45 kicks,    904 s
+  ran kappa=1        66 kicks,    493 s
+
+  final beam at the lattice end, against the kappa=0 reference
+      kappa  kicks     sec   dE_mean MeV   rel err   sig_E keV   rel err   emit_x nm   rel err
+          0    129     925     -0.324637 reference    565.8574 reference  3743.86593 reference
+         32      6      69     -0.330284   0.01740    543.4812   0.03954  3717.21553   0.00712
+         16      9      89     -0.340337   0.04836    574.2588   0.01485  3691.94799   0.01387
+          8     17     141     -0.325459   0.00253    567.3206   0.00259  3719.02676   0.00663
+          4     27     215     -0.324764   0.00039    566.1069   0.00044  3752.02355   0.00218
+          2     45     904     -0.324671   0.00010    565.9103   0.00009  3747.44724   0.00096
+          1     66     493     -0.324655   0.00005    565.8726   0.00003  3739.80801   0.00108
+
+  error decomposition through the bend: sawtooth (O(h)) vs accumulated bias (O(h^2))
+      kappa  sawtooth pp   order  |mean bias|   order  sign flips
+         32     0.052469       -     0.019477       -           1
+         16     0.028316    0.89     0.003739    2.38           7
+          8     0.016189    0.81     0.000707    2.40          16
+          4     0.008178    0.99     0.000069    3.36          31
+          2     0.004177    0.97     0.000002    5.15          52
+          1     0.002121    0.98     0.000006   -1.62          78
+    a sawtooth shows many sign flips and pp >> |mean|; a systematic bias would show
+    neither. Order 1 in the pp column and 2 in the bias column is the expected result.
+
+  at the bend exit (s = 1.3500 m), after every in-bend kick has landed
+      kappa  sigma_E err  emit_x err  (compare to the worst-in-bend values below)
+         32      0.01351     0.04583
+         16      0.02867     0.01912
+          8      0.01045     0.01084
+          4      0.00454     0.01176
+          2      0.00218     0.00589
+          1      0.00107     0.00132
+
+  worst relative deviation ALONG the lattice (not just at the end)
+      kappa  sigma_energy  norm_emit_x    sigma_z    sigma_x
+         32       0.05245      0.18825    0.00028    0.00039
+         16       0.02867      0.06720    0.00007    0.00066
+          8       0.01045      0.04410    0.00002    0.00016
+          4       0.00454      0.01602    0.00003    0.00007
+          2       0.00218      0.00806    0.00001    0.00002
+          1       0.00107      0.00475    0.00000    0.00001
+
+  cost
+    kappa=32     0.047x the kicks, 0.074x the time
+    kappa=16     0.070x the kicks, 0.096x the time
+    kappa=8      0.132x the kicks, 0.152x the time
+    kappa=4      0.209x the kicks, 0.233x the time
+    kappa=2      0.349x the kicks, 0.978x the time
+    kappa=1      0.512x the kicks, 0.533x the time

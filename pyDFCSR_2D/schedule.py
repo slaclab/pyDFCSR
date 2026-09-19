@@ -409,7 +409,13 @@ AUTO_DEFAULTS = dict(
                         # and the old 0.5 was paying 3x for nothing. 2.0 keeps a factor-2 margin
                         # under the loosest value measured.
     edge_steps=20.0,    # steps across a formation length at a bend edge; PROVISIONAL
-    kappa=8.0,          # kick spacing as a multiple of the snapshot spacing; PROVISIONAL
+    kappa=4.0,          # kick spacing as a multiple of the snapshot spacing.
+                        # CALIBRATED §11m against the FINAL BEAM (not a wake cut -- kappa does not
+                        # change the wake at a given s, only the quadrature of int(W ds)). At 4 the
+                        # delivered beam is within 0.04 % in sigma_E and 0.22 % in emittance of a
+                        # kick-every-snapshot reference, for 0.23x the cost. The previous 8 gave
+                        # 0.26 % / 0.66 %; 4 buys 6x better energy error for 1.5x the cost, and
+                        # emittance is the demanding observable.
     h_min=None,         # hard floor; defaults to lattice_length / 2e6
     h_max=None,         # hard ceiling; defaults to step_size
     dyadic=True,        # snap step sizes to h_max / 2^j

@@ -3,6 +3,14 @@ import numpy as np
 from .schedule import build_legacy, build_manual, build_auto
 from .yaml_parser import parse_yaml
 
+# How far past the lattice end to continue the reference trajectory as a straight drift, as a
+# fraction of the lattice length. It only has to cover the wake mesh's reach beyond the beam,
+# which is zlim*sigma_z -- millimetres against metres -- so 2 % is generous; PAD_MIN_SAMPLES
+# guards the case of a very short lattice.
+PAD_FRACTION = 0.02
+PAD_MIN_SAMPLES = 8
+
+
 def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     """
     A function to get the reference trajectory of partices with given lattice configuration
@@ -112,8 +120,32 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
 
         count += 1
 
-
-
+    # ---- extend the table past the lattice end with a straight drift -----------------------
+    # The wake mesh is built AROUND the beam, so at the last step it queries s up to
+    # zlim*sigma_z BEYOND the beam -- i.e. beyond lattice_length. interpolate1D returns 0
+    # outside its table rather than extrapolating (interp1D.py:31-34), so out there the lab-frame
+    # geometry collapsed to the origin, |r - r'| -> 0, and the wake came back nan/inf. That kick
+    # then wrote nan into ~50 % of the particles and the final beam's mean_energy and
+    # sigma_energy were nan. Measured: 520 of 1071 mesh points, in BOTH legacy and auto, and the
+    # nan set was exactly the set with s_query > lattice_length.
+    #
+    # The physical continuation past the last element is a straight line along the final tangent,
+    # so that is what is appended. rho = 0 there, as in any drift.
+    #
+    # The padding MUST keep delta_s identical, because interpolate1D assumes a uniform grid and
+    # takes (min_x, delta_x): same spacing and same origin means every query INSIDE the lattice
+    # hits the same two nodes with the same weights as before, so this is bit-identical for the
+    # lattice proper. Only the table's length changes, which is exactly the out-of-range
+    # behaviour being fixed.
+    ds = s[1] - s[0]
+    n_pad = max(int(np.ceil(PAD_FRACTION * L_lattice / ds)), PAD_MIN_SAMPLES)
+    s = np.concatenate([s, s[-1] + ds * np.arange(1, n_pad + 1)])
+    tail_tau = tau_vec[-1].copy()
+    tail_n = n_vec[-1].copy()
+    pad_arc = ds * np.arange(1, n_pad + 1)[:, None]
+    coords = np.concatenate([coords, coords[-1] + pad_arc * tail_tau[None, :]])
+    tau_vec = np.concatenate([tau_vec, np.repeat(tail_tau[None, :], n_pad, axis=0)])
+    n_vec = np.concatenate([n_vec, np.repeat(tail_n[None, :], n_pad, axis=0)])
 
     return s, rho, distance, nsep, coords, n_vec, tau_vec
 

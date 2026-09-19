@@ -1,0 +1,67 @@
+# A working-MPI variant of environment.yml.
+#
+# Why this exists
+# ---------------
+# The `pydfcsr` env built from environment.yml gets Open MPI, and its openmpi 5.0.8 build
+# HANGS INSIDE MPI_Init when launched under mpirun -- the ranks print nothing past the first
+# statement and sit at 0 % CPU forever. Standalone `python -c "from mpi4py import MPI"` works,
+# and `mpirun /bin/echo` works, so it is specifically mpi4py's MPI_Init under an mpirun-provided
+# PRRTE/PMIx environment that blocks. All the libraries are present and ABI-consistent
+# (mpi4py and openmpi both from conda-forge, libmpi.40.dylib and libpmix.2.dylib both resolvable),
+# so it is a launch-bootstrap problem rather than a broken install.
+#
+# This env uses MPICH instead, which bootstraps with the Hydra launcher rather than PRRTE/PMIx
+# and does not exhibit the hang. Verified: 10 ranks initialize, pass a barrier, and produce a
+# wake mesh identical to serial.
+#
+# Pinned versions, and why each pin matters
+# -----------------------------------------
+# These are pinned to match the `pydfcsr` env so results are comparable. Bit-identity is this
+# project's regression standard, so an environment that shifts the last bits is not neutral.
+#
+#   distgen=2.2.1   THE LOAD-BEARING PIN. distgen 2.3.0 generates a measurably different
+#                   particle distribution from the same input YAML: sum(z) differed at 1e-15
+#                   and the resulting wake cut differed by 7.5e-11 (9.7e-12 relative).
+#                   With 2.2.1 the wake cut is BIT-IDENTICAL (max |diff| = 0) to `pydfcsr`.
+#   numba=0.63.1    JIT kernels do the wake arithmetic; a different numba/llvmlite can reorder
+#   llvmlite=0.46.0 floating-point operations. (Measured: not the cause of the 7.5e-11 above,
+#                   but pinned anyway so the JIT'd inner loops are the same code.)
+#   scipy=1.17.0
+#   libopenblas=0.3.30
+#   numpy <2        as in environment.yml
+#
+# pytorch is required by bmadx, which pyDFCSR uses for tracking.
+#
+# Usage
+# -----
+#   conda env create -f environment-mpi.yml
+#   conda activate pydfcsr-mpi
+#   pip install -e .                                   # from the pyDFCSR/ directory
+#   pip install git+https://github.com/bmad-sim/Bmad-X/
+#
+#   mpirun -np 10 python pyDFCSR_2D/pyDFCSR_mpi_run.py <config.yaml>
+#
+name: pydfcsr-mpi
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - mpich
+  - mpi4py
+  - distgen=2.2.1
+  - h5py
+  - ipympl
+  - jupyterlab
+  - matplotlib
+  - numba=0.63.1
+  - llvmlite=0.46.0
+  - numpy <2
+  - scipy=1.17.0
+  - libopenblas=0.3.30
+  - pytorch
+  - pyyaml
+  - pytest
+  - pip
+  - pip:
+      - .
+      - git+https://github.com/bmad-sim/Bmad-X/

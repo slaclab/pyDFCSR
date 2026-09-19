@@ -4697,6 +4697,10 @@ Kicks are ~5000x more expensive than snapshots, yet `nsep` ties them together by
 *uniformly* through a chicane costs 22-32 GB against 0.15 GB for local refinement. No single
 uniform step serves both.
 
+**Status.** Parts 1-4, 6-7 of the plan are done (§11a-§11k). `m_steps`, `tau_frac` and `kappa` are
+calibrated (§6x, §11l, §11m); `edge_steps` and `m_steps_xi` remain estimates. Part 5, the
+predictor/corrector comparison of three `sigma_z(s)` curves, is the remaining planned item.
+
 #### 11a. `StepSchedule` and the legacy builder ✅ **bit-identical**
 
 New `pyDFCSR_2D/schedule.py`. One precomputed, immutable plan:
@@ -5497,7 +5501,7 @@ step_control:
   tau_frac: 2.0           # band-centre drift per step, as a fraction of the band
                           #   half-width                CALIBRATED, §11l
   edge_steps: 20.0        # steps across L_f at a bend face   PROVISIONAL
-  kappa: 8.0              # kick spacing / snapshot spacing   PROVISIONAL
+  kappa: 4.0              # kick spacing / snapshot spacing   CALIBRATED, §11m
   r_floor: 1.0e-3         # relevance below this means no refinement at all
   dyadic: true            # snap step sizes to h_max/2^j
   force_nodes: null       # list of s where a node MUST land exactly (§11l); for
@@ -5520,12 +5524,11 @@ element_2:
 | `tau_frac = 2.0` | **calibrated** | §11l swept 4 -> 0.125 at tilt amplifications 20x and 109x: the wake moves <= 0.2 %, i.e. not at all, across a 32x range of step size. 2.0 keeps a factor-2 margin under the loosest rung measured. Tested to 109x, not to §6r's 525x |
 | `edge_steps = 20` | guess | the *scale* is now right (§11h) but not the divisor |
 | `m_steps_xi = 2.0` | guess | mirrors `m_steps` by analogy only |
-| `kappa = 8.0` | guess | no wake-convergence measurement of kick spacing yet |
+| `kappa = 4.0` | **calibrated** | §11m measured the FINAL BEAM against a kick-every-snapshot reference: 0.04 % in sigma_E, 0.22 % in emittance, at 0.23x the cost. Convergence is O(h^2) in the accumulated bias, O(h) in the between-kick ripple |
 | `r_floor = 1e-3` | pragmatic | chosen so a relevance of ~1e-7 stops costing a dyadic factor of 2 |
 | `dyadic = true` | design choice | keeps the schedule piecewise uniform; costs up to a factor 2 in step size |
 
-`kappa` is now the one to calibrate next, since kicks cost ~5000x a snapshot each and their spacing
-has never been measured against wake convergence.
+`edge_steps` and `m_steps_xi` are now the only uncalibrated constants left.
 
 #### 11k. `frame_blend` default, and the diagnosed fixes (2026-09-17) ✅
 
@@ -5739,6 +5742,205 @@ have been the dominant entry in the error column and would have had nothing to d
 `pyDFCSR_2D/schedule.py` (`tau_frac` default, `force_nodes` in `build_auto`),
 `pyDFCSR_2D/lattice.py` (`force_nodes` wiring), `pyDFCSR_2D/CSR.py` (`run()` re-entry guard,
 `stop_time` exact-hit fix).
+
+#### 11m. The final beam was nan, and `kappa` calibrated (2026-09-18) ✅ **a shipped-path bug, and the O(h)/O(h^2) question settled**
+
+Setting out to calibrate `kappa` found something worse than a miscalibrated constant.
+
+##### The final beam of every run had nan energies
+
+The wake mesh is built **around the beam**, spanning `zlim*sigma_z` either side of it. At the last
+step of a lattice that puts mesh points **past `lattice_length`**. `interpolate1D` returns **0**
+outside its table rather than extrapolating (interp1D.py:31-34), so out there the lab-frame
+geometry collapsed to the origin, `|r - r'| -> 0`, and the wake came back `nan`/`inf`. That kick
+then wrote `nan` into half the particles:
+
+```
+  legacy, full run:  nan pz 99392/200000    nan px 99392
+                     mean_energy = nan      sigma_energy = nan
+```
+
+Confirmed pre-existing and **mode-independent** -- this is the shipped default path, not the new
+scheduler:
+
+```
+  mode=auto    stop 1.85 (= lattice end)   520/1071 mesh points nan
+  mode=auto    stop 1.80                     0/1071
+  mode=legacy  stop 1.85                   520/1071      <- shipped default
+  mode=legacy  stop 1.80                     0/1071
+```
+
+And the `nan` set was *exactly* the set with `s_query > lattice_length`: 525 points beyond the end,
+520 `nan`, **zero** `nan` inside. It was silent -- no warning, and `sigma_z`/`sigma_x` stayed finite,
+so only the energy columns went bad. Anything reading `mean_energy` or `sigma_energy` from a
+completed run was reading `nan`; anything reading the dumped particles got half of them poisoned.
+
+**The fix, as the author directed: continue the trajectory with a drift.** `get_referece_traj` now
+appends a straight continuation along the final tangent (`PAD_FRACTION = 2 %` of the lattice, at
+least 8 samples), which is the physically correct continuation past the last element.
+
+The padding **keeps `delta_s` and `min_x` identical**, which is what makes it safe: `interpolate1D`
+assumes a uniform grid and takes `(min_x, delta_x)`, so identical spacing and origin means every
+query *inside* the lattice still hits the same two nodes with the same weights. Only the table's
+length changes.
+
+```
+  nan at the final node:  520/1071 -> 0/1071   in BOTH legacy and auto
+  legacy mid-lattice wake cut:  max |diff| = 0.000e+00     (bit-identical)
+  grid uniformity after padding: max deviation 1.7e-16
+  pad is straight: |d2 coords| = 2.2e-16
+```
+
+##### The O(h) / O(h^2) discrepancy: I was measuring two errors at once
+
+The first sweep reported convergence order **~1.0** against `kappa`, which appeared to contradict
+§11d's claim that midpoint intervals make the kick quadrature O(h^2). §11d is right; the
+measurement was wrong, and the reason is worth recording.
+
+Taking `max|error|` over `s` conflates two errors with *different* orders:
+
+1. **A sawtooth.** Between kicks the beam gets no CSR at all, so `sigma_E` falls behind the
+   continuously-kicked reference; then a kick lands carrying its whole arc `L_kick` at once and the
+   beam overshoots. A staircase chasing a ramp. The ripple amplitude is how much `sigma_E` grows
+   over one kick interval, so it is **O(h)** -- and **no centring can remove it**, because it is
+   intrinsic to representing a continuous process as discrete impulses.
+2. **An accumulated bias**, the net quadrature error of `int(W ds)`. This is what the midpoint rule
+   fixes, and this is the **O(h^2)** part.
+
+`max|.|` samples the ripple, so it reports (1) and hides (2). The *signed* error separates them --
+a sawtooth changes sign repeatedly and has a mean far smaller than its peak, while a systematic bias
+would do neither:
+
+```
+ kappa  sawtooth pp  order   |mean bias|  order   sign flips
+    32     0.052469      -      0.019477      -            1
+    16     0.028316   0.89      0.003739   2.38            7
+     8     0.016189   0.81      0.000707   2.40           16
+     4     0.008178   0.99      0.000069   3.36           31
+     2     0.004177   0.97      0.000002   5.15           52
+     1     0.002121   0.98      0.000006  -1.62           78
+```
+
+Peak-to-peak **O(h^1)** (0.89, 0.81, 0.99, 0.97, 0.98); mean bias **O(h^2) or better** (2.38, 2.40,
+then into the noise floor where the order column stops meaning anything). Sign flips rise 1 -> 78
+exactly as a sawtooth should. The top-left panel of the figure shows the staircases directly.
+
+**Consequence for how to measure anything kick-related:** the observable is the beam **after** the
+bend, not the worst point inside it. A mid-bend sample catches the beam mid-sawtooth, which reflects
+*when you looked* rather than an error in the delivered beam. At `kappa = 8` the emittance error is
+4.4 % at its worst mid-bend but **1.1 %** at the bend exit once every in-bend kick has landed.
+
+##### `kappa` calibrated on the delivered beam
+
+`kappa` is the one `auto` constant that does **not** change the density history, so it does not
+change the wake at a given `s` -- a wake cut, the observable §6x and §11l used, is provably blind to
+it. What it changes is the quadrature of `int(W ds)`, which only shows up in the beam.
+
+Test design: a gentle 0.1 rad bend and an **unsheared** beam, chosen so `auto` returns 129 nodes at
+every `kappa` (asserted in-run). The snapshot grid is therefore held fixed and `kappa` is the only
+variable. The §6x waist case would have been useless here, since its collapsing frame forces sub-mm
+snapshot spacing for reasons unrelated to kick quadrature. Reference is `kappa = 0`, meaning every
+snapshot node is a kick -- the finest quadrature the fixed grid admits.
+
+```
+ kappa  kicks   dE_mean err   sigma_E err   emit_x err   cost (time)
+     0    129     reference     reference    reference         1.00x
+    32      6       0.01740       0.03954      0.00712         0.07x
+    16      9       0.04836       0.01485      0.01387         0.10x
+     8     17       0.00253       0.00259      0.00663         0.15x   <- old default
+     4     27       0.00039       0.00044      0.00218         0.23x   <- new default
+     2     45       0.00010       0.00009      0.00096         0.98x
+     1     66       0.00005       0.00003      0.00108         0.53x
+```
+
+**`kappa` 8 -> 4.** Unlike `tau_frac`, `kappa` has a real monotone cost/accuracy trade -- it is a
+genuine tolerance dial, not a wasted constraint. 4 buys **6x** better energy error than 8 for 1.5x
+the cost, and emittance, the demanding observable, improves 3x. Both 8 and 4 are defensible; 4 is
+chosen because the margin is cheap and emittance is what CSR studies care about.
+
+`kappa = 32` and `16` are **not** monotone in `dE_mean` (0.0174 then 0.0484) -- with only 6 and 9
+kicks over the whole lattice the sawtooth is large enough that the endpoint depends on where the
+last kick happened to land. Another reason not to run very coarse.
+
+![kappa calibration](pyDFCSR_2D/test/benchmark_results/kappa/kappa_calibrate.png)
+
+Top row: `sigma_E`, emittance and bunch length along the lattice, all `kappa` against the reference,
+dipole shaded -- the staircases are the sawtooth. Bottom left/middle: error against `kappa`, at the
+lattice end and worst-along-`s`, with an O(kappa^2) guide. Bottom right: cost against accuracy.
+
+**The `kappa = 2` cost figure (0.98x) is contaminated** -- that run shared the machine with
+verification runs, so its 904 s is not comparable. The accuracy columns are unaffected; only its
+timing should be disregarded.
+
+##### Scope
+
+One lattice, one beam, one bend angle, `kick_interval: midpoint`. A 0.1 rad bend with an unsheared
+beam is a *deliberately easy* case chosen to isolate kick spacing; a strong bend or a chirped beam
+has a wake varying faster in `s` and may want a finer `kappa`. The error concentrates at the
+**dipole exit** (`s ~ 1.34`), consistent with `W` jumping there, which is exactly where a wide kick
+interval hurts most and where the boundary clipping in `midpoint_intervals` earns its keep.
+
+##### Two more bugs, both found by asserting on position
+
+**`run()` is not resumable and failed silently.** The first version of this test reused one `CSR2D`
+and called `run(stop_time=0.45)` then `run(stop_time=0.75)`, since the run passes through both. But
+`run()` restarts its `for ele in lattice_config` loop at the first element with `step_count = 1`, so
+the second call re-tracked an **already-advanced** beam from the lattice entrance: it landed at
+**0.778** instead of 0.750, with a density history that was not one forward pass. Only
+`assert abs(beam.position - s_obs) < 1e-9` caught it -- the cut it produced looked entirely
+plausible. `run()` now raises on a second call.
+
+**MPI cache races.** Every rank was writing the same generated YAML, so a rank could read a file
+another had truncated but not yet filled (`TypeError: 'NoneType' object is not iterable` from
+`parse_yaml` returning `None`). Rank 0 now writes and the others wait on a barrier. The cache-hit
+check also had to become **collective** -- if rank 0 saw a cached file and others did not, the ranks
+took different branches and deadlocked. That deadlock is not hypothetical: when the first version's
+rank 0 died on the YAML race, **nine ranks span at 100 % CPU for 22 hours** until found.
+
+##### Environment: Open MPI is broken on this machine, and distgen shifts results
+
+The sweep needs ~290 wake meshes, so it wants MPI. Mid-work, `mpi4py` began hanging **inside
+`MPI_Init`** under `mpirun` while working fine standalone.
+
+It is not this project and not a corrupted env. A **clean** env containing only python + openmpi +
+mpi4py, with a *newer* Open MPI (5.0.10 vs 5.0.8), hangs identically -- and so does a **pure C**
+MPI hello-world compiled with `mpicc`:
+
+```
+  mpirun -np 4 ./hc   ->   "A: before init" x4, then nothing, 0 barriers
+```
+
+No Python involved. PRRTE verbose logging shows the ranks spawn and start executing, so the hang is
+in the **PMIx client<->server handshake** afterwards. One concrete anomaly fits: `hostname` returns
+`PC103436`, which **does not resolve** (`/etc/hosts` has only `localhost`). Ruled out: firewall
+(enabled, but `prte`/`python` explicitly permitted), TMPDIR path length, `lo0` state (up, 127.0.0.1),
+BTL selection. Workarounds that did *not* help: `--host localhost`, a `localhost` hostfile,
+`--mca oob_tcp_if_include en0`, forcing the usock PTL, a short TMPDIR. The likely fix is adding
+`127.0.0.1  PC103436` to `/etc/hosts`, which needs sudo and is left to the author.
+
+**Workaround: `environment-mpi.yml`, using MPICH**, which bootstraps with Hydra rather than
+PRRTE/PMIx and does not hang. 10 ranks initialize, pass a barrier, and produce a wake mesh identical
+to serial. It is **slower than Open MPI was** -- 2.8x on 10 ranks against the 5.6x measured earlier
+-- so it is a workaround, not an upgrade.
+
+**The pin that matters: `distgen=2.2.1`.** The new env picked up distgen 2.3.0, which generates a
+**measurably different particle distribution from the same input YAML** -- `sum(z)` differing at
+1e-15, propagating to a **7.5e-11** difference in the wake cut (9.7e-12 relative). Small, but
+bit-identity is this project's regression standard, and an environment that shifts the last bits
+silently invalidates every cached `.npy` comparison. Pinning 2.2.1 restored **`max |diff| = 0`**.
+`numba`/`llvmlite`/`scipy`/`libopenblas` are pinned to match too, though measurement showed they
+were **not** the cause -- the JIT'd inner loops reproduced bit-for-bit across those versions.
+
+##### Default untouched
+
+```
+  legacy default cached wake cut: max |diff| = 0.000e+00
+  auto defaults now: tau_frac = 2, kappa = 4  ->  1218 nodes, 246 kicks
+```
+
+**Files.** `pyDFCSR_2D/lattice.py` (`get_referece_traj` drift padding, `PAD_FRACTION`),
+`pyDFCSR_2D/schedule.py` (`kappa` default 8 -> 4), `pyDFCSR_2D/CSR.py` (`run()` re-entry guard),
+`pyDFCSR_2D/test/test_kappa_calibrate.py` (new), `pyDFCSR/environment-mpi.yml` (new).
 
 ### Step 7 — Remaining secondary fixes ⬜
 
