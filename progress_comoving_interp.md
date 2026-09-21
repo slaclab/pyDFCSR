@@ -6198,6 +6198,146 @@ from a *quadrature error* was not. Worth remembering when adding the next criter
 **Files.** `pyDFCSR_2D/test/test_edge_steps_calibrate.py` (new),
 `pyDFCSR_2D/schedule.py` (`edge_steps` default 20 -> 8).
 
+#### 11p. x-z wake maps vs shear, through both transients (2026-09-21) ✅ **the shear ordering inverts along the bend**
+
+Requested: run the dipole case at x-z shear 0, 10, 20, 50 with the current code and plot the x-z
+wakes at several locations including the transients, plus the beam size along the lattice with the
+adaptive step points marked.
+
+Every earlier x-z map in this work (§6f, §6s, §6u, §6y) predates the calibrated scheduler and most
+were computed at a uniform `step_size = 0.05 m`, which §6x measured as **79 % wrong** at a waist.
+
+##### `auto` is required here, not merely convenient
+
+Each shear puts a waist at a different place, needing a different resolution:
+
+```
+  shear   waist s   into bend   width mm   needs step <=
+      0         -           -          -   no waist in the dipole
+     10    0.4490       0.099     9.7856   0.00489
+     20    0.4000       0.050     2.3939   0.00120
+     50    0.3700       0.020     0.3376   0.00017
+```
+
+A uniform step serving shear 50 would need ~10^4 steps over the lattice. What `auto` actually spent:
+
+```
+  shear   nodes   kicks   min h in bend   pre-drift / bend / post-drift nodes
+      0      92      20        1.25e-02        9 /  62 / 21
+     10     203      43        1.56e-03        9 / 166 / 28
+     20     319      67        7.81e-04       10 / 277 / 32
+     50    1037     211        1.95e-04       10 / 985 / 42
+```
+
+The pre-drift stays at ~10 nodes at every shear while the bend goes 62 -> 985. Total 12 min for all
+24 runs on 10 MPI ranks.
+
+##### Observation points, in units of the transient scales
+
+For this dipole (R = 1 m, phi = 1 rad, sigma_z = 50 um), §11h's two scales are
+`L_entrance = 0.1817 m` and `L_exit = 0.5 m`:
+
+```
+  s_dip 0.02   0.11 L_ent    deep in the entrance transient
+  s_dip 0.06   0.33 L_ent    building
+  s_dip 0.18   0.99 L_ent    one overtaking length, transient complete
+  s_dip 0.60   3.30 L_ent    steady state
+  exit +0.05   0.10 L_exit   decay begins
+  exit +0.25   0.50 L_exit   amplitude halved (Stupakov & Emma Eq. 10)
+```
+
+All six are pinned with `force_nodes`, because §11o measured the entrance wake varying **62 % over
+5.6 mm** -- an unpinned observation point is itself a several-percent error, and comparing shears at
+different `s` would be meaningless.
+
+##### The beam size and the schedule
+
+![beam size and the adaptive step schedule](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_schedule.png)
+
+One row per shear: `sigma_z`, `sigma_xi` and `sigma_x` from linear optics, a rug of **every** snapshot
+node (black) and kick (red), and `h_eff` on the right axis. Dotted verticals are the six wake-map
+positions, shading is the dipole. The nodes crowd exactly where `sigma_z` collapses and thin out
+through the drifts, which is the scheduler's whole design claim shown as a picture rather than
+asserted. The node positions are read from the schedule the runs actually used, not reconstructed.
+
+##### The wake maps
+
+![longitudinal x-z wake vs shear](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_longitudinal.png)
+
+![transverse x-z wake vs shear](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_transverse.png)
+
+Rows are position, columns are shear, plotted against the tilt-removed `x - tau z` (the frame the
+deposition works in).
+
+**On the colour scales.** These are **self-normalised per panel**, with each panel's range annotated,
+and they use a diverging map *only where the panel actually changes sign*. Both choices were forced
+by the data. A scale shared across a row leaves most panels blank, because the wake spans four orders
+of magnitude from entrance to exit (`dE` peak 20.7 MeV/m at shear 50 just inside the entrance,
+0.005 MeV/m at exit + 0.25 m). And a symmetric diverging scale wastes half the colormap on panels
+that never change sign -- the transverse kick is **0 % negative** at shear 0 at every position, and
+`dE` at shear 20 just inside the entrance is **100 % negative**. The cost is that amplitudes cannot
+be compared by eye, so that comparison is in its own figure:
+
+![wake amplitude along the lattice](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_amplitude.png)
+
+##### The physics: the shear ordering inverts along the bend
+
+```
+                        dE range [MeV/m]
+  position          shear 0            shear 20            shear 50
+  entrance +0.02  [ -0.75, +0.88]   [-12.19, -0.03]   [-20.69, +0.25]
+  entrance +0.06  [ -2.31, +2.47]   [-35.41, +1.34]   [ -3.38, +1.00]
+  entrance +0.18  [ -2.92, +1.01]   [ -0.14, +0.91]   [ +0.01, +0.49]
+  mid-bend +0.60  [ -2.43, +0.85]   [ -0.03, +0.10]   [ -0.01, +0.05]
+  exit     +0.05  [ -0.96, +0.18]   [ -0.04, +0.02]   [ -0.01, +0.01]
+  exit     +0.25  [ -0.06, +0.18]   [ -0.01, +0.01]   [ -0.01, +0.00]
+```
+
+- **Just inside the entrance, shear dominates**: shear 50 is **25x** stronger than shear 0 and
+  entirely one-signed (energy loss across the whole bunch, no gain region).
+- **By mid-bend the ordering has reversed**: peak `|dE|` is 2.432 MeV/m at shear 0 against
+  0.054 at shear 50, a factor **45**. The mechanism is debunching -- `sigma_z` at mid-bend is 57.6 um
+  at shear 0 but **1362 um** at shear 50, a ratio of 23.7, and the 1D wake scales as
+  `sigma_z^(-4/3)`, which predicts **68**. So the scaling over-predicts the measured 45 by ~1.5x:
+  it captures the mechanism but is not the whole story, as expected for a 2D wake with a tilted
+  beam where the amplification also changes. The strongly sheared beam radiates hard briefly at the
+  entrance and then effectively stops.
+- **The exit decay matches Stupakov & Emma**: every shear falls roughly an order of magnitude between
+  exit + 0.05 m and exit + 0.25 m (0.10 -> 0.50 `L_exit`), and the transverse kick falls by two.
+- **Region 3 at shear 20/50 turns fully positive** at entrance + 0.18 (1.6 % and 0 % negative) --
+  the sheared beam is being accelerated, not decelerated, once past the overtaking length.
+
+##### A caveat on the most demanding panel
+
+The tilt amplification `sigma_x/sigma_xi` is **non-monotonic** at shear 50:
+
+```
+  entrance +0.02    1.0x     (sigma_xi = 2500 um, LARGER than sigma_x: the frame is near-round)
+  entrance +0.06   99.9x
+  entrance +0.18  392.2x
+```
+
+The waist passes through a nearly round state before shearing hard. §6r established that the tilt
+tolerance is tightest at high amplification and was measured at 525x, so the shear-50 row at
+entrance + 0.18 (392x) is the **least validated point in this set** -- §11l's `tau_frac` calibration
+only reached 109x. Worth a convergence spot-check against a finer schedule before these numbers are
+used for anything load-bearing.
+
+##### Two MPI faults in the new test, both mine
+
+**Every rank ran the plotting and the log write**, and whichever finished last overwrote
+`shear_xz_log.txt` with its own empty buffer (`emit()` appends only on rank 0). The figures survived
+because all ranks computed identical content; the log came out blank. Fixed with a
+`if RANK != 0: return` before the file-writing section.
+
+**Then that guard created a deadlock**: `schedule_profile` called `write_inputs`, which contains a
+collective barrier, *after* the guard -- so rank 0 waited alone for ever. `schedule_profile` now
+reads the already-written config path directly. Both are the same class of error as the §11m cache
+race: a collective call reached by only some ranks.
+
+**Files.** `pyDFCSR_2D/test/test_shear_xz_maps.py` (new),
+`pyDFCSR_2D/test/benchmark_results/shear_xz/` (four figures and the log).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
