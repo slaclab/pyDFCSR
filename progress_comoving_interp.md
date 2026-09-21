@@ -5942,6 +5942,140 @@ were **not** the cause -- the JIT'd inner loops reproduced bit-for-bit across th
 `pyDFCSR_2D/schedule.py` (`kappa` default 8 -> 4), `pyDFCSR_2D/CSR.py` (`run()` re-entry guard),
 `pyDFCSR_2D/test/test_kappa_calibrate.py` (new), `pyDFCSR/environment-mpi.yml` (new).
 
+#### 11n. Blast radius of the nan bug, and a metric that divides by zero (2026-09-21) ✅ **two of my hypotheses were wrong; the recorded sweeps were NOT corrupted**
+
+§11m fixed the `nan`. This asks the separate question the fix does not answer: **which already-recorded
+results in this log were produced while the bug was live?** Numbers in this log get believed later, so
+the exposure has to be bounded rather than assumed.
+
+##### What actually triggers it -- two wrong guesses first
+
+**Guess 1: any run reaching the lattice end is affected.** Wrong. `dipole_tilt0_config.yaml`, run to
+the end with the padding disabled to reproduce the pre-fix code, gave **zero** `nan` despite 150 of
+300 mesh points lying past `lattice_length`.
+
+**Guess 2: it depends on how far past the end the mesh reaches, in grid cells.** Also wrong. Both the
+affected and unaffected cases overshoot by *less than one* trajectory grid cell:
+
+```
+  tilt0 lattice   L=1.60  ds=8.00e-04   overshoot 1.90e-04 = 0.24 cells   ->  0 nan
+  kappa lattice   L=1.85  ds=9.25e-04   overshoot 1.51e-04 = 0.16 cells   -> 520 nan
+```
+
+**The actual discriminator is the deposition method.** Holding the lattice and beam fixed and varying
+only `particle_deposition.method`, pre-fix:
+
+```
+  legacy            beyond_L=150   nan =   0 / 300
+  bspline_fft       beyond_L=150   nan = 149 / 300
+  bspline_comoving  beyond_L=150   nan = 150 / 300
+```
+
+So the `legacy` CIC path is immune and **both** B-spline paths are affected. That is the scoping rule
+the audit needed. Post-fix, all three are clean:
+
+```
+  legacy 0/300    bspline_fft 0/300    bspline_comoving 0/300
+```
+
+##### Exposure: narrower than feared
+
+The `nan` reaches the beam only through an applied kick, and `dump_beam(label='end')` /
+`write_statistics()` are reached only when the element loop **completes** -- a `run(stop_time=T)` call
+returns early, before both. Verified directly: with `apply_CSR = 0` the wake mesh still holds `nan`
+but the beam and statistics stay finite (`0` nan in `sigma_energy`, `mean_energy`, and in the final
+`pz`).
+
+So a recorded result is exposed only if **all** of: runs to the lattice end, `apply_CSR = 1`, and a
+B-spline deposition. Of the 14 scripts that call `run()` without `stop_time`, that leaves **four**:
+`test_tilt_sweep`, `test_chirp_sweep`, `test_interp_bounds`, `test_oob_fraction`. Everything else is
+either `apply_CSR = 0` (the whole `benchmark_chirp_*`, `test_cancellation_ratio`, `test_chirp_sweep_W1`
+family, and both chicane MPI runs) or stops mid-lattice.
+
+##### The 2.2-billion entry was never the nan bug
+
+`tilt_sweep_log.txt` contained, at the lattice end:
+
+```
+    14 | 1.4000  | -0.021974 | 0.3739     | 2241882733.0014
+```
+
+A relative error of 2.2e9 looks exactly like `nan`/`inf` contamination, and I took it as the smoking
+gun. **It is not.** Re-running the sweep *after* the fix still gives ~1.9e9 at the same step. The
+cause is the test's own metric:
+
+```
+  rel_xk = |x_kick_new - x_kick_legacy| / |x_kick_legacy|
+```
+
+and past the dipole exit the legacy `|x_kick|` collapses to numerical zero, because there is no
+centripetal CSR force in a drift:
+
+```
+     pos     |x_kick|      |dE_dct|
+  1.1000   2.221653e+00   1.772071e+01
+  1.2000   2.030620e-02   5.664748e+00
+  1.4000   8.779437e-13   1.277047e+00   <- denominator
+  1.5000   1.293428e-13   1.189142e+00
+  1.6000   6.141909e-13   1.031525e+00
+```
+
+`8.8e-13` in the denominator manufactures the 2.2e9. It is a **division by almost zero in the
+diagnostic**, not an error in the wake -- the guard in the test is `if norm_xk > 0`, which passes
+happily at 1e-13. The many other large entries in those logs sit at mid-lattice positions (0.3-0.9 m)
+where the mesh provably cannot reach past the end, and are the genuine legacy-vs-B-spline
+disagreement the sweeps exist to measure.
+
+`tilt_sweep` was re-run post-fix, since it was in scope and the logs are committed artifacts.
+Entries with `|rel| > 1` went 51 -> 37, and the per-step numbers move in the third decimal (step 13
+`dE_rel` 0.7432 -> 0.4215) -- consistent with the fix touching only the final node plus ordinary
+run-to-run deposition noise, not with a wholesale correction. The 2.2e9 entry survived at 1.9e9,
+which is what established that it was the metric and not the bug.
+
+**`chirp_sweep` could not be re-run: it OOMs, for an unrelated pre-existing reason.** The kernel
+killed it at chirp = 1000 having reached **211 GB** of compressed memory
+(`memorystatus: killing largest compressed process python3.12 ... 211100 MB`). The cause is the
+LEGACY deposition's adaptive reinterpolation grid, `deposit.py:360`:
+
+```
+  xbins = int(500 * max(sigma_x_log)/min(sigma_x_log))
+  zbins = int(500 * max(sigma_z_log)/min(sigma_z_log))
+  capped only `if isinstance(self.upper_limit, int)` -- and upper_limit DEFAULTS TO None
+```
+
+At chirp 1000 the size ratio reaches ~71x, giving `9239 x 35699` = 330 M grid points, i.e. 2.6 GB per
+field and ~13 GB for the five fields before any history. Nothing to do with the `nan` fix or the
+scheduler; the uncapped `upper_limit` is a latent hazard on the legacy path for any strongly
+compressing beam. The existing `chirp_sweep_log.txt` (2026-07-09) is therefore **left in place**,
+and its end-of-lattice `x_kick rel` column should be read with the denominator caveat above -- its
+chirp = 0 block is numerically identical to `tilt_sweep`'s shear = 0 block, including the same
+2241882733.0014, so the same explanation applies to it directly.
+
+Worth fixing separately: give `upper_limit` a real default, since `None` means "no cap" and the
+formula is unbounded by construction.
+
+**Lesson for the metric, not the code:** a relative error needs a *floor* on its denominator, not just
+`> 0`. `|x_kick|` legitimately vanishes in a drift, so `rel_xk` there is meaningless however the wake
+is computed. Left as-is for now (changing it would move every recorded number in both logs), but any
+future reading of these tables should ignore `x_kick rel` downstream of a bend.
+
+##### Open MPI works again
+
+After the author restarted and adjusted the machine, the `pydfcsr` env's Open MPI initializes
+normally -- the §11m bisect script reaches `D: barrier passed` on all 4 ranks. Re-measured on one
+wake mesh:
+
+```
+  Open MPI  1 rank 16.53 s   10 ranks 3.00 s   -> 5.5x    (and nan = 0)
+  MPICH     1 rank 23.50 s   10 ranks 8.54 s   -> 2.8x
+```
+
+So `pydfcsr` is the env to use for large runs; `environment-mpi.yml` (MPICH) stays as a documented
+fallback, and its `distgen = 2.2.1` pin remains the important part of that file regardless of which
+MPI is used.
+
+**Files.** `pyDFCSR_2D/test/benchmark_results/tilt_sweep/` (re-run post-fix).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -5952,6 +6086,11 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 - (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
   and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
 - `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
+- **`DF_tracker.upper_limit` defaults to `None`, so the reinterpolation grid is unbounded** (§11n).
+  `deposit.py:360` sets `xbins = 500 * max(sigma_x)/min(sigma_x)` and only caps it
+  `if isinstance(self.upper_limit, int)`. At chirp 1000 this reached `9239 x 35699` = 330 M points and
+  the kernel killed the process at 211 GB compressed. Legacy deposition only, but it makes
+  `test_chirp_sweep.py` unrunnable on a 38 GB machine. Give it a real default.
 - `test_deposit_smooth.py::test_zero_field_gives_zero_derivative` **fails, and did so before this
   work.** It asserts a constant field has zero spectral derivative, but `smooth_and_differentiate`
   zero-pads before the FFT, so the array edge is a genuine step:
