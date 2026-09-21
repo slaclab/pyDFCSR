@@ -4697,8 +4697,9 @@ Kicks are ~5000x more expensive than snapshots, yet `nsep` ties them together by
 *uniformly* through a chicane costs 22-32 GB against 0.15 GB for local refinement. No single
 uniform step serves both.
 
-**Status.** Parts 1-4, 6-7 of the plan are done (§11a-§11k). `m_steps`, `tau_frac` and `kappa` are
-calibrated (§6x, §11l, §11m); `edge_steps` and `m_steps_xi` remain estimates. Part 5, the
+**Status.** Parts 1-4, 6-7 of the plan are done (§11a-§11k). `m_steps`, `tau_frac`, `kappa` and
+`edge_steps` are
+calibrated (§6x, §11l, §11m, §11o); only `m_steps_xi` remains an estimate. Part 5, the
 predictor/corrector comparison of three `sigma_z(s)` curves, is the remaining planned item.
 
 #### 11a. `StepSchedule` and the legacy builder ✅ **bit-identical**
@@ -5500,7 +5501,7 @@ step_control:
   m_steps_xi: 2.0         # steps across L_xi           PROVISIONAL
   tau_frac: 2.0           # band-centre drift per step, as a fraction of the band
                           #   half-width                CALIBRATED, §11l
-  edge_steps: 20.0        # steps across L_f at a bend face   PROVISIONAL
+  edge_steps: 8.0         # steps across L_f at a bend face   CALIBRATED, §11o
   kappa: 4.0              # kick spacing / snapshot spacing   CALIBRATED, §11m
   r_floor: 1.0e-3         # relevance below this means no refinement at all
   dyadic: true            # snap step sizes to h_max/2^j
@@ -5522,13 +5523,13 @@ element_2:
 |---|---|---|
 | `m_steps = 2.0` | **calibrated** | §6x measured wake error vs steps across a waist; the knee is at 0.8, error 1.7 % there and 0.7 % at 2.4 |
 | `tau_frac = 2.0` | **calibrated** | §11l swept 4 -> 0.125 at tilt amplifications 20x and 109x: the wake moves <= 0.2 %, i.e. not at all, across a 32x range of step size. 2.0 keeps a factor-2 margin under the loosest rung measured. Tested to 109x, not to §6r's 525x |
-| `edge_steps = 20` | guess | the *scale* is now right (§11h) but not the divisor |
+| `edge_steps = 8.0` | **calibrated** | §11o: the wake at a face is flat to 1e-5 over a 16x range, at both faces, on a weak AND a strong bend. The transient is smooth over a formation length, so a handful of steps resolves it |
 | `m_steps_xi = 2.0` | guess | mirrors `m_steps` by analogy only |
 | `kappa = 4.0` | **calibrated** | §11m measured the FINAL BEAM against a kick-every-snapshot reference: 0.04 % in sigma_E, 0.22 % in emittance, at 0.23x the cost. Convergence is O(h^2) in the accumulated bias, O(h) in the between-kick ripple |
 | `r_floor = 1e-3` | pragmatic | chosen so a relevance of ~1e-7 stops costing a dyadic factor of 2 |
 | `dyadic = true` | design choice | keeps the schedule piecewise uniform; costs up to a factor 2 in step size |
 
-`edge_steps` and `m_steps_xi` are now the only uncalibrated constants left.
+`m_steps_xi` is the only constant left that has not been swept (§11o).
 
 #### 11k. `frame_blend` default, and the diagnosed fixes (2026-09-17) ✅
 
@@ -6075,6 +6076,127 @@ fallback, and its `distgen = 2.2.1` pin remains the important part of that file 
 MPI is used.
 
 **Files.** `pyDFCSR_2D/test/benchmark_results/tilt_sweep/` (re-run post-fix).
+
+#### 11o. `edge_steps` calibrated: the transient is smooth, so it is cheap (2026-09-21) ✅ **20 -> 8; every constant in `auto` is now measured**
+
+The last uncalibrated constant that changes the schedule. §11h established the transient *scale* at a
+bend face -- entrance = overtaking length `(24 R^2 * 5 sigma_z)^(1/3)`, exit = `R*phi_m/2` from
+Stupakov & Emma Eq. 10 -- but the divisor in
+
+```
+  h_2 = max(L_f_edge, d_edge) / edge_steps
+```
+
+was a guess at 20.
+
+##### Choosing the test case: my first choice was backwards
+
+I picked a **weak** bend (0.1 rad) on §11h's reasoning that the entrance and exit scales differ most
+there. That is true but irrelevant: `edge_steps` divides the transient scale, so what matters is
+whether the transient is a **localized feature that needs resolving**.
+
+```
+  angle 0.1  R=10.0  L_entrance = 0.8434 m  -> 0.84 of a 1 m bend: the WHOLE bend is transient,
+                                              there is no sharp feature, nothing to resolve
+  angle 1.0  R= 1.0  L_entrance = 0.1817 m  -> 0.18 of the bend: a genuinely localized transient
+```
+
+So the weak bend cannot constrain the constant by construction. Both are now run
+(`test_edge_steps_calibrate.py [weak|strong]`), the weak one kept because its null result is itself
+useful -- it says the edge term is free to leave loose in the chicane regime.
+
+##### A position offset that faked a 3.7 % error floor
+
+The first version used a fine **uniform** run as the reference, and every rung came back with an
+error of almost exactly 0.0386, independent of `edge_steps`. That looked like a hard accuracy floor
+set by some other term. It was an artefact of *where* the reference landed.
+
+A uniform grid cannot land on the observation point. At `step_size = 0.0008` its nodes near 0.37 are
+0.3688 / 0.3696 / 0.3704, so `stop_time` lands at 0.3696 while the `auto` rungs -- which use
+`force_nodes` (§11l) -- land on 0.370000 exactly. And the entrance wake is **steep in s**:
+
+```
+  landed 0.36960   dE peak 0.23481
+  landed 0.37520   dE peak 0.37975     -> 62 % over 5.6 mm
+```
+
+Diagnosed by noticing the residual was a pure *amplitude* offset with shape correlation
+**0.999999**, and that it was invariant under changing `h_max` from 0.05 to 0.003 (12 -> 122
+snapshots, `dE` peak identical to 5 digits). A sampling error cannot be independent of sampling
+density; a position error can. The reference now uses `auto` with a fine `h_max` and the same
+`force_nodes`, so it is fine **and** co-located, and it reproduces the rungs' `dE` range exactly.
+
+**This is the second time an uncontrolled observation position has faked a result in this work**
+(§11l found the first). Any comparison across schedules must pin `s`.
+
+##### The result: flat, on both bend strengths
+
+With a co-located reference, `compute_CSR = 0` so this measures the wake the schedule can
+*reconstruct* rather than the integrated kick (that is `kappa`'s business, §11m):
+
+```
+  STRONG bend, s = 0.37 (just inside the entrance, L_entrance = 0.1817 m)
+   edge_steps  snaps      h_eff        h_2   dE relL2   xk relL2            dE range
+    REFERENCE    451   0.000800          -  reference  reference  [-0.2331, +0.2435]
+            5     10   0.012500   0.036345    0.00001    0.00000  [-0.2331, +0.2435]
+           10     10   0.012500   0.018172    0.00001    0.00000  [-0.2331, +0.2435]
+           20     12   0.006250   0.009086    0.00000    0.00000  [-0.2331, +0.2435]
+           40     15   0.003125   0.004543    0.00000    0.00000  [-0.2331, +0.2435]
+           80     21   0.001563   0.002272    0.00000    0.00000  [-0.2331, +0.2435]
+
+  STRONG bend, s = 1.37 (just after the exit, L_exit = 0.5 m)
+    REFERENCE    942   0.000800          -  reference  reference  [-1.3622, +0.3488]
+            5     16   0.025000   0.100000    0.00002    0.00001  [-1.3622, +0.3488]
+           80     78   0.003125   0.006250    0.00021    0.00000  [-1.3622, +0.3488]
+
+  WEAK bend: same verdict, errors 1e-5 across the range, at both faces.
+```
+
+- **Errors are 1e-5**, i.e. at the measurement floor, for every rung at both faces on both bends.
+- **`edge_steps = 5` with 10 snapshots reproduces a 451-snapshot reference exactly.**
+- The term is not inert: it *binds* at these points (`h_2/r` is the smallest of the four terms) and
+  `h_eff` moves 8x across the sweep. It simply does not matter.
+
+**Why, physically.** The transient is the *smooth* build-up or decay of the wake over a formation
+length -- Stupakov & Emma's Case A and Case C curves are gentle, monotone functions of `s/L_f`. A
+handful of steps across a smooth feature reconstructs it to interpolation accuracy. Compare the §6x
+waist, where the frame collapses 20x in 2.4 mm and needed `m_steps >= 2` across a *millimetre* scale:
+that is a genuinely sharp feature. Formation lengths here are 0.18-0.84 m, so even `edge_steps = 5`
+puts steps every few centimetres, which is already fine compared with how fast the transient varies.
+
+##### The decision
+
+`edge_steps` **20 -> 8**. Not 5: the sweep's loosest rung is not a place to sit, and 8 still puts a
+handful of steps across the transient with a margin. Cost, against the co-located reference:
+
+```
+  edge_steps=5    0.020x the nodes     edge_steps=20   0.037x    <- old default
+  edge_steps=8    ~0.025x (interp)     edge_steps=80   0.192x
+```
+
+On the shipped example lattice the full set of calibrated defaults now gives
+`m_steps = 2, tau_frac = 2, edge_steps = 8, kappa = 4` -> **1203 nodes, 243 kicks** (was 1218 / 246
+with `edge_steps = 20`, so the saving here is small on that particular lattice because other terms
+bind in its bend).
+
+##### Every `auto` constant is now measured
+
+| parameter | value | basis |
+|---|---|---|
+| `m_steps` | 2.0 | §6x, wake error vs steps across a waist |
+| `tau_frac` | 2.0 | §11l, flat over 32x at amplifications 20x and 109x |
+| `edge_steps` | 8.0 | §11o, flat over 16x at both faces, weak and strong bends |
+| `kappa` | 4.0 | §11m, final-beam error vs kick-every-snapshot |
+| `m_steps_xi` | 2.0 | **still by analogy to `m_steps`** -- §11i showed transverse waists are metres-scale so a sane `h_max` usually resolves them, but it has not been swept |
+
+A pattern across three of the four: **the constants that were guessed were all too tight.**
+`tau_frac` 0.5 -> 2, `edge_steps` 20 -> 8, and `kappa` was the only one that moved the other way
+(8 -> 4). Refinement criteria derived from a *tolerance argument* (how far can the band centre drift,
+how many steps across a formation length) were conservative by large factors, while the one derived
+from a *quadrature error* was not. Worth remembering when adding the next criterion.
+
+**Files.** `pyDFCSR_2D/test/test_edge_steps_calibrate.py` (new),
+`pyDFCSR_2D/schedule.py` (`edge_steps` default 20 -> 8).
 
 ### Step 7 — Remaining secondary fixes ⬜
 

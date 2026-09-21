@@ -1,0 +1,53 @@
+====================================================================================================
+Calibrating edge_steps: the wake near a bend FACE against schedule cost
+====================================================================================================
+WEAK bend 1.0 rad (R = 1 m), unsheared beam, deposition 128^2 fixed
+entrance at s = 0.35, exit at s = 1.35
+observing just inside the entrance (s = 0.37) and just after the exit (s = 1.37)
+compute_CSR = 0: this measures the wake the schedule can RECONSTRUCT, not the kick
+
+  reference: auto, h_max = 0.0008, force_nodes pinned (uniform cannot land on the observation points)
+    s=0.37: landed 0.370000, 451 snapshots, dE range [-0.2331, +0.2435]
+    s=1.37: landed 1.370000, 942 snapshots, dE range [-1.3622, +0.3488]
+    total 159 s
+
+  ran edge_steps=5         84 nodes,     5 s
+  ran edge_steps=10       113 nodes,     7 s
+  ran edge_steps=20       155 nodes,     8 s
+  ran edge_steps=40       271 nodes,    14 s
+  ran edge_steps=80       444 nodes,    22 s
+
+  s = 0.37 -- ENTRANCE (Case A, transient building)
+    edge_steps   snaps      h_eff        h_2  L_f_edge   dE relL2   xk relL2               dE range
+     REFERENCE     451   0.000800          -         -  reference  reference [ -0.2331, +0.2435]
+             5      10   0.012500   0.036345    0.1817    0.00001    0.00000 [ -0.2331, +0.2435]
+            10      10   0.012500   0.018172    0.1817    0.00001    0.00000 [ -0.2331, +0.2435]
+            20      12   0.006250   0.009086    0.1817    0.00000    0.00000 [ -0.2331, +0.2435]
+            40      15   0.003125   0.004543    0.1817    0.00000    0.00000 [ -0.2331, +0.2435]
+            80      21   0.001563   0.002272    0.1817    0.00000    0.00000 [ -0.2331, +0.2435]
+    successive differences
+           5 -> 10     : 0.00000
+          10 -> 20     : 0.00000
+          20 -> 40     : 0.00000
+          40 -> 80     : 0.00000
+
+  s = 1.37 -- EXIT (Case C, transient decaying)
+    edge_steps   snaps      h_eff        h_2  L_f_edge   dE relL2   xk relL2               dE range
+     REFERENCE     942   0.000800          -         -  reference  reference [ -1.3622, +0.3488]
+             5      16   0.025000   0.100000    0.5000    0.00002    0.00001 [ -1.3622, +0.3488]
+            10      29   0.012500   0.050000    0.5000    0.00021    0.00001 [ -1.3622, +0.3488]
+            20      31   0.012500   0.025000    0.5000    0.00000    0.00000 [ -1.3622, +0.3488]
+            40      62   0.006250   0.012500    0.5000    0.00000    0.00000 [ -1.3622, +0.3488]
+            80      78   0.003125   0.006250    0.5000    0.00021    0.00000 [ -1.3622, +0.3488]
+    successive differences
+           5 -> 10     : 0.00022
+          10 -> 20     : 0.00021
+          20 -> 40     : 0.00000
+          40 -> 80     : 0.00021
+
+  cost
+    edge_steps=5      0.020x the nodes, 0.033x the time
+    edge_steps=10     0.027x the nodes, 0.042x the time
+    edge_steps=20     0.037x the nodes, 0.052x the time
+    edge_steps=40     0.065x the nodes, 0.087x the time
+    edge_steps=80     0.106x the nodes, 0.139x the time

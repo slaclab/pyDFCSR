@@ -408,7 +408,12 @@ AUTO_DEFAULTS = dict(
                         # 109x. So tau is NOT a binding accuracy constraint at these amplifications
                         # and the old 0.5 was paying 3x for nothing. 2.0 keeps a factor-2 margin
                         # under the loosest value measured.
-    edge_steps=20.0,    # steps across a formation length at a bend edge; PROVISIONAL
+    edge_steps=8.0,     # steps across the transient scale at a bend edge.
+                        # CALIBRATED §11o: the wake at a face is unchanged to 1e-5 from 5 to 80,
+                        # on BOTH a weak (0.1 rad) and a strong (1.0 rad) bend, even though h_eff
+                        # moves 8x and the term demonstrably binds. The transient is smooth in s,
+                        # so a handful of steps across it suffices. 8 keeps a margin below the
+                        # loosest value measured while costing ~0.4x the nodes of the old 20.
     kappa=4.0,          # kick spacing as a multiple of the snapshot spacing.
                         # CALIBRATED §11m against the FINAL BEAM (not a wake cut -- kappa does not
                         # change the wake at a given s, only the quadrature of int(W ds)). At 4 the
