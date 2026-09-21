@@ -1,0 +1,72 @@
+============================================================================================================
+x-z wake maps through a dipole vs x-z shear, with the calibrated auto scheduler
+============================================================================================================
+dipole R = 1 m, phi = 1 rad; drift 0.35 + bend 1.0 + drift 0.5 m
+transient scales: L_entrance = 0.1817 m, L_exit = 0.5000 m
+deposition 128^2, mesh 21x51, all points pinned with force_nodes
+
+  the waist each shear puts inside the dipole (linear optics)
+     shear   waist s  into bend  width mm  needs step <=
+         0         -          -         -       no waist
+        10    0.4490      0.099    9.7856        0.00489
+        20    0.4000      0.050    2.3939        0.00120
+        50    0.3700      0.020    0.3376        0.00017
+
+  ran shear=0        92 nodes,   20 kicks, min h 1.25e-02 m,    89 s
+  ran shear=10      203 nodes,   43 kicks, min h 1.56e-03 m,    81 s
+  ran shear=20      319 nodes,   67 kicks, min h 7.81e-04 m,   126 s
+  ran shear=50     1037 nodes,  211 kicks, min h 1.95e-04 m,   418 s
+
+  s = 0.37 m -- entrance +0.02 (0.11 L_ent, deep in the transient)
+     shear  snaps  sigma_z um  sigma_xi um       tau     amp             dE range MeV/m             x_kick range
+         0     10      50.010      50.0143    -0.020    1.0x [    -0.7509,    +0.8813] [   +0.0029,   +0.5601]
+        10     14      40.013      62.5094    12.459    8.0x [    -7.0097,    +0.0471] [   +0.0027,   +0.6036]
+        20     21      30.018      83.3228    33.233   12.0x [   -12.1939,    -0.0297] [   +0.0025,   +0.5944]
+        50     77       1.001    2499.6548   -42.311    1.0x [   -20.6906,    +0.2468] [   -0.0021,   +0.3603]
+
+  s = 0.41 m -- entrance +0.06 (0.33 L_ent, building)
+     shear  snaps  sigma_z um  sigma_xi um       tau     amp             dE range MeV/m             x_kick range
+         0     13      50.089      49.8631    -0.059    1.0x [    -2.3071,    +2.4685] [   +0.0086,   +0.5993]
+        10     25      20.241     123.3849    24.020    4.1x [   -16.8408,    +2.8674] [   +0.0060,   +0.8223]
+        20     62      10.407     239.9650   -93.231    4.2x [   -35.4098,    +1.3393] [   -0.0638,   +0.5541]
+        50    196      99.956      24.9789   -24.970   99.9x [    -3.3786,    +1.0022] [   -0.0033,   +0.4071]
+
+  s = 0.53 m -- entrance +0.18 (0.99 L_ent, transient complete)
+     shear  snaps  sigma_z um  sigma_xi um       tau     amp             dE range MeV/m             x_kick range
+         0     20      50.794      48.5176    -0.171    1.0x [    -2.9248,    +1.0099] [   +0.0249,   +0.5381]
+        10     72      40.520      60.7434   -12.109    8.1x [    -2.0138,    +3.4532] [   -0.0001,   +0.6208]
+        20    122     129.343      19.0404    -7.615   51.7x [    -0.1427,    +0.9089] [   -0.0642,   +0.3609]
+        50    504     397.677       6.2720    -6.186  392.2x [    +0.0119,    +0.4911] [   +0.0029,   +0.1256]
+
+  s = 0.95 m -- mid-bend +0.60 (3.30 L_ent, steady state)
+     shear  snaps  sigma_z um  sigma_xi um       tau     amp             dE range MeV/m             x_kick range
+         0     22      57.552      39.5776    -0.373    1.1x [    -2.4320,    +0.8455] [   +0.0230,   +0.5076]
+        10    122     234.072      14.2880    -1.772   29.1x [    -0.1612,    +0.1815] [   +0.0064,   +0.1825]
+        20    236     515.440      12.5264    -1.603   66.0x [    -0.0266,    +0.0967] [   +0.0030,   +0.0916]
+        50    916    1361.914      12.3696    -1.515  166.8x [    -0.0067,    +0.0540] [   +0.0012,   +0.0380]
+
+  s = 1.40 m -- exit +0.05 (0.10 L_exit, decay begins)
+     shear  snaps  sigma_z um  sigma_xi um       tau     amp             dE range MeV/m             x_kick range
+         0     18      67.336      48.9952    -0.411    1.1x [    -0.9642,    +0.1817] [   +0.0000,   +0.0063]
+        10     70     373.485      39.7359    -0.676    6.4x [    -0.1007,    +0.0374] [   +0.0000,   +0.0026]
+        20    163     792.771      40.3255    -0.630   12.4x [    -0.0383,    +0.0205] [   +0.0000,   +0.0017]
+        50    993    2054.192      40.7999    -0.607   30.6x [    -0.0118,    +0.0108] [   +0.0000,   +0.0009]
+
+  s = 1.60 m -- exit +0.25 (0.50 L_exit, amplitude halved)
+     shear  snaps  sigma_z um  sigma_xi um       tau     amp             dE range MeV/m             x_kick range
+         0     18      67.336      64.0017    -0.392    1.1x [    -0.0594,    +0.1844] [   +0.0000,   +0.0013]
+        10     52     373.485      60.0674    -0.451    3.0x [    -0.0313,    +0.0076] [   +0.0000,   +0.0001]
+        20    115     792.771      60.5232    -0.418    5.6x [    -0.0138,    +0.0062] [   +0.0000,   +0.0001]
+        50    785    2054.192      60.8660    -0.402   13.6x [    -0.0055,    +0.0049] [   +0.0000,   +0.0001]
+
+  wrote shear_xz_longitudinal.png
+  wrote shear_xz_transverse.png
+  wrote shear_xz_amplitude.png
+  wrote shear_xz_schedule.png
+
+  where auto spends its steps: node COUNT inside each region
+     shear  pre-drift    bend  post-drift  min h in bend    h_max
+         0          9      62          21       1.25e-02   0.0500
+        10          9     166          28       1.56e-03   0.0500
+        20         10     277          32       7.81e-04   0.0500
+        50         10     985          42       1.95e-04   0.0500
