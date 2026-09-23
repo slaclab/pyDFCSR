@@ -6338,6 +6338,133 @@ race: a collective call reached by only some ranks.
 **Files.** `pyDFCSR_2D/test/test_shear_xz_maps.py` (new),
 `pyDFCSR_2D/test/benchmark_results/shear_xz/` (four figures and the log).
 
+#### 11q. The chicane example with the current code, and a wake-smoothness check (2026-09-23) ⚠️ **runs clean; the wake at full compression is NOT resolved by the example's mesh**
+
+`example_chicane.ipynb` run with everything built since: co-moving deposition, `mode: auto` with all
+four constants calibrated, midpoint kicks, `CSR_integration` at 100x100. The beam and lattice are
+**read from the notebook's own YAMLs** rather than restated, so this cannot drift out of step with
+the example. 1M particles, 13.31 m, four dipoles, a real compressing chicane.
+
+##### A stale install was shadowing the repo -- the notebook was running February code
+
+Found while trying to run the notebook's own MPI path. A **non-editable copy** of `pyDFCSR_2D` sat
+in site-packages dated **Feb 4 (v0.1.dev90)** and shadowed the repo whenever the working directory
+was not the repo root -- which is exactly the situation for a notebook in `example/`:
+
+```
+  cwd = example/   ->  site-packages/pyDFCSR_2D/CSR.py   (Feb 4)   step_control: ABSENT
+  cwd = repo root  ->  repo/pyDFCSR_2D/CSR.py            (current) step_control: present
+```
+
+So `example_chicane.ipynb` had no scheduler, no `nan` fix and the old `frame_blend` default, silently.
+Every test in this work was unaffected, because they all do an explicit
+`sys.path.insert(0, '../..')` -- which is why this went unnoticed for so long. Fixed with
+`pip install -e .` (now `dev139+g89df851`); the stale tree was moved aside rather than deleted, and
+`legacy` was re-verified bit-identical afterwards (`max |diff| = 0`).
+
+##### The run
+
+```
+  schedule: auto, 489 nodes, 488 snapshots, 105 kicks
+            h_eff 3.1e-03 .. 5.0e-02 m (ratio 16)
+            steps per element [2, 18, 122, 81, 28, 81, 115, 31, 10]
+            history at most 488 x 3.60 MB = 1.72 GB
+  legacy for comparison: 134 uniform steps at step_size 0.1
+  6.5 min on 10 MPI ranks
+```
+
+Worth noting *where* `auto` spends steps: **122 and 115 nodes in the two 5 m drifts**, more than in
+any dipole. Not because of the bends -- because `sigma_x` sweeps 64 -> 1825 um through the dispersive
+drift, and §11i's `sigma_xi` term correctly demands resolution for the frame even where the wake is
+weak. A criterion watching only `sigma_z` would have stepped straight through.
+
+```
+      s [m]   sigma_z um   sigma_x um   sigma_E keV
+      0.000      200.000       63.875     36000.001
+      5.598      201.410     1825.147     35970.684
+      6.102      111.069     1917.032     35954.554     <- B2: first compression stage
+      7.602       20.071     1829.262     35876.097     <- B3: second stage, 10x total
+     13.312       18.617       53.505     35840.099
+  final: mean energy loss 1.6484 MeV, nan count in the statistics arrays: 0
+```
+
+The `nan` count is not decoration: §11m's bug corrupted precisely the final node of a full run with
+`apply_CSR = 1` and a B-spline deposition, which is exactly this configuration. Before that fix this
+run would have ended with `mean_energy` and `sigma_energy` both `nan` and ~50 % of particles poisoned.
+
+![chicane compression, energy spread and schedule](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_auto.png)
+
+##### x-z wakes at eight representative positions
+
+![chicane longitudinal x-z wakes](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_longitudinal.png)
+
+![chicane transverse x-z wakes](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_transverse.png)
+
+Captured by wrapping the wake calculation, so these are **exactly the wakes applied to the beam**,
+not a reconstruction. Per-panel colour scales with the range annotated, diverging only where a panel
+changes sign (§11p). The mesh is the notebook's own **10 x 30**; 21 x 51 would have been 3.57x the
+work and ~23 min, which is not worth paying on all 105 kicks to improve 8 panels.
+
+Peak `|dE|` climbs from 0.017 MeV/m in B1 to **6.1 MeV/m** just after B3, i.e. the wake is ~360x
+stronger once the bunch is compressed 10x -- consistent with the `sigma_z^(-4/3)` scaling to within
+the usual factor.
+
+##### Smoothness: the metric needed a floor, and then the answer was mesh resolution
+
+![wake roughness at every kick](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)
+
+Roughness is the second-difference norm along `z`, normalised by amplitude so it measures *shape*
+rather than magnitude, and evaluated at **all 105 kicks** -- a rough wake at an unplotted position is
+exactly what a figure of 8 panels would miss.
+
+**First reading was wrong, in the §11n way.** `x_kick` came back at mean 0.78 and worst **5.04**,
+which looks alarming. But the transverse kick vanishes identically in a drift, and **34 of the 105
+maps have `|x_kick|` peaks between 1e-14 and 1e-19** -- floating-point residue. Normalising roundoff
+by itself manufactures a roughness of 4. With an absolute floor at `1e-6` of the run maximum, those
+34 maps are reported as null instead:
+
+```
+                  before floor      after floor
+  x_kick mean         0.7832           0.1804
+  x_kick worst        5.0424           2.5050
+```
+
+This is the second time in this work that a relative metric with no denominator floor produced a
+spurious result (§11n was the first, at 2.2e9). The rule: **a relative error needs an absolute floor,
+not just `> 0`.**
+
+**The `dE` roughness is real, and it is the mesh.** 11 of 105 kicks exceed roughness 1.0, worst
+**2.61 at s = 8.317 m**, just after full compression. The mid-`x` row there is not noise -- it is a
+genuine sharp feature, `-4.18` at one `z` bin flipping to `+1.12` at the next. The cause is sampling:
+
+```
+  at s = 8.317:  sigma_z = 19.3 um,  z mesh spacing 4.0 um  ->  4.8 bins per sigma_z
+  zlim = 3 over 30 bins is 5 bins/sigma by construction
+```
+
+Refining the wake mesh at that one position confirms it:
+
+```
+  zbins   bins/sigma_z   |dE| peak   roughness
+     30            5.0      5.1931      2.5121
+     60           10.0      4.5001      1.8710
+    120           20.0      4.9705      1.4011
+```
+
+Roughness falls monotonically with resolution while the peak stays 4.5-5.2, so the feature is
+**physical and sharp** and the example's 10 x 30 mesh does not resolve it. It is not a defect in the
+scheduler or the history -- `h_eff` is 3.1 mm there, and the density history is fine.
+
+**Consequence, stated plainly.** The wake mesh is fine for *kicking* a beam, since the kick is
+interpolated onto particles and errors average out. It is **not** fine for reading the wake shape at
+full compression: at 5 bins/sigma the peak is over-estimated by ~15 % against 20 bins/sigma. Anyone
+using the chicane example to look at wake *structure* after B3 should raise `CSR_computation.zbins`.
+Whether 5 bins/sigma is enough for the *kick* is a separate question this does not answer -- it
+would need the §11m treatment, sweeping the mesh and watching the final beam.
+
+**Files.** `pyDFCSR_2D/test/test_chicane_auto.py` (new),
+`pyDFCSR_2D/test/benchmark_results/chicane_auto/` (four figures, the log, and the captured maps).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -6348,6 +6475,11 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 - (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
   and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
 - `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
+- **`CSR_computation` zbins is uncalibrated, and 5 bins/sigma_z does not resolve a compressed wake**
+  (§11q). `zlim = 3` over `zbins = 30` gives 5 bins per sigma by construction; measured at full
+  chicane compression, roughness falls 2.51 -> 1.87 -> 1.40 as bins/sigma goes 5 -> 10 -> 20 and the
+  peak moves ~15 %. Adequate for the KICK (interpolated onto particles, errors average) but not for
+  reading wake structure. Needs the §11m treatment: sweep the mesh, watch the final beam.
 - **`DF_tracker.upper_limit` defaults to `None`, so the reinterpolation grid is unbounded** (§11n).
   `deposit.py:360` sets `xbins = 500 * max(sigma_x)/min(sigma_x)` and only caps it
   `if isinstance(self.upper_limit, int)`. At chirp 1000 this reached `9239 x 35699` = 330 M points and

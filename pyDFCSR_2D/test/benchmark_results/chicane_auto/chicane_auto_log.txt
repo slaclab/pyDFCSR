@@ -1,0 +1,55 @@
+====================================================================================================
+example_chicane.ipynb, run with the current code (auto schedule, comoving deposition)
+====================================================================================================
+  lattice: 9 elements, 13.3124 m
+  beam:    1000000 particles, sigma_z 200.00 um, sigma_x 63.87 um
+  schedule: mode=auto, 489 nodes, 488 snapshots, 105 kicks
+            h_eff 3.125e-03 .. 5.000e-02 m (ratio 16)
+            steps per element [  2  18 122  81  28  81 115  31  10]
+            history at most 488 x 3.60 MB = 1.72 GB
+  legacy for comparison: 134 uniform steps at step_size 0.1, kicks every nsep
+  running on 10 MPI rank(s)
+
+  captured 105 wake maps at 10x30
+  RUN COMPLETE in 7.0 min (418 s)
+
+  final beam (the §11m nan bug would have made the energy columns nan here)
+    sigma_z           18.6166 um
+    sigma_x           53.5046 um
+    sigma_energy   35840.0991 keV
+    mean_energy      4.998352 GeV  (loss -1.6484 MeV)
+    nan count in the statistics arrays: 0
+
+  compression along the lattice
+       s [m]   sigma_z um   sigma_x um  sigma_E keV
+       0.000      200.000       63.875   36000.0007
+       0.600      201.422      106.420   35994.7522
+       5.598      201.410     1825.147   35970.6842
+       6.102      111.069     1917.032   35954.5535
+       7.106      110.269     1916.858   35931.9336
+       7.602       20.071     1829.262   35876.0965
+      12.594       19.368       56.915   36065.4558
+      13.102       18.662       51.528   35869.6757
+      13.312       18.617       53.505   35840.0991
+
+  wake smoothness: second-difference norm along z, relative to each map amplitude
+  (a smooth curve at 30 z-bins is O(0.1); >~ 1 means the shape is not resolved)
+    dE     mean over kicks 0.4474, worst map 2.6096 at s = 8.317 m
+    x_kick mean over kicks 0.7832, worst map 5.0424 at s = 12.296 m
+    worst SINGLE x row (dE) 3.0330 at s = 8.317 m
+    kicks with dE roughness > 1.0: 11 of 105
+
+       s [m]   element  dE rough  xk rough   |dE| peak
+       0.338    B1 mid    0.2607    0.0953     0.01696
+       2.030  D1 early    0.1357    0.0000     0.02780
+       5.009   D1 late    0.8418    0.0000     0.09480
+       5.854    B2 mid    0.3293    0.1156     0.38604
+       6.687    D2 mid    0.2528    0.0987     0.06775
+       7.354    B3 mid    0.2427    0.1820     1.76937
+      10.058    D3 mid    1.0858    4.3866     0.29167
+      12.907    B4 mid    0.2581    0.1021     2.97839
+
+  wrote chicane_wakes_longitudinal.png
+  wrote chicane_wakes_transverse.png
+  wrote chicane_wake_roughness.png
+  wrote chicane_auto.png  (shading = the four dipoles)
