@@ -241,9 +241,17 @@ def main():
             pk = np.abs(mid).max()
             if pk > 0:
                 axes[1, c].plot(zc, mid / pk, color=col, lw=1.2)
+        # Whether an exit DECAY is even observable depends on the entrance transient having
+        # completed inside the magnet. B1 is 0.36 L_entrance long, so downstream of it the wake is
+        # still BUILDING from radiation already emitted, and its curve grows rather than decays.
+        szf = sel[0]['sigma_z'] if sel else 1e-9
+        lent = (24.0 * R_BEND ** 2 * 5.0 * szf) ** (1.0 / 3.0)
+        frac = L_BEND / lent
         axes[0, c].set_title(f'{name} exit at s = {e:.3f} m\n'
-                             f'{len(sel)} kicks, drift {(nxt - e) / L_EXIT:.1f} L_exit',
-                             fontsize=9)
+                             f'{len(sel)} kicks, drift {(nxt - e) / L_EXIT:.1f} L_exit, '
+                             f'L_bend/L_ent = {frac:.2f}'
+                             + ('  (still BUILDING)' if frac < 0.4 else ''),
+                             fontsize=8.5)
         axes[0, c].legend(fontsize=6, ncol=2, title='d/L_exit', title_fontsize=6)
         for r in (0, 1):
             axes[r, c].set_xlabel('z  [mm]', fontsize=8)

@@ -6486,7 +6486,9 @@ place in the beam frame.
 ```
 
 **B4 is the clean case and it agrees: 0.456 against 0.500.** B4 is the only dipole whose downstream
-drift is short (0.8 `L_exit`) and non-dispersive-by-then, so nothing else is changing.
+drift is short (0.8 `L_exit`) and non-dispersive-by-then, so nothing else is changing -- and, as the
+correction below establishes, it is also one of the two whose entrance transient is largely complete
+by the exit face, without which no exit decay is observable at all.
 
 **B2 and B3 decay 1.5-3x FASTER than Eq. 10.** Both are compressing bends: `sigma_z` drops 200 -> 111
 um through B2 and 110 -> 20 um through B3. Eq. 10 is a fixed-bunch-length result, so it cannot
@@ -6513,11 +6515,49 @@ whose form is changing. Only the first 2.5 `L_exit` is drawn, since past that B1
 by the frame shear described above rather than by the exit transient. (An earlier version of this
 figure showed B3 alone, which flattered the result by picking the one bend whose decay is cleanest.)
 
-Reading the normalised row: **B1 and B4 hold their shape** as they decay, so the exit transient there
-is close to a pure amplitude decay -- which is what Eq. 10 describes, and consistent with B4 being the
-case that matched. **B2 and B3 change form**: the negative lobe collapses faster than the positive
-one, so the curves do not overlie. That is the signature of the compression discussed above, and it is
-why a single amplitude scale cannot capture those two.
+**Correction, on the author's observation that B1's curve is not decaying.** It is not, and an earlier
+version of this entry wrongly grouped B1 with B4 as "holding its shape as it decays". Over the
+plotted window B1's on-axis amplitude goes
+
+```
+  d/L_exit   0.000   0.222   0.718   1.214   1.748
+  ratio      1.000   1.040   0.949   1.683   1.444
+```
+
+i.e. it *grows*. Not an artefact: the peak stays interior to the mesh at every point (z-index 9-11 of
+29, never on the boundary) and it **migrates** from -0.72 to -1.14 `sigma_z` while growing, which a
+numerical edge effect would not do.
+
+The reason is that **B1 has barely started its entrance transient when it ends.**
+`L_entrance = 1.374 m` against `L_bend = 0.5002 m`, so at the exit face the overtaking process is only
+**36 %** complete. Radiation emitted inside the magnet is still catching up with the bunch well after
+it leaves, so immediately downstream the wake is still *building* from light already emitted, not
+decaying. The whole plotted window is only 0.46 `L_entrance` past the face -- far too soon for a decay
+to be visible at all. "Exit transient" is a misnomer for B1: there is no separation between its
+entrance and exit regions.
+
+This also predicts the ordering across all four bends, which is the test that it is not just a story
+fitted to B1:
+
+```
+  bend   sigma_z um   L_ent m   L_bend/L_ent   ratio at 1 L_exit   decays?
+    B1       201.42    1.3737           0.36               1.365   NO
+    B2       110.27    1.1238           0.45               0.338   yes
+    B3        19.32    0.6288           0.80               0.155   yes
+    B4        18.62    0.6211           0.81               0.456   yes
+```
+
+B1 has the smallest `L_bend/L_ent` and is the only one that fails to decay; B3 and B4, whose magnets
+span 80 % of their own overtaking length, decay most cleanly. So the criterion for the exit decay to
+be *observable* is that the entrance transient has largely completed inside the magnet -- which is a
+statement about the lattice, not about Eq. 10.
+
+Reading the normalised row: **B4 holds its shape** as it decays, close to a pure amplitude decay,
+which is what Eq. 10 describes and is consistent with B4 being the case that matched its prediction.
+**B2 and B3 change form**: the negative lobe collapses faster than the positive one, so the curves do
+not overlie -- the signature of the compression discussed above, and why a single amplitude scale
+cannot capture those two. **B1's shape also shifts**, but for the different reason just given: its
+peak is still migrating outward in `z` as the wake builds.
 
 ##### Smoothness: the metric needed a floor, and then the answer was mesh resolution
 
