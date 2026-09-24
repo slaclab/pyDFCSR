@@ -6409,6 +6409,56 @@ Peak `|dE|` climbs from 0.017 MeV/m in B1 to **6.1 MeV/m** just after B3, i.e. t
 stronger once the bunch is compressed 10x -- consistent with the `sigma_z^(-4/3)` scaling to within
 the usual factor.
 
+##### The transient inside each dipole: none of them reaches steady state
+
+![transient wake through each chicane dipole](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transients.png)
+
+![wake growth and smoothness through each magnet](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transient_growth.png)
+
+Replotted from the captured maps, so this costs nothing beyond the run already done. Top row of the
+first figure is absolute `dE/ds` along `z` with one curve per kick, coloured dark-to-bright from
+entrance to exit; bottom row is the same normalised to each curve's own peak, which separates a wake
+that is *growing* from one that is *changing shape*.
+
+**The headline is a geometry fact, not a code result.** For these weak bends the entrance transient
+is **longer than the magnet**:
+
+```
+  bend   sigma_z um   L_entrance m   L_ent / L_bend   kicks inside   peak dE MeV/m
+    B1       200.00         1.3705             2.74              4           0.044
+    B2       201.41         1.3737             2.75             18           0.705
+    B3       110.27         1.1238             2.25             18           6.099
+    B4        19.37         0.6293             1.26              8           2.978
+```
+
+`R = 10.356 m` and `L_bend = 0.5002 m`, so `d/L_entrance` at the exit face reaches only **0.365,
+0.364, 0.445 and 0.795** for B1-B4. Every dipole in this chicane is exited while still inside its own
+entrance transient -- the steady-state 1D wake formula applies **nowhere** in this lattice. That is
+exactly the regime §11h had to fix the exit scale for, and it is why a chicane is the right case to
+have checked: the strong single dipole used elsewhere in this work (R = 1 m) reaches steady state
+after 0.18 of its length, so it would never have exposed this.
+
+Growth through each magnet, entrance face to exit face:
+
+```
+  bend   peak at entrance   at exit   ratio
+    B1             0.0033    0.0442    13.3
+    B2             0.2690    0.4216     1.6
+    B3             0.0666    6.0669    91.1
+    B4             2.0077    2.2768     1.1
+```
+
+B3 grows **91x** across half a metre. The mechanism is not the transient alone: B3 is where the second
+compression stage happens (`sigma_z` 110 -> 20 um), so the wake is amplified by the compression as
+well as by the transient building. B2 and B4 grow by only 1.6x and 1.1x because the bunch length is
+roughly constant through them.
+
+The normalised bottom row shows the shape is **not** self-similar in B2 and B3: the curves fan out,
+with the negative lobe deepening relative to the positive one. In B1 and B4 they nearly collapse onto
+one another, i.e. the wake is growing in amplitude without changing form. Smoothness stays below 1.0
+throughout every magnet (right panel of the second figure), so the roughness recorded below is a
+feature of the *post-compression drift*, not of the bends.
+
 ##### Smoothness: the metric needed a floor, and then the answer was mesh resolution
 
 ![wake roughness at every kick](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)
