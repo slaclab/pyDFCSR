@@ -46,6 +46,12 @@ L_EXIT = 0.5 * R_BEND * PHI
 BENDS = [('B1', 0.1000, 0.6002), ('B2', 5.6060, 6.1062),
          ('B3', 7.1062, 7.6064), ('B4', 12.6122, 13.1124)]
 
+# (bend, exit face s, end of the downstream drift). Lengths in units of L_exit = 0.2501 m:
+#   B1 -> 20.0,  B2 -> 4.0,  B3 -> 20.0,  B4 -> 0.8
+# B1 and B3 are the useful ones; B4's drift is shorter than one L_exit so its decay cannot be seen.
+EXITS = [('B1', 0.6002, 5.6060), ('B2', 6.1062, 7.1062),
+         ('B3', 7.6064, 12.6122), ('B4', 13.1124, 13.3124)]
+
 
 def roughness(w):
     """Second-difference norm along z relative to amplitude; see §11q."""
@@ -160,6 +166,72 @@ def main():
     fig.savefig(os.path.join(RESULT_DIR, 'chicane_transient_growth.png'), dpi=130)
     plt.close(fig)
     emit('  wrote chicane_transient_growth.png')
+
+    # ---- EXIT transient: decay downstream of each face -----------------------------------
+    # §11h set the exit scale from Stupakov & Emma Eq. 10, W ~ 1/(phi_m + 2x) with x the downstream
+    # distance in units of R, so the amplitude halves at x = phi_m/2 i.e. d = R phi_m/2 = L_exit.
+    # That scale has never been checked against this code's own output; this does that.
+    #
+    # Measured ON AXIS (the mid-x row), NOT as the global peak over the map. The wake mesh is built
+    # from sigma_x, which grows 106 -> 587 um through the drift after B1, and the global peak then
+    # lands ON THE MESH EDGE at 6 of 9 sampled positions -- so a "peak" curve tracks where the mesh
+    # boundary fell rather than how the wake decayed. The mid-x row sits at a fixed place in the
+    # beam frame and does not have that problem.
+    emit('')
+    emit('  EXIT transient: on-axis |dE| downstream of each face, against Eq. 10')
+    emit('  (Eq. 10 shape is phi/(phi + 2 d/R), which is 0.5 at d = L_exit by construction)')
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    for name, e, nxt in EXITS:
+        sel = [m for m in maps if e - 1e-9 <= m['s'] <= nxt + 1e-9]
+        if len(sel) < 3:
+            emit(f'    {name}: downstream drift is only '
+                 f'{(nxt - e) / L_EXIT:.2f} L_exit, too short to show a decay -- skipped')
+            continue
+        d = np.array([m['s'] - e for m in sel])
+        on = np.array([np.abs(m['dE'][m['dE'].shape[0] // 2, :]).max() for m in sel])
+        ref = on[0] if on[0] > 0 else 1.0
+        axes[0].plot(d / L_EXIT, on / ref, 'o-', ms=3.5, lw=1.2, label=name)
+        emit(f"    {name}: on-axis at the face {ref:.4f} MeV/m, "
+             f"at 1 L_exit {np.interp(1.0, d / L_EXIT, on / ref):.3f} of it "
+             f"(Eq. 10 predicts 0.500)")
+    # Cut the x axis at 6 L_exit. Beyond that the curve stops being an exit decay: B1's drift is
+    # 20 L_exit long and DISPERSIVE, so by ~6 L_exit the wake has decayed into the noise and then
+    # RISES again (0.0070 -> 0.0587 MeV/m) as the frame shears -- tau sweeps -0.44 to -9.1 and
+    # sigma_xi compresses 60 -> 28 um through the drift. That rise is the chirp developing before
+    # B2, not the B1 exit transient, and plotting it on this axis would misattribute it.
+    axes[0].set_xlim(0, 6)
+    xx = np.linspace(0, 8, 200)
+    axes[0].plot(xx, PHI / (PHI + 2.0 * xx * L_EXIT / R_BEND), 'k--', lw=1.4,
+                 label='Eq. 10  phi/(phi+2x)')
+    axes[0].axvline(1.0, color='C7', ls=':', lw=1)
+    axes[0].axhline(0.5, color='C7', ls=':', lw=1)
+    axes[0].set_yscale('log')
+    axes[0].set_xlabel('distance past the exit face / L_exit')
+    axes[0].set_ylabel('on-axis |dE| / value at the face')
+    axes[0].set_title('exit decay vs Stupakov & Emma Eq. 10')
+    axes[0].legend(fontsize=8)
+    axes[0].grid(alpha=0.3, which='both')
+
+    # the wake shape through the decay, for the two bends with a long enough drift
+    for name, e, nxt in EXITS:
+        sel = [m for m in maps if e - 1e-9 <= m['s'] <= nxt + 1e-9]
+        if name != 'B3' or len(sel) < 3:
+            continue
+        cols = cm.plasma(np.linspace(0, 0.88, min(len(sel), 10)))
+        for m, col in zip(sel[:10], cols):
+            mid = m['dE'][m['dE'].shape[0] // 2, :]
+            axes[1].plot(m['zz'][m['zz'].shape[0] // 2, :] * 1e3, mid, color=col, lw=1.2,
+                         label=f"d/L_exit = {(m['s'] - e) / L_EXIT:.2f}")
+        axes[1].set_xlabel('z  [mm]')
+        axes[1].set_ylabel('dE/ds  [MeV/m]  (mid-x row)')
+        axes[1].set_title('B3 exit: the wake decaying downstream')
+        axes[1].legend(fontsize=6.5, ncol=2)
+        axes[1].grid(alpha=0.3)
+    fig.suptitle('exit transient downstream of each dipole face', fontsize=11)
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.savefig(os.path.join(RESULT_DIR, 'chicane_exit_transient.png'), dpi=130)
+    plt.close(fig)
+    emit('  wrote chicane_exit_transient.png')
 
     with open(os.path.join(RESULT_DIR, 'chicane_transients_log.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')

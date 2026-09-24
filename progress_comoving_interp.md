@@ -6459,6 +6459,55 @@ one another, i.e. the wake is growing in amplitude without changing form. Smooth
 throughout every magnet (right panel of the second figure), so the roughness recorded below is a
 feature of the *post-compression drift*, not of the bends.
 
+##### The exit transient, checked against Eq. 10 for the first time
+
+![exit transient downstream of each dipole face](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transient.png)
+
+§11h took the exit scale from Stupakov & Emma Eq. 10 -- `W ~ 1/(phi_m + 2x)` with `x` the downstream
+distance in units of `R`, so the amplitude halves at `d = R phi_m/2 = L_exit` -- and replaced the
+steady-state form that had been wrongly used at the exit face. **That scale had never been checked
+against this code's own output.** The chicane provides the test, because B1 and B3 are each followed
+by a 5 m drift, 20 `L_exit` long.
+
+Measured **on axis** (the mid-`x` row), not as the peak over the map. That choice is load-bearing: the
+wake mesh is built from `sigma_x`, which grows 106 -> 587 um through the drift after B1, and the
+global peak then lands **on the mesh edge at 6 of 9 sampled positions** -- so a "peak" curve would
+track where the mesh boundary fell rather than how the wake decayed. The mid-`x` row sits at a fixed
+place in the beam frame.
+
+```
+  bend   on-axis at the face   at 1 L_exit   Eq. 10 predicts
+    B1          0.0410 MeV/m         1.365             0.500
+    B2          0.3132               0.338             0.500
+    B3          5.2993               0.155             0.500
+    B4          2.1381               0.456             0.500
+```
+
+**B4 is the clean case and it agrees: 0.456 against 0.500.** B4 is the only dipole whose downstream
+drift is short (0.8 `L_exit`) and non-dispersive-by-then, so nothing else is changing.
+
+**B2 and B3 decay 1.5-3x FASTER than Eq. 10.** Both are compressing bends: `sigma_z` drops 200 -> 111
+um through B2 and 110 -> 20 um through B3. Eq. 10 is a fixed-bunch-length result, so it cannot
+describe a wake whose source is simultaneously shrinking -- the `sigma_z^(-4/3)` amplification is
+being undone in reverse as the bunch stretches back out. Faster-than-Eq.-10 decay is therefore the
+expected direction, not a discrepancy.
+
+**B1 reads 1.365, i.e. it appears to GROW.** It does not: the on-axis value falls 0.0410 -> 0.0070
+over the first 5 `L_exit` and then **rises again** to 0.0587 by 20 `L_exit`. The cause is the frame,
+not the transient -- through that dispersive drift `tau` sweeps **-0.44 to -9.1** and `sigma_xi`
+compresses **60 -> 28 um** as the chirp develops before B2. The 1.365 at exactly 1 `L_exit` is read
+off the noisy bottom of that dip. The figure's x axis is therefore cut at 6 `L_exit`, beyond which the
+curve is no longer an exit decay at all.
+
+So: Eq. 10 is **confirmed where it is applicable** (B4), and where it fails the reason is identified
+and is outside its assumptions (compression in B2/B3, frame shear in B1). Nothing here argues for
+changing §11h's `L_exit`. What it does show is that the exit scale is a *bound* on the decay in a
+compressing chicane rather than a description of it -- the wake dies faster than `L_exit` suggests,
+so using `L_exit` for step refinement is conservative, which is the safe direction.
+
+The right panel shows the B3 wake decaying downstream directly: the deep negative lobe at the face
+collapses and broadens, and the curve flattens toward zero by ~2 `L_exit`.
+
 ##### Smoothness: the metric needed a floor, and then the answer was mesh resolution
 
 ![wake roughness at every kick](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)

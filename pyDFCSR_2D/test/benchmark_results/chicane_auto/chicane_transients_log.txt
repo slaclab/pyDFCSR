@@ -19,3 +19,11 @@ R = 10.356 m, phi = 0.0483 rad, L_bend = 0.5002 m, L_exit = 0.2501 m
        B3       0.0666     6.0669     91.1            0.445
        B4       2.0077     2.2768      1.1            0.795
   wrote chicane_transient_growth.png
+
+  EXIT transient: on-axis |dE| downstream of each face, against Eq. 10
+  (Eq. 10 shape is phi/(phi + 2 d/R), which is 0.5 at d = L_exit by construction)
+    B1: on-axis at the face 0.0410 MeV/m, at 1 L_exit 1.365 of it (Eq. 10 predicts 0.500)
+    B2: on-axis at the face 0.3132 MeV/m, at 1 L_exit 0.338 of it (Eq. 10 predicts 0.500)
+    B3: on-axis at the face 5.2993 MeV/m, at 1 L_exit 0.155 of it (Eq. 10 predicts 0.500)
+    B4: on-axis at the face 2.1381 MeV/m, at 1 L_exit 0.456 of it (Eq. 10 predicts 0.500)
+  wrote chicane_exit_transient.png
