@@ -6461,7 +6461,9 @@ feature of the *post-compression drift*, not of the bends.
 
 ##### The exit transient, checked against Eq. 10 for the first time
 
-![exit transient downstream of each dipole face](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transient.png)
+![exit decay, all four bends, against Eq. 10](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_decay.png)
+
+![exit transient for all four bends](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transients_all.png)
 
 §11h took the exit scale from Stupakov & Emma Eq. 10 -- `W ~ 1/(phi_m + 2x)` with `x` the downstream
 distance in units of `R`, so the amplitude halves at `d = R phi_m/2 = L_exit` -- and replaced the
@@ -6505,8 +6507,17 @@ changing §11h's `L_exit`. What it does show is that the exit scale is a *bound*
 compressing chicane rather than a description of it -- the wake dies faster than `L_exit` suggests,
 so using `L_exit` for step refinement is conservative, which is the safe direction.
 
-The right panel shows the B3 wake decaying downstream directly: the deep negative lobe at the face
-collapses and broadens, and the curve flattens toward zero by ~2 `L_exit`.
+The second figure shows the wake decaying downstream for **all four** bends -- absolute on top,
+normalised to each curve's own peak below, which separates a wake that is merely shrinking from one
+whose form is changing. Only the first 2.5 `L_exit` is drawn, since past that B1 and B3 are dominated
+by the frame shear described above rather than by the exit transient. (An earlier version of this
+figure showed B3 alone, which flattered the result by picking the one bend whose decay is cleanest.)
+
+Reading the normalised row: **B1 and B4 hold their shape** as they decay, so the exit transient there
+is close to a pure amplitude decay -- which is what Eq. 10 describes, and consistent with B4 being the
+case that matched. **B2 and B3 change form**: the negative lobe collapses faster than the positive
+one, so the curves do not overlie. That is the signature of the compression discussed above, and it is
+why a single amplitude scale cannot capture those two.
 
 ##### Smoothness: the metric needed a floor, and then the answer was mesh resolution
 

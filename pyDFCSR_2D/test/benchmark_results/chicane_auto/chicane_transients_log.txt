@@ -26,4 +26,11 @@ R = 10.356 m, phi = 0.0483 rad, L_bend = 0.5002 m, L_exit = 0.2501 m
     B2: on-axis at the face 0.3132 MeV/m, at 1 L_exit 0.338 of it (Eq. 10 predicts 0.500)
     B3: on-axis at the face 5.2993 MeV/m, at 1 L_exit 0.155 of it (Eq. 10 predicts 0.500)
     B4: on-axis at the face 2.1381 MeV/m, at 1 L_exit 0.456 of it (Eq. 10 predicts 0.500)
-  wrote chicane_exit_transient.png
+  wrote chicane_exit_decay.png
+
+  exit wake shape: curves drawn per bend (within 2.5 L_exit of the face)
+    B1: 5 kicks within 2.5 L_exit (drift is 20.02 L_exit long)
+    B2: 6 kicks within 2.5 L_exit (drift is 4.00 L_exit long)
+    B3: 6 kicks within 2.5 L_exit (drift is 20.02 L_exit long)
+    B4: 4 kicks within 2.5 L_exit (drift is 0.80 L_exit long)
+  wrote chicane_exit_transients_all.png

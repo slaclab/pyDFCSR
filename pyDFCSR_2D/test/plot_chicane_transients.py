@@ -180,7 +180,8 @@ def main():
     emit('')
     emit('  EXIT transient: on-axis |dE| downstream of each face, against Eq. 10')
     emit('  (Eq. 10 shape is phi/(phi + 2 d/R), which is 0.5 at d = L_exit by construction)')
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig, ax0 = plt.subplots(figsize=(7.5, 5))
+    axes = [ax0]
     for name, e, nxt in EXITS:
         sel = [m for m in maps if e - 1e-9 <= m['s'] <= nxt + 1e-9]
         if len(sel) < 3:
@@ -211,27 +212,51 @@ def main():
     axes[0].set_title('exit decay vs Stupakov & Emma Eq. 10')
     axes[0].legend(fontsize=8)
     axes[0].grid(alpha=0.3, which='both')
-
-    # the wake shape through the decay, for the two bends with a long enough drift
-    for name, e, nxt in EXITS:
-        sel = [m for m in maps if e - 1e-9 <= m['s'] <= nxt + 1e-9]
-        if name != 'B3' or len(sel) < 3:
-            continue
-        cols = cm.plasma(np.linspace(0, 0.88, min(len(sel), 10)))
-        for m, col in zip(sel[:10], cols):
-            mid = m['dE'][m['dE'].shape[0] // 2, :]
-            axes[1].plot(m['zz'][m['zz'].shape[0] // 2, :] * 1e3, mid, color=col, lw=1.2,
-                         label=f"d/L_exit = {(m['s'] - e) / L_EXIT:.2f}")
-        axes[1].set_xlabel('z  [mm]')
-        axes[1].set_ylabel('dE/ds  [MeV/m]  (mid-x row)')
-        axes[1].set_title('B3 exit: the wake decaying downstream')
-        axes[1].legend(fontsize=6.5, ncol=2)
-        axes[1].grid(alpha=0.3)
-    fig.suptitle('exit transient downstream of each dipole face', fontsize=11)
+    fig.suptitle('exit decay downstream of each dipole face, all four bends', fontsize=11)
     fig.tight_layout(rect=[0, 0, 1, 0.94])
-    fig.savefig(os.path.join(RESULT_DIR, 'chicane_exit_transient.png'), dpi=130)
+    fig.savefig(os.path.join(RESULT_DIR, 'chicane_exit_decay.png'), dpi=130)
     plt.close(fig)
-    emit('  wrote chicane_exit_transient.png')
+    emit('  wrote chicane_exit_decay.png')
+
+    # ---- the exit wake SHAPE downstream, for ALL FOUR bends -------------------------------
+    # Previously only B3 got a shape panel, which is the one bend where the decay is cleanest --
+    # so it flattered the result. All four are shown now, absolute on top and normalised to each
+    # curve's own peak below, so a wake that is merely shrinking is distinguishable from one whose
+    # form is changing. Only the first ~2.5 L_exit is drawn: past that B1 and B3 are dominated by
+    # the frame shear described above rather than by the exit transient.
+    fig, axes = plt.subplots(2, 4, figsize=(19, 8))
+    emit('')
+    emit('  exit wake shape: curves drawn per bend (within 2.5 L_exit of the face)')
+    for c, (name, e, nxt) in enumerate(EXITS):
+        sel = [m for m in maps
+               if e - 1e-9 <= m['s'] <= min(nxt, e + 2.5 * L_EXIT) + 1e-9]
+        emit(f'    {name}: {len(sel)} kicks within 2.5 L_exit '
+             f'(drift is {(nxt - e) / L_EXIT:.2f} L_exit long)')
+        cols = cm.plasma(np.linspace(0, 0.88, max(len(sel), 1)))
+        for m, col in zip(sel, cols):
+            zc = m['zz'][m['zz'].shape[0] // 2, :] * 1e3
+            mid = m['dE'][m['dE'].shape[0] // 2, :]
+            axes[0, c].plot(zc, mid, color=col, lw=1.2,
+                            label=f"{(m['s'] - e) / L_EXIT:.2f}")
+            pk = np.abs(mid).max()
+            if pk > 0:
+                axes[1, c].plot(zc, mid / pk, color=col, lw=1.2)
+        axes[0, c].set_title(f'{name} exit at s = {e:.3f} m\n'
+                             f'{len(sel)} kicks, drift {(nxt - e) / L_EXIT:.1f} L_exit',
+                             fontsize=9)
+        axes[0, c].legend(fontsize=6, ncol=2, title='d/L_exit', title_fontsize=6)
+        for r in (0, 1):
+            axes[r, c].set_xlabel('z  [mm]', fontsize=8)
+            axes[r, c].tick_params(labelsize=7)
+            axes[r, c].grid(alpha=0.3)
+        axes[0, c].set_ylabel('dE/ds  [MeV/m]  (mid-x row)', fontsize=8)
+        axes[1, c].set_ylabel('normalised to own peak', fontsize=8)
+    fig.suptitle('EXIT transient for all four bends: TOP absolute, BOTTOM shape only '
+                 '(dark = at the face, bright = downstream)', fontsize=11)
+    fig.tight_layout(rect=[0, 0, 1, 0.955])
+    fig.savefig(os.path.join(RESULT_DIR, 'chicane_exit_transients_all.png'), dpi=130)
+    plt.close(fig)
+    emit('  wrote chicane_exit_transients_all.png')
 
     with open(os.path.join(RESULT_DIR, 'chicane_transients_log.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
