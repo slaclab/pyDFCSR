@@ -59,7 +59,11 @@ def propagate_var_z(lattice_config, sigma0, n_sub=2000):
             continue
         etype = el.get('type', 'drift')
         angle = float(el.get('angle', 0.0)) if etype == 'dipole' else 0.0
-        k1 = float(el.get('k1', 0.0)) if etype in ('quad', 'quadrupole') else 0.0
+        # 'K1' is what the lattice YAMLs and get_bmadx_element use (CSR.py:243); 'k1' was
+        # the only spelling read here, so every quad looked like a DRIFT to the linear-optics
+        # scan and auto sized its steps from the wrong optics. Accept both.
+        k1 = (float(el.get('K1', el.get('k1', 0.0)))
+              if etype in ('quad', 'quadrupole') else 0.0)
         rho = angle / L if L else 0.0
 
         dL = L / n_sub
@@ -115,7 +119,11 @@ def propagate_frame(lattice_config, sigma0, n_sub=400):
             continue
         etype = el.get('type', 'drift')
         angle = float(el.get('angle', 0.0)) if etype == 'dipole' else 0.0
-        k1 = float(el.get('k1', 0.0)) if etype in ('quad', 'quadrupole') else 0.0
+        # 'K1' is what the lattice YAMLs and get_bmadx_element use (CSR.py:243); 'k1' was
+        # the only spelling read here, so every quad looked like a DRIFT to the linear-optics
+        # scan and auto sized its steps from the wrong optics. Accept both.
+        k1 = (float(el.get('K1', el.get('k1', 0.0)))
+              if etype in ('quad', 'quadrupole') else 0.0)
         rho = angle / L if L else 0.0
         R_slice = r_gen6(L=L / n_sub, angle=angle / n_sub, k1=k1)
         for _ in range(n_sub):

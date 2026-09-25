@@ -1,0 +1,48 @@
+====================================================================================================
+FODO example with the current code, and the m_steps_xi calibration
+====================================================================================================
+  lattice: 7 elements, 2.2500 m, types ['quad', 'drift', 'quad', 'quad', 'drift', 'quad', 'sextupole']
+  NO DIPOLES -> no steady-state CSR source; amplitudes are transient-only
+  auto: 40 nodes, 14 kicks, 33 s
+  captured 14 wake maps
+
+  statistics along the lattice
+       s [m]  sigma_z um  sigma_x um   beta_x m   alpha_x  sigma_E keV
+       0.000      50.000      46.637    21.7500    0.0000     500.0000
+       0.315      50.000      45.966    21.1288    1.0569     500.0006
+       0.651      50.000      45.200    20.4302    1.0232     500.0019
+       0.987      50.000      44.446    19.7543    0.9896     500.0033
+       1.281      50.000      44.596    19.8877   -0.9963     500.0031
+       1.616      50.000      45.352    20.5681   -1.0299     500.0016
+       1.952      50.000      46.121    21.2712   -1.0636     500.0004
+       2.250      50.000      46.637    21.7501   -0.0023     500.0000
+    mean energy 5.000000 -> 5.000000 GeV (loss -0.0037 keV)
+    nan in statistics: 0
+
+  m_steps_xi sweep, observing at s = 1.05 m (h_xi is tightest near s = 1.050)
+  h_tau and h_2 are INERT here (tau = 0, no dipoles), so h_xi is the only
+  active refinement term -- the one lattice where this constant can be tested.
+  h_max = 0.07 m, so h_xi only BINDS once m_steps_xi pushes it below that;
+  the table reports h_xi_min so the crossover is visible rather than assumed.
+    ran m_steps_xi=2       40 nodes,   18 snaps, h_xi_min 0.4987,   14 s
+    ran m_steps_xi=8       69 nodes,   32 snaps, h_xi_min 0.1247,   21 s
+    ran m_steps_xi=16      73 nodes,   33 snaps, h_xi_min 0.0623,   22 s
+    ran m_steps_xi=32      73 nodes,   33 snaps, h_xi_min 0.0312,   23 s
+    ran m_steps_xi=64      85 nodes,   36 snaps, h_xi_min 0.0156,   26 s
+
+     m_steps_xi  nodes  snaps  h_eff min   |dE| peak    rough  rel L2 vs finest
+              2     40     18    0.03500    0.006649   0.1104          0.000000
+              8     69     32    0.03500    0.006649   0.1104          0.000000
+             16     73     33    0.01750    0.006649   0.1104          0.000000
+             32     73     33    0.01750    0.006649   0.1104          0.000000
+             64     85     36    0.00875    0.006649   0.1104          0.000000
+
+    successive differences
+           2 -> 8      : 0.000000
+           8 -> 16     : 0.000000
+          16 -> 32     : 0.000000
+          32 -> 64     : 0.000000
+
+  wrote fodo_statistics.png
+  wrote fodo_wakes_xz.png
+  wrote fodo_m_steps_xi.png

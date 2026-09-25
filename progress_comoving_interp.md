@@ -6842,6 +6842,137 @@ So: delete it once the testing and debugging are finished, together with the `|t
 and the four `x1_l..x4_r` sub-region variables, but not before `test_xi_bands_equiv.py` is either
 retired or re-pointed at a stored reference. Logged as a Step 7 item.
 
+
+#### 11t. The FODO example with the current code, and `m_steps_xi` (2026-09-25) ✅ **runs clean; the whole wake is the W2 divergence term, and a `K1` typo had made every quad invisible to `auto`**
+
+The FODO lattice is the one shipped example with **no dipoles**, which makes it a useful special case:
+`rho = 0` everywhere, so `tau` stays at ~2e-5 and `h_tau` and `h_2` are both inert. `h_xi` is the only
+active refinement term, so this is the only lattice where `m_steps_xi` can be calibrated at all.
+
+##### What `m_steps_xi` controls
+
+`h_xi = L_xi / m_steps_xi`, where `L_xi = sigma_xi / sqrt(sigma_xi'^2 + sigma_xi |sigma_xi''|)` is the
+robust length scale of the **co-moving transverse width** `sigma_xi` (the x spread after the x-z
+correlation is removed). It is the `sigma_xi` sibling of `m_steps`, which does the same job for
+`sigma_z`: "put at least `m_steps_xi` steps across any feature in `sigma_xi(s)`". It matters because the
+co-moving frame is rebuilt per snapshot from `(tau, sigma_z, sigma_xi, xbar, zbar)`, so a `sigma_xi`
+feature crossed in one step is a frame the history interpolant never sees.
+
+##### Two pre-existing bugs found on the way in
+
+**1. `waist.py` read `'k1'`; the lattice YAMLs write `'K1'`.** `get_bmadx_element` (CSR.py:243) uses
+`K1`, and every shipped lattice follows it. `waist.py` accepted only lowercase, so **`float(el.get('k1',
+0.0))` returned 0 for every quadrupole** and the linear-optics scan that `auto` sizes its steps from saw
+a FODO cell as a 2.25 m drift. Measured on this lattice, with the bug and without:
+
+```
+  sigma_x(s) over the lattice     K1 read          K1 ignored (the bug)
+  min .. max                      44.249 .. 46.637 um    46.637 .. 46.886 um
+  max abs difference                        2.45 um
+```
+
+So the bug **erased the waist entirely** -- monotone growth instead of a focus at s = 1.10. Here the
+consequence is mild because the cell is weak (5 % in `sigma_x`), but it is unbounded in principle: a
+strong lattice's waist is exactly what `auto` exists to resolve, and `auto` could not see it. Fixed by
+accepting both spellings at both call sites (`propagate_var_z` and `propagate_frame`).
+
+**2. `fodo_init_beam.yaml` uses the obsolete distgen key `random_type: hammersley`**, which current
+distgen rejects with `AssertionError: Unexpected distgen input parameter`. Left the author's file alone
+and added `fodo_init_beam_fixed.yaml` (`random: {type: hammersley}`).
+
+With the `K1` fix, the linear predictor is essentially exact against the tracked run: **max relative
+`sigma_x` error 2.3e-6**, waist position 1.1000 m both ways, waist `sigma_x` 44.249 um both ways. That
+is the first independent validation of `waist.py`'s optics against tracking on a *focusing* lattice.
+
+##### The run
+
+`auto` chose **40 nodes / 14 kicks in 33 s**. Zero nan, energy loss -0.0037 keV, `sigma_z` constant to
+1.2e-15 (no dipoles, so no compression), emittance preserved, `beta_x` 19.58 .. 21.75 m.
+
+![FODO statistics and the auto schedule](pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_statistics.png)
+
+![FODO x-z wakes, one column per element](pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_wakes_xz.png)
+
+##### The physics: the entire signal is W2, and it changes sign at the waist
+
+The wake maps look odd at first -- the wake is **negative (energy loss) through the first half of the
+cell and positive (energy gain) through the second**, flipping exactly at s = 1.10. That is not a bug;
+it is the only term that survives when `rho = 0`.
+
+With no bending, `W1` and `W3` are driven by geometry that vanishes: the transverse integrand is built
+from `n - n'` and `n . tau'` (CSR.py:1767-1775), and in a straight line `n_vec` is constant and
+orthogonal to `tau`, so **both are identically zero**. Measured: `max|x_kick| = 0` exactly at all 14
+kicks. What remains is the compression/decompression term `W2 ~ div(v) = d v_x/dx`, and for a beam
+with no x-z correlation `div(v) = dln(sigma_x)/ds = -alpha_x/beta_x`. So the wake should be
+proportional to `-alpha_x/beta_x`, sign flip included. Testing that:
+
+```
+      s   alpha_x   beta_x   -alpha_x/beta_x   wake peak      ratio
+  0.0500   +1.0834   21.696      -0.04994     -6.7282e-03    0.1347
+  0.5836   +1.0299   20.568      -0.05007     -6.6687e-03    0.1332
+  1.0500   +0.9832   19.629      -0.05009     -6.6493e-03    0.1328
+  1.1000   +0.0000   19.580      -0.00000     +9.27e-05      --      <- waist, wake ~ 0
+  1.1500   -0.9832   19.629      +0.05009     +6.7910e-03    0.1356
+  1.6836   -1.0366   20.707      +0.05006     +6.6894e-03    0.1336
+  2.1500   -1.0834   21.696      +0.04993     +6.6588e-03    0.1333
+```
+
+The ratio is **constant to 2 % across the whole lattice and across the sign change**, and the wake
+collapses to 1.4 % of its peak at the waist where `alpha_x = 0`. That is a clean, independent
+confirmation that the W2 term is implemented with the right sign and magnitude -- a check no bending
+lattice can give, because there W1 dominates and buries it.
+
+##### The `m_steps_xi` sweep -- and the first version of it was a broken test
+
+The first sweep used `m_steps_xi` in (4, 2, 1, 0.5) and returned **four identical results**. Not
+convergence: `h_xi >= 0.4987 m` over that whole range while `h_max = 0.07 m`, so in
+`1/h_req = 1/h_max + 1/h_1 + 1/h_xi` the `h_xi` term contributed under 15 % and never bound. The test
+was measuring `h_max`. **A sweep of a parameter that is not active is indistinguishable from
+insensitivity, and the reciprocal combination makes that easy to miss** -- reporting `h_xi_min`
+alongside `h_eff_min` is what makes it visible, so the table now does.
+
+Extended to (2, 8, 16, 32, 64), where `h_xi_min` falls 0.4987 -> 0.0156 and `h_eff` genuinely refines
+4x:
+
+```
+   m_steps_xi  nodes  snaps  h_xi_min  h_eff min   |dE| peak    rough  rel L2 vs finest
+            2     40     18    0.4987    0.03500    0.006649   0.1104     5.9e-08
+            8     69     32    0.1247    0.03500    0.006649   0.1104     2.0e-09
+           16     73     33    0.0623    0.01750    0.006649   0.1104     2.0e-09
+           32     73     33    0.0312    0.01750    0.006649   0.1104     1.8e-09
+           64     85     36    0.0156    0.00875    0.006649   0.1104     0
+```
+
+`max|dE_2 - dE_64| = 5.99e-10 MeV/m` against a peak of 6.65e-3, i.e. **agreement to 7 significant
+figures over a 32x refinement** that doubled the snapshot count.
+
+![m_steps_xi convergence and cost](pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_m_steps_xi.png)
+
+##### Verdict: leave `m_steps_xi = 2.0`, but note what this does and does not show
+
+Keeping the default. The sweep shows the constant is **not miscalibrated** -- there is no accuracy on
+the table to buy, and refining it costs 2.1x the nodes for a 1e-9 change.
+
+The caveat matters, though, and it is the reverse of the usual one. This is a **weak-signal** case:
+peak `|dE| = 0.0066 MeV/m`, three orders below the chicane's 0.048, because without a dipole there is
+no steady-state CSR source at all. And `sigma_xi(s)` here is smooth and slowly varying -- `L_xi` never
+drops below 0.03 m over 2.25 m of lattice. So the result is "`m_steps_xi` does not bind on the one
+lattice where it is the only active term", not "`m_steps_xi` never matters". The case that would test
+it properly is a **bending** lattice with a `sigma_xi` waist, i.e. a strong focus inside or adjacent
+to a dipole, which no shipped example has. Logged as the remaining gap in the `auto` calibration:
+every other constant (`m_steps` §6x, `tau_frac` §11l, `kappa` §11m, `edge_steps` §11o) was measured
+against a case where it actually bound; `m_steps_xi` is the one that was not.
+
+Note also that this sweep and §11l share a pattern worth remembering: **both parameters turned out to
+be inactive rather than wrong**, and in both cases the first attempt at the test failed to make them
+active. The reciprocal combination is forgiving of a bad guess, which is a virtue at runtime and a
+hazard when calibrating.
+
+**Files.** `pyDFCSR_2D/test/test_fodo_auto.py` (new),
+`pyDFCSR_2D/example/input/fodo_init_beam_fixed.yaml` (new), `pyDFCSR_2D/waist.py` (the `K1` fix),
+`pyDFCSR_2D/test/benchmark_results/fodo_auto/` (three figures, the log, the cached cuts).
+
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -6874,6 +7005,12 @@ truncation hole. **On the co-moving path only.** Still outstanding:
   any normal run (290 of the shipped configs use `bspline_comoving`). **Blocker:**
   `test_xi_bands_equiv.py` toggles `xi_bands` to falsify the new bands against the old, so retire or
   re-point that test against a stored reference first.
+- **OPEN: `m_steps_xi` is the one `auto` constant never measured where it binds** (§11t). Every other
+  constant was calibrated against a case in which it actually controlled `h_eff` — `m_steps` §6x,
+  `tau_frac` §11l, `kappa` §11m, `edge_steps` §11o. `m_steps_xi` was swept 32x on the FODO (the only
+  dipole-free example, hence the only one where `h_tau`/`h_2` are inert) and the wake moved by 6e-10,
+  but that lattice has a smooth `sigma_xi` and a weak-signal wake 3 orders below the chicane's. Needs a
+  **bending** lattice with a `sigma_xi` waist near a dipole; no shipped example has one.
 - **OPEN: the D1/D3 wake tails are rough and the cause is unknown** (§11r). Localised to
   |z| > 1.5 sigma_z (84-100 % of the second-difference norm), scales with signal so not a noise floor,
   and NOT a `tau` sampling error -- an 8x `tau_frac` refinement moved it by 0 %. D3's is mesh-edge
