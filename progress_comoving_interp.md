@@ -6852,6 +6852,17 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 - (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
   and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
 - `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
+- **OPEN: Part 5 of the Step 11 plan, the predictor/corrector, is not implemented.** The only
+  unfinished item of the approved plan. Compare **three** `sigma_z(s)` curves — linear-optics
+  predicted, CSR-off tracked, CSR-on tracked — and recommend a corrector pass when they diverge. The
+  CSR-off run is nearly free (~1 s for a lattice) and is the one thing that validates the linear
+  predictor *independently of CSR*, which nothing so far has done. Recommend a corrector when any of:
+  waist shift `|Δs_w| > 0.5 × width`; `max|ln(sz_track/sz_lin)| > 0.2` in a region carrying >10 % of
+  `∫|W| ds`; tracked `steps_across < m_steps`; or `_check_retention` reported a shortfall. The
+  corrector resamples pass-1 `statistics['sigma_z']` onto the scan grid, smooths before
+  differentiating, rebuilds `h_eff`, then takes the **pointwise minimum with pass-1 `h_eff`** so the
+  schedule can only refine and the iteration cannot oscillate. Default `corrector: 0` (report only).
+  Was deferred while `tau_frac` and `kappa` were uncalibrated; that blocker is now gone (§11l, §11m).
 - **OPEN: `s2` is vestigial — remove it and merge s' regions 1 and 2** (§11s, author's direction). With
   per-column ribbons there is no wide transverse window for `s2` to delimit, so it now only splits the
   longitudinal node budget at a hard-coded, uncalibrated `200 sigma_z`. Measured on the chicane:
