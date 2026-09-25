@@ -6902,9 +6902,101 @@ it is the only term that survives when `rho = 0`.
 With no bending, `W1` and `W3` are driven by geometry that vanishes: the transverse integrand is built
 from `n - n'` and `n . tau'` (CSR.py:1767-1775), and in a straight line `n_vec` is constant and
 orthogonal to `tau`, so **both are identically zero**. Measured: `max|x_kick| = 0` exactly at all 14
-kicks. What remains is the compression/decompression term `W2 ~ div(v) = d v_x/dx`, and for a beam
-with no x-z correlation `div(v) = dln(sigma_x)/ds = -alpha_x/beta_x`. So the wake should be
-proportional to `-alpha_x/beta_x`, sign flip included. Testing that:
+kicks. What remains is the compression/decompression term `W2 ~ div(v) = d v_x/dx`.
+
+##### Why `div(v) = dln(sigma_x)/ds = -alpha_x/beta_x`
+
+Worth spelling out, because it is what turns a plausible-looking wake into a quantitative test. Three
+steps, each independently checkable.
+
+**1. In a linear lattice the velocity field is linear in x, so `div(v)` is a single number.** `div(v)`
+here is the divergence of the **mean** velocity field, not of individual particle velocities. For a
+Gaussian beam the conditional mean angle at transverse position `x` is
+
+```
+  <x' | x> = (<x x'>/<x^2>) x                 so   d v_x/dx = <x x'>/<x^2>,  independent of x
+```
+
+That x-independence is what makes `div(v)` well defined at all, and it is worth testing rather than
+assuming. `velocity_field_slope` bins the **tracked** particles in x, fits `<px|x>` against x, and
+reports the residual of that fit -- a curved velocity field would show up there. Measured at all 14
+kicks, against both the moment ratio and the Twiss prediction:
+
+```
+     s [m]   binned slope   <x px>/<x^2>   -alpha/beta   fit nonlinearity
+    0.0500       -0.04994       -0.04994      -0.04994           4.3e-03
+    0.5836       -0.05007       -0.05007      -0.05007           3.6e-03
+    1.1000       -0.00001       -0.00000      -0.00000           1.2e-02      <- the waist
+    1.1500       +0.05008       +0.05009      +0.05009           1.0e-02
+    2.1500       +0.04993       +0.04993      +0.04993           6.8e-03
+```
+
+Three independent routes agreeing to 5 digits, and the departure from linearity never exceeds
+**1.8e-2 of sigma_px** -- consistent with binning shot noise at 1e6 particles. So `div(v)` genuinely is
+a single number here.
+
+*(A note on the metric, because I got it wrong first: the fit residual was initially normalised by the
+range of `<px|x>` itself, which **collapses to zero at a waist** where `alpha = 0` kills the linear
+part. That reported a nonlinearity of 1.06 -- over 100 % -- at exactly the three points where the
+denominator was noise. Normalising by `sigma_px` instead, which stays finite everywhere, gives the
+1.2e-2 above. Same mistake as the `rel_xk` blowup in §11n: a relative metric needs a denominator that
+cannot vanish, and this is the third time in this work it has bitten.)*
+
+**2. That ratio is `-alpha/beta` by the definition of alpha.** The Twiss parametrisation of the 2x2
+sigma matrix is `<x^2> = eps*beta`, `<x x'> = -eps*alpha`, `<x'^2> = eps*gamma`. So `alpha` *is* the
+negative correlation, up to `eps`, and
+
+```
+  <x x'>/<x^2> = -eps*alpha / (eps*beta) = -alpha/beta
+```
+
+**3. The same ratio is the logarithmic growth rate of the beam size.** Continuity: a velocity field of
+divergence `D` grows the width at fractional rate `D`. Directly, at constant emittance,
+
+```
+  d<x^2>/ds = 2<x x'>
+  dln(sigma_x)/ds = (1/2) dln<x^2>/ds = <x x'>/<x^2> = -alpha/beta
+```
+
+which is the standard `beta' = -2 alpha` written for `sigma_x = sqrt(eps*beta)`.
+
+So all three are one quantity: `d v_x/dx = <x x'>/<x^2> = dln(sigma_x)/ds = -alpha/beta`. Verified
+against the tracked FODO statistics, differentiating the tracked `sigma_x` numerically:
+
+```
+     s [m]    dln(sx)/ds   -alpha/beta     difference
+    0.0250      -0.02496      -0.02495       -5.2e-06
+    0.3821      -0.05004      -0.05004       +3.1e-07
+    0.7179      -0.05009      -0.05009       +3.3e-07
+    1.1000      -0.00000      -0.00000       +2.4e-10      <- the waist
+    1.4821      +0.05009      +0.05009       -3.3e-07
+    1.8179      +0.05004      +0.05004       -3.1e-07
+
+  max |difference|, all s              1.25e-02   at s = 0, the lattice entrance
+  max |difference|, away from edges    3.44e-07
+  median |difference|                  3.25e-07
+```
+
+**Agreement to 3e-7 through the smooth interior**, including exactly at the waist (2.4e-10). The
+residual is 4 orders larger only at element boundaries, and that is a property of the finite
+difference rather than of the identity: `dln(sigma_x)/ds` *jumps* at a quadrupole edge, so
+`np.gradient`'s central difference straddles a discontinuity there, and at the two lattice endpoints it
+falls back to a one-sided difference. The log now reports the interior and the edges separately instead
+of quoting one max -- the first version blamed the 0.0125 on "a quad edge" when it is in fact at
+`s = 0`, the entrance, which is the one-sided case. Normalised emittance drifts by 1.2e-9 over the
+lattice, so the constant-`eps` assumption in step 3 is safe to the precision quoted.
+
+**Two caveats on the identity, both load-bearing.** First, `-alpha/beta` is the *transverse* divergence
+only; the full `partial_t rho` in the code (CSR.py:1777) also carries the convective term
+`-v . grad(rho)`, which contributes little here because the wake is antisymmetric in z about the bunch
+centre while `rho` is symmetric. Second, **the identity needs zero x-z correlation.** Once `tau != 0`
+the controlling width is `sigma_xi`, not `sigma_x`, and `div(v)` picks up a chirp contribution. That is
+precisely why this test only works on a dipole-free lattice -- and equally why `m_steps_xi`, whose whole
+job is `sigma_xi`, cannot be calibrated on the same case.
+
+##### The test
+
+So the wake should be proportional to `-alpha_x/beta_x`, sign flip included. Testing that:
 
 ```
       s   alpha_x   beta_x   -alpha_x/beta_x   wake peak      ratio
@@ -6917,10 +7009,16 @@ proportional to `-alpha_x/beta_x`, sign flip included. Testing that:
   2.1500   -1.0834   21.696      +0.04993     +6.6588e-03    0.1333
 ```
 
-The ratio is **constant to 2 % across the whole lattice and across the sign change**, and the wake
+The ratio spans **0.1328 .. 0.1356 -- a 2.1 % spread over 11 kicks spanning both signs** -- and the wake
 collapses to 1.4 % of its peak at the waist where `alpha_x = 0`. That is a clean, independent
 confirmation that the W2 term is implemented with the right sign and magnitude -- a check no bending
 lattice can give, because there W1 dominates and buries it.
+
+The sign change is the part that carries the weight. A constant of proportionality measured on one side
+of the waist alone would be consistent with almost any error that scales with the beam size; **a sign
+error in W2 would preserve the correlation on one side and break it on the other.** Holding to 2 %
+*across* the flip is what rules that out. All three steps are now emitted by the test rather than
+computed by hand, so the check re-runs with the benchmark.
 
 ##### The `m_steps_xi` sweep -- and the first version of it was a broken test
 

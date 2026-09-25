@@ -139,7 +139,8 @@ def run_full(tag='run'):
                          xx=csr.CSR_xmesh.reshape(MESH_XBINS, MESH_ZBINS).copy(),
                          slope=np.asarray(b.slope, float).copy(),
                          sigma_z=float(b._sigma_z), sigma_x=float(b._sigma_x),
-                         sigma_xi=float(b._sigma_x_transform)))
+                         sigma_xi=float(b._sigma_x_transform),
+                         **velocity_field_slope(b)))
 
     if PARALLEL:
         csr.calculate_2D_CSR_parallel = cap
@@ -217,6 +218,124 @@ def run_mxi(m_xi, s_obs):
     return cut, meta
 
 
+def velocity_field_slope(beam, nbin=41, min_per_bin=200):
+    """Measure d<px|x>/dx from the tracked particles, and how non-linear it is.
+
+    div(v) in the wake integrand is the divergence of the MEAN velocity field, which
+    is only a well defined single number if <px|x> is linear in x. Rather than assume
+    that, bin the particles in x, fit the local mean angle, and also report the
+    residual of that fit -- a curved velocity field would show up here.
+    """
+    x = np.asarray(beam.x, float)
+    px = np.asarray(beam.px, float)
+    sx = x.std()
+    edges = np.linspace(-3.0 * sx, 3.0 * sx, nbin)
+    idx = np.digitize(x, edges)
+    cx, cv = [], []
+    for k in range(1, edges.size):
+        m = idx == k
+        if m.sum() >= min_per_bin:
+            cx.append(x[m].mean())
+            cv.append(px[m].mean())
+    if len(cx) < 4:
+        return dict(dvdx_binned=np.nan, dvdx_moment=np.nan, dvdx_nonlin=np.nan)
+    cx = np.asarray(cx)
+    cv = np.asarray(cv)
+    sl, ic = np.polyfit(cx, cv, 1)
+    resid = cv - (sl * cx + ic)
+    # Normalise the fit residual by sigma_px, NOT by the range of <px|x>: the latter
+    # collapses to zero at a waist, where alpha = 0 makes the linear part vanish, and
+    # the ratio then blows up on a denominator that is itself noise. sigma_px is the
+    # angle scale of the beam and stays finite everywhere.
+    return dict(dvdx_binned=float(sl),
+                dvdx_moment=float(np.mean(x * px) / np.mean(x * x)),
+                dvdx_nonlin=float(np.max(np.abs(resid)) / max(px.std(), 1e-30)))
+
+
+def report_div_v_identity(stat, maps, emit, ele_edges=()):
+    """With rho = 0 the only surviving wake term is W2 ~ div(v), and for an
+    uncorrelated beam div(v) = d v_x/dx = <x x'>/<x^2> = dln(sigma_x)/ds = -alpha/beta.
+    Checked three ways: the local mean-angle slope really is x-independent (so div(v)
+    is a single number at all), the identity holds against the tracked sigma_x, and
+    the wake peak is proportional to it THROUGH the sign change at the waist -- the
+    last being what a W2 sign error would break on one side of the waist only.
+    """
+    s = np.asarray(stat['s'], float)
+    sx = np.asarray(stat['sigma_x'], float)
+    a = np.asarray(stat['alpha_x'], float)
+    b = np.asarray(stat['beta_x'], float)
+    ex = np.asarray(stat['norm_emit_x'], float)
+
+    if all('dvdx_binned' in mp for mp in maps):
+        emit('  step 1: d<px|x>/dx from the tracked particles, and is it linear in x')
+        emit(f"    {'s [m]':>8} {'binned slope':>13} {'<x px>/<x^2>':>13} "
+             f"{'-alpha/beta':>12} {'fit nonlin':>11}")
+        for mp in maps:
+            sm = float(mp['s'])
+            q = -float(np.interp(sm, s, a)) / float(np.interp(sm, s, b))
+            emit(f"    {sm:>8.4f} {mp['dvdx_binned']:>+13.5f} "
+                 f"{mp['dvdx_moment']:>+13.5f} {q:>+12.5f} {mp['dvdx_nonlin']:>11.2e}")
+        nl = np.array([mp['dvdx_nonlin'] for mp in maps], float)
+        emit(f'    max nonlinearity of <px|x> vs x: {np.nanmax(nl):.2e} of sigma_px '
+             f'-> div(v) is a single number, not a function of x')
+        emit('')
+
+    emit('  step 2/3: div(v) = dln(sigma_x)/ds = -alpha_x/beta_x, against the tracked run')
+    dln = np.gradient(np.log(sx), s)
+    emit(f"    {'s [m]':>8} {'dln(sx)/ds':>12} {'-alpha/beta':>12} {'difference':>12}")
+    for tgt in np.linspace(s[1], s[-2], 7):
+        j = int(np.argmin(np.abs(s - tgt)))
+        emit(f'    {s[j]:>8.4f} {dln[j]:>+12.5f} {-a[j] / b[j]:>+12.5f} '
+             f'{dln[j] + a[j] / b[j]:>+12.2e}')
+    # np.gradient uses a one-sided difference at the two endpoints and a central
+    # difference elsewhere; both are first-order wrong wherever dln(sx)/ds jumps, i.e.
+    # at every quadrupole edge. Those are properties of the finite difference, not of
+    # the identity, so quote the smooth interior separately from the edges.
+    res = np.abs(dln + a / b)
+    edge = np.zeros(s.size, bool)
+    edge[[0, -1]] = True
+    for x_e in np.asarray(ele_edges, float):
+        edge |= np.abs(s - x_e) <= 1.5 * np.max(np.diff(s))
+    emit(f'    max |difference| all s      : {res.max():.2e}  '
+         f'(at s = {s[int(np.argmax(res))]:.4f})')
+    if (~edge).any():
+        ri = res[~edge]
+        emit(f'    max away from element edges : {ri.max():.2e}  '
+             f'(the edge values are the finite difference straddling a jump in '
+             f'dln(sx)/ds, not a failure of the identity)')
+    emit(f'    median |difference|         : {np.median(res):.2e}')
+    emit(f'    norm_emit_x drift           : {ex.max() / ex.min() - 1:.2e}  '
+         f'(constant-eps assumption)')
+    emit('')
+
+    emit('  and the wake peak is proportional to it, through the sign change')
+    emit(f"    {'s [m]':>8} {'alpha_x':>9} {'beta_x':>8} {'-alpha/beta':>12} "
+         f"{'wake peak':>12} {'ratio':>9}")
+    ratios = []
+    for mp in maps:
+        sm = float(mp['s'])
+        dE = np.asarray(mp['dE'], float)
+        mid = dE[dE.shape[0] // 2, :]
+        pk = float(mid[np.argmax(np.abs(mid))])
+        av = float(np.interp(sm, s, a))
+        bv = float(np.interp(sm, s, b))
+        q = -av / bv
+        if abs(q) > 1e-3:
+            ratios.append(pk / q)
+            rs = f'{pk / q:>9.4f}'
+        else:
+            rs = f"{'--':>9}"
+        emit(f'    {sm:>8.4f} {av:>+9.4f} {bv:>8.3f} {q:>+12.5f} {pk:>+12.4e} {rs}')
+    ratios = np.asarray(ratios)
+    emit(f'    ratio {ratios.min():.4f} .. {ratios.max():.4f}, '
+         f'spread {ratios.ptp() / np.mean(ratios) * 100:.1f} % over '
+         f'{ratios.size} kicks spanning both signs')
+    emit(f"    max |x_kick| over all maps  : "
+         f"{max(float(np.abs(np.asarray(mp['xk'], float)).max()) for mp in maps):.2e}  "
+         f"(n - n' and n.tau' vanish in a straight line, so W1/W3 are structurally zero)")
+    emit('')
+
+
 def main():
     os.chdir(EXAMPLE_DIR)
     lines = []
@@ -253,6 +372,8 @@ def main():
     emit(f"    nan in statistics: "
          f"{sum(int(np.isnan(np.asarray(v, float)).sum()) for v in stat.values() if np.asarray(v).ndim == 1)}")
     emit('')
+
+    report_div_v_identity(stat, maps, emit, ele_edges=dist)
 
     # --- m_steps_xi sweep, at the position where h_xi is tightest ------------------------
     hx = meta['h_xi']
