@@ -6615,6 +6615,111 @@ would need the §11m treatment, sweeping the mesh and watching the final beam.
 **Files.** `pyDFCSR_2D/test/test_chicane_auto.py` (new),
 `pyDFCSR_2D/test/benchmark_results/chicane_auto/` (four figures, the log, and the captured maps).
 
+#### 11r. OPEN PROBLEM: the D1/D3 tail roughness is not explained ⚠️ **paused here; two hypotheses tested and both refuted**
+
+Raised by the author on looking at §11q's figures: the wakes in the two long chicane drifts, D1 and
+D3, look noisy. They are, and **the cause is still unknown.** This entry records what has been ruled
+out so the next attempt does not repeat it.
+
+##### It is not noise, and it is not in the bunch core
+
+If it were a constant noise floor becoming visible as the wake decayed, the ABSOLUTE
+second-difference norm would stay flat while the amplitude fell. It does the opposite -- absolute
+roughness grows in step with amplitude (D1: 0.00078 -> 0.068 as the amplitude goes 0.007 -> 0.059).
+Whatever this is, it scales with the signal, so it is structure rather than noise.
+
+Splitting the second-difference norm by position in the bunch localises it sharply:
+
+```
+  s = 10.058 (D3)   core |z| < 1.5 sigma_z:  16 %    tails |z| > 1.5 sigma_z:  84 %
+  s =  5.464 (D1)   core                   :   0 %    tails                 : 100 %
+  s =  3.023 (D1)   core                   :  78 %    tails                 :  22 %   <- smooth case
+```
+
+So in the rough cases essentially all of it is in the **bunch tails**. The core stays smooth
+throughout. At s = 5.464 a single second-difference term at z = +1.96 sigma_z carries 39 % of the
+total.
+
+##### D1 and D3 have DIFFERENT causes
+
+Correlating roughness against the tilt amplification `sigma_x/sigma_xi`, within each drift:
+
+```
+  D1   corr = +0.904    amplification sweeps  2.1 -> 64.0
+  D3   corr = +0.295    amplification only     1.9 ->  6.4
+```
+
+D1's correlation is strong, D3's is not -- so a single mechanism does not cover both, and any
+explanation has to account for that.
+
+**D3 is understood and benign.** Its roughness jumps from 0.48 to 1.46 at exactly the kick where hard
+zeros first appear at the +z edge of the mesh. The wake runs into the zero region *inside* the
+`zlim = 3` window:
+
+```
+  z = +1.90 sigma_z   -0.0570
+  z = +2.11           -0.0107
+  z = +2.32           -0.0002
+  z = +2.52           -0.00000004
+  z = +2.73            0            <- hard zero
+```
+
+That corner at +1.70 sigma_z alone is 30 % of the roughness. It is a kink where a decaying wake meets
+zero, i.e. a *mesh* artefact of the kind §11q already established, not a defect in the physics.
+
+##### D1: the tau hypothesis, tested and REFUTED
+
+The 0.904 correlation suggested a specific, falsifiable mechanism. §6r established that a `tau` error
+displaces the integration band centre by `dtau * (z_ret - z_bar)` while the band half-width is only
+`margin * xlim * sigma_xi`. The displacement therefore grows with `|z - z_bar|` -- **worst in the
+tails**, exactly where the roughness is -- and is bounded by `tau_frac`. Prediction: refining
+`tau_frac` must reduce tail roughness, and reduce it more than core roughness.
+
+`test_chicane_d1_taufrac.py` swept `tau_frac` 2 -> 0.25 (an 8x refinement, 491 -> 1484 nodes), with
+the observation points pinned by `force_nodes`, at three positions spanning amplification 24x to 63x:
+
+```
+  s = 5.5 m, amplification 63.1x
+   tau_frac  kicks  snaps   |dE| peak   rough tot     core     TAIL
+          2     28     45     0.04829      1.1167   0.0684   1.1146
+          1     37     70     0.04819      1.1165   0.0685   1.1144
+        0.5     54    110     0.04854      1.1175   0.0681   1.1154
+       0.25     86    186     0.04849      1.1173   0.0682   1.1153
+```
+
+**Flat to four decimals.** Tail roughness moves by +0 %, -0 %, +0 % at s = 3.0, 4.5 and 5.5 across the
+whole 8x sweep. The hypothesis is refuted: this is **not** a `tau` sampling error. Consistent with
+§11l, which measured the wake flat against `tau_frac` over a 32x range -- that result now extends to
+tail structure at 63x amplification in a dispersive drift, which §11l had not covered.
+
+Note this also means the 0.904 correlation with amplification is **not causal** through `tau`.
+Amplification and roughness both grow monotonically along D1, so the correlation may be coincidental
+co-variation with distance; that possibility was not separated.
+
+##### What is ruled out, and what to try next
+
+Ruled out: a noise floor; the bunch core; `tau` under-sampling (8x refinement, no effect); the
+snapshot density generally, since refining `tau_frac` also multiplied snapshots 45 -> 186 at s = 5.5
+with no change; and for D1 the mesh-edge truncation that explains D3, since D1's curves do not reach
+zero inside the window.
+
+Not yet tested, in the order I would try them:
+
+1. **Deposition resolution.** Everything here held the deposition at 300^2 and `zlim = 5`. The tails
+   of the wake integrate over the tails of the *density*, where the B-spline deposit has few particles
+   per cell -- 1e6 particles spread over 300^2 cells leaves the |z| > 2 sigma region sparse. Sweep
+   `particle_deposition.zbins/xbins` and the particle count; if the tail roughness is deposition shot
+   noise it must fall as sqrt(N).
+2. **`CSR_integration` bins.** 100x100 was validated in §11k against a *mid-x cut*, never against
+   tail structure. §11q already found the wake mesh under-resolved at 5 bins/sigma_z; the integration
+   grid may be too.
+3. **The localization bands themselves.** At 63x amplification the bands are narrow, and §6m's
+   `|tau| -> inf` degeneracy is a known open item. Tail points are where the band geometry is most
+   extreme, so a localisation that is subtly wrong there would show up exactly like this.
+
+**Files.** `pyDFCSR_2D/test/test_chicane_d1_taufrac.py` (new),
+`pyDFCSR_2D/test/benchmark_results/chicane_d1_tau/` (figure, log, cached cuts).
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -6625,6 +6730,12 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 - (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
   and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
 - `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
+- **OPEN: the D1/D3 wake tails are rough and the cause is unknown** (§11r). Localised to
+  |z| > 1.5 sigma_z (84-100 % of the second-difference norm), scales with signal so not a noise floor,
+  and NOT a `tau` sampling error -- an 8x `tau_frac` refinement moved it by 0 %. D3's is mesh-edge
+  truncation and benign; D1's is unexplained. Next: sweep deposition resolution and particle count
+  (shot noise in the sparse density tails?), then `CSR_integration` bins, then the localization bands
+  at 63x amplification.
 - **`CSR_computation` zbins is uncalibrated, and 5 bins/sigma_z does not resolve a compressed wake**
   (§11q). `zlim = 3` over `zbins = 30` gives 5 bins per sigma by construction; measured at full
   chicane compression, roughness falls 2.51 -> 1.87 -> 1.40 as bins/sigma goes 5 -> 10 -> 20 and the
