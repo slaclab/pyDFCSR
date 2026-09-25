@@ -6723,142 +6723,124 @@ Not yet tested, in the order I would try them:
 **Files.** `pyDFCSR_2D/test/test_chicane_d1_taufrac.py` (new),
 `pyDFCSR_2D/test/benchmark_results/chicane_d1_tau/` (figure, log, cached cuts).
 
-#### 11s. Reference: the localization branch logic as it stands, and what is unguarded ⚠️ **`|tau| >> 1` is NOT handled; `|tau| -> 1+` is a second, newly noticed hole**
+#### 11s. Reference: the localization as it ACTUALLY runs, and a correction to my own account ⚠️ **I documented the dead path; the live one already guards both limits**
 
-Written because §6m/§6n called this the "`|tau| -> infinity` degeneracy", which is **wrong terminology
-that obscures the actual regime** -- the author pushed back on it and was right. This entry states the
-algorithm as the code has it, answers two specific questions about it, and records both unguarded
-limits.
+Written after the author queried two claims, and both queries were right. The first version of this
+entry described the block in `get_CSR_wake` (CSR.py:1350-1412) as the current algorithm. **That block
+does not run in any current configuration.** What runs is `_layout_bounds` + `_integrate_xi_region`,
+and the differences matter, so this replaces the earlier account.
 
-##### First, the terminology correction
+Recording the mistake because it is the same failure as the `|tau| -> infinity` misnomer below: I read
+the code that was easy to find rather than the code that executes.
 
-`tau = beam._slope[0] = np.polyfit(z, x, 1)[0]`, the OLS slope of `x` on `z`. Verified numerically to
-be identical to `cov_zx/var_z` (19.999741 both ways on a shear-20 test beam), so the "linear fit" and
-"covariance" descriptions are the same quantity, not two options.
-
-Therefore **`|tau|` is never infinite in this code.** `tau -> inf` would need a literally vertical
-beam in the x-z plane -- all particles at one `z`, spread in `x` -- which a bunch with finite
-`sigma_z` cannot be, and `polyfit` would be ill-conditioned rather than return a large number. An
-uncorrelated beam gives `tau = 0`, not infinity.
-
-What §6m actually measured was `tau = -12.46` at shear 50, so `tau^2 = 155 >> 1` and hence
-`tan 2alpha = 2 tau/(1 - tau^2) ~ -2/tau -> 0`. **Finite, ordinary, and exactly what a chirped beam at
-a bend entrance does.** Nothing diverges in `tau`; what diverges is the region extent `d`, because
-`tan 2alpha` sits in its denominator. From here on the regime is called **`|tau| >> 1`,
-`tan 2alpha -> 0`**.
-
-##### Q: what is `tan_alpha`, and does it come from the fit?
-
-It is a **trigonometric identity applied to the fitted slope**, not a separate measurement:
+##### Which path is live
 
 ```
-  tau       = polyfit(z, x, 1)[0] = cov_zx/var_z          the fitted tilt
-  tan_alpha = 2 tau / (1 - tau^2)                          = tan(2 * arctan(tau))
+  live iff   use_smooth_deposit and integration_params.xi_bands
+  xi_bands default = True                           (params.py:21)
+  use_smooth_deposit = True for bspline_comoving and bspline_fft
+  -> verified on the chicane config: both True, so the XI_BANDS path runs
 ```
 
-i.e. if `alpha` is twice the beam's tilt angle, this is `tan(2 x tilt)` via the double-angle formula.
-The code writes it with a sign flip for `tau > 0` (CSR.py:1368, commented `alpha = pi - 2 theta`) so
-that `tan_alpha` comes out positive in both sign branches. It is the direction of the **chirp band**,
-the second localized region of thesis §4.4.2, which runs at angle `2 alpha` to the `s'` axis. So:
-one fitted number, `tau`, and everything geometric is derived from it algebraically.
+Of the shipped example configs, 290 use `bspline_comoving` and 10 `bspline_fft`, so the xi_bands path
+is the normal one. The legacy block is the `xi_bands = False` fallback.
 
-##### Q: why is `s2` kept, and what uses it?
+##### Correction 1: the three s' regions do NOT get different transverse extents any more
 
-`s2` is the **inner boundary of the far region**, and it exists to split the `s'` integration into
-pieces that get *different transverse extents*. The three returned intervals are
-`((s1, s2), (s2, s3), (s3, s4))` and they are integrated separately (CSR.py:1452-1490) with:
+The author's point, and it is correct. The legacy block computes `+-20 sigma_x` for region 1,
+`+-10 sigma_x` for regions 2-3, and four `x1_l..x4_r` sub-regions for the chirp case. **Those values
+are then discarded.** CSR.py:1417 says so directly -- "the transverse extents are replaced by the
+located ribbons" -- and `_integrate_xi_region` (CSR.py:1067-1080) lays the x' nodes per column on the
+solution of the retarded condition instead:
 
-```
-  region 1   (s1, s2)   x extent +-20 sigma_x   (WIDE)   <- xp_w, 2*xbins columns
-  region 2   (s2, s3)   x extent +-10 sigma_x            <- xp_n, xbins
-  region 3   (s3, s4)   x extent +-10 sigma_x            <- xp_n, xbins, the near region
-```
-
-`s1 = s2 - n_formation_length * L_f` is the causal reach; `s2` is where the code stops needing the
-wide transverse window. On a typical no-chirp case (`sigma_z = 50 um`, `L_f = 0.18 m`):
-
-```
-  s4 = s +   5 sigma_z = +0.000250
-  s3 = s -  20 sigma_z = -0.001000        region 3 length    25 sigma_z
-  s2 = s - 500 sigma_z = -0.025000        region 2 length   480 sigma_z
-  s1 = s2 - 1.5 L_f    = -0.295000        region 1 length  5400 sigma_z
+```python
+  bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp))
+  for lo, hi in bands:
+      xp_mesh = lo[None, :] + frac[:, None] * width[None, :]
+      dxp     = width / (nx - 1)          # per-column spacing
 ```
 
-So `s2` is doing two jobs at once: it marks where `+-20 sigma_x` is no longer needed, and it
-**partitions a fixed node budget**, since all three regions receive the same `zbins`. Region 1 is
-**216x longer** than region 3 yet gets the same number of columns (region 3 can get more with
-`near_cell`/`near_grade`, added in §6j/§6m; regions 1 and 2 stay uniform at `far_zbins`). The `500
-sigma_z` and `200 sigma_z` constants that set it are **hard-coded and uncalibrated** -- they do not
-appear in any config.
+So every region is treated identically in x': one or two narrow ribbons following the retarded
+solution, `xbins` nodes across each. This is what the §6f and §6s integrand plots show, and it is why
+those plots and the fixed-extent description cannot both be current. The `+-20 sigma_x` wide-window
+distinction is legacy-only.
 
-##### The branch logic, exactly as written (CSR.py:1354)
+##### Correction 2: both "unguarded" limits I reported ARE guarded in the live path
 
-A single test on `|tau|`:
-
-**`|tau| <= 1` -- chirp band DISABLED.** Purely beam-relative geometry, nothing that can diverge:
-```
-  s2 = s - 500 sigma_z,  s3 = s - 20 sigma_z,  s4 = s + 5 sigma_z
-  x: x0 +- 20 sigma_x (wide),  x0 +- 10 sigma_x (near)
-```
-
-**`|tau| > 1` -- chirp band ENABLED**, sign-split on `tau`:
-```
-  tan_alpha = 2 tau/(1 - tau^2)          (sign-flipped when tau > 0)
-  d         = (10 sigma_x + xmean - x)/tan_alpha
-  s4 = s + 3 sigma_z,   s3 = max(0, s - d),   s2 = s3 - 200 sigma_z
-  plus four x sub-regions tracking the two bands
-```
-
-The `|tau| <= 1` cut is the code's expression of the thesis `|tan theta| = 1` switch, and the author's
-recollection is correct: below it the chirp band is simply not integrated.
-
-##### Both limits of the `|tau| > 1` branch are unguarded
-
-`d ∝ 1/|tan_alpha|`, and `tan_alpha` vanishes at large `|tau|` and blows up just above 1:
+The earlier version of this entry reported `d -> infinity` at `|tau| >> 1` and `d -> 0` at
+`|tau| -> 1+` as unhandled. In the legacy block they are. In `_layout_bounds` they are not, and the
+guards are explicit and were measured:
 
 ```
-     tau    tan_alpha    d/sigma_x
-   1.001      1000.50          0.0     <- near region COLLAPSES
-   1.050        20.49          0.5
-   2.000         1.33          7.5
-  12.460         0.16         61.9     <- §6m's failure, d = 154 mm
-  50.000         0.04        249.9
- 100.000         0.02        499.9
+  sin2a = 2 tau/(1 + tau^2)      cos2a = (1 - tau^2)/(1 + tau^2)      # both pole-free
+  d = (10 sigma_x + x - xmean) |cos2a| / max(|sin2a|, branch_sin_min)  # branch_sin_min = 0.05
+  d = max(d, near_floor * sigma_z)                                     # near_floor = 20
+  d = min(d, n_formation_length * L_f)
 ```
 
-**`|tau| >> 1`: `d` grows linearly in `|tau|`, unbounded.** At `tau = -12.46` that was 154 mm asking
-for ~25000 integration columns. The only thing preventing a wrong answer is the **node cap**
-`cap = 100 * zbins` (CSR.py:1211), which *silently clips the resolution*. It warns -- but the warning
-is suppressed when `near_grade` is set, and §6m established that grading is the wrong tool in this
-regime precisely because it under-resolves large `u`. **So this case is clipped, not handled.**
+- `branch_sin_min` **saturates `d`** as the two branches merge, which is the `|tau| >> 1` case. No pole,
+  because nothing keys on `tan 2a`.
+- `near_floor * sigma_z` **floors `d`**, which is the `|tau| -> 1+` collapse I claimed to have newly
+  discovered. It was already there, and the comment records the measurement that motivated it: shear
+  50, 0.80 m into the dipole, `tau = -0.999`, `cos 2a = 8.8e-4`, where the reach had collapsed to 15 um
+  = 0.009 sigma_z against `sigma_z = 1744 um`.
+- There is also no `|tan_theta| <= 1` branch switch here at all: `d` is **one continuous expression**.
+  The comment notes that an earlier version did switch on `branch_sin_min` and reintroduced a
+  discontinuity of 125 mm -> 0.347 mm across the threshold.
 
-**`|tau| -> 1+`: `d -> 0`, the near region collapses.** Noticed while answering the author's
-question; not recorded anywhere before. At `tau = 1.001`, `d = 0.01 sigma_x`. `tau = 1` exactly is
-safe only because `|tau| <= 1` takes the other branch -- the `1 - tau^2` denominator is never
-evaluated there -- but `tau = 1 + eps` enters the chirp branch with `tan_alpha ~ 2/eps`. This is the
-thesis §4.4.2 `alpha = +-pi/4` degeneracy, and it **is** guarded inside `_retarded_xi_bands`
-(CSR.py:905, `|tau| ~ 1` collapses the quadratic to linear) but **not** here in the region-extent
-calculation.
+So the branch-boundary discontinuity I described is a property of the legacy path only.
 
-Consequence: the branch boundary is **discontinuous from both sides**. At `|tau| = 1-` the near
-region spans `20 sigma_z` in `s`; at `|tau| = 1+` it spans `~0`.
+##### The terminology correction, which stands
+
+`tau = beam._slope[0] = polyfit(z, x, 1)[0]`, numerically identical to `cov_zx/var_z` (19.999741 both
+ways on a shear-20 beam). **`|tau|` is therefore never infinite**: that needs a vertical beam in x-z,
+impossible at finite `sigma_z`, and an uncorrelated beam gives `tau = 0`. Measured through the
+shear-50 waist, `|tau|` peaks at **1985** and flips sign rather than diverging. The regime is
+`|tau| >> 1` driving `tan 2a -> 0`; §6m/§6n's "`|tau| -> infinity`" is a misnomer.
+
+A related conflation of mine, also worth correcting: I said the fit and the covariance ratio "are the
+same quantity, so it is not two options". True at a single snapshot, but beside the point -- the
+`frame_blend` choice (§6r/§6u, default switched to `'orient'` in §11k) is about **which
+parametrisation is interpolated BETWEEN snapshots**, and `blend(tan a) != tan(blend a)`. That is a real
+distinction and my framing dismissed it.
+
+`tan_alpha` itself is not a separate measurement: it is the double-angle identity
+`2 tau/(1 - tau^2) = tan(2 arctan tau)` applied to the fitted slope, sign-flipped for `tau > 0`.
+
+##### What IS still open: s2 is vestigial
+
+`s2` survives in `_layout_bounds` as `s3 - 200 sigma_z` and still splits the s' range, but **its
+original purpose is gone**. It used to mark where the `+-20 sigma_x` wide transverse window stopped
+being needed; with per-column ribbons there is no wide window, so it now only partitions the
+longitudinal node budget. Measured on the chicane at s = 0.5115:
 
 ```
-  regime          tan_alpha      d           guarded?
-  |tau| -> 1+     -> infinity    -> 0        NO; near region vanishes
-  |tau| >> 1      -> 0           -> infinity NO; clipped by the node cap
+  region 1  (s1, s2)   2327 sigma_z   200 nodes
+  region 2  (s2, s3)    200 sigma_z   200 nodes
+  region 3  (s3, s4)     23 sigma_z   151 nodes   (graded, near_cell/near_grade)
 ```
 
-##### What would address them
+Region 1 is **11.6x longer than region 2 and gets the same count**, and the `200 sigma_z` constant that
+places the boundary is hard-coded, in no config, and never calibrated.
 
-- `|tau| >> 1`: §6m's proposal -- when the two bands are nearly parallel (`|tan 2alpha|` small),
-  integrate them as **one** region rather than two separated ones. The current decomposition is simply
-  the wrong description in that limit, which is why no 1D grid over a 154 mm reach converges
-  affordably.
-- `|tau| -> 1+`: a floor on `d`, or better a continuity condition matching the `|tau| <= 1` branch at
-  the boundary, so the near region does not vanish as `tau` crosses 1.
+**Author's direction: remove `s2` and merge regions 1 and 2.** That is the right simplification -- the
+two regions now differ in nothing except the arbitrary boundary between them. It reduces
+`_layout_bounds` to `((s1, s3), (s3, s4))` and `_region_node_counts` to two entries, with the node
+budget for the merged far region set by one number rather than split by a leftover constant. Not done
+here; logged as a Step 7 item because it changes the node layout and so needs a convergence check
+rather than a bit-identity check.
 
-Neither is implemented and neither is tested. Both are recorded in the Step 7 open list.
+##### Also open: the legacy path is dead weight, but not yet removable
+
+The `xi_bands = False` block is ~90 lines of region/extent arithmetic in `get_CSR_wake` plus the
+`|tan_theta| <= 1` branch, kept byte-identical so old baselines reproduce. It is not reachable in any
+normal run. **It is still load-bearing for one thing**: `test_xi_bands_equiv.py` toggles
+`integration_params.xi_bands` to check the new bands against the old where the old was trustworthy,
+which is the falsification test for the whole xi_bands change.
+
+So: delete it once the testing and debugging are finished, together with the `|tan_theta| <= 1` switch
+and the four `x1_l..x4_r` sub-region variables, but not before `test_xi_bands_equiv.py` is either
+retired or re-pointed at a stored reference. Logged as a Step 7 item.
 
 ### Step 7 — Remaining secondary fixes ⬜
 
@@ -6870,15 +6852,17 @@ truncation hole. **On the co-moving path only.** Still outstanding:
 - (b) `bilinear_single`'s hard-zero OOB and its `int()` truncation hole remain on the **`bspline_fft`
   and legacy paths**, which still use it. Fix or leave, but do not assume Step 5 touched them.
 - `lattice.py:18–39` assumes `step_size` is the first YAML key (found in Step 2); look it up by name.
-- **OPEN: both limits of the `|tau| > 1` chirp branch are unguarded** (§11s, which states the current
-  algorithm in full). `d = 10 sigma_x/|tan 2alpha|` with `tan 2alpha = 2 tau/(1-tau^2)`, so `d` grows
-  linearly in `|tau|` (154 mm at `tau = -12.46`, clipped only by the `100*zbins` node cap) and
-  *collapses to zero* as `|tau| -> 1+` (`d = 0.01 sigma_x` at `tau = 1.001`). The branch boundary is
-  discontinuous from both sides. Fixes: merge the two bands when nearly parallel; floor `d` or match
-  the `|tau| <= 1` branch at the boundary.
-- The `500 sigma_z` / `200 sigma_z` constants that place `s2` are hard-coded, uncalibrated, and not
-  exposed in any config (§11s). `s2` both sets where the `+-20 sigma_x` wide window ends and
-  partitions a fixed `zbins` budget across regions differing in length by 216x.
+- **OPEN: `s2` is vestigial — remove it and merge s' regions 1 and 2** (§11s, author's direction). With
+  per-column ribbons there is no wide transverse window for `s2` to delimit, so it now only splits the
+  longitudinal node budget at a hard-coded, uncalibrated `200 sigma_z`. Measured on the chicane:
+  region 1 is 2327 σ_z with 200 nodes, region 2 is 200 σ_z with 200 nodes. Reduces `_layout_bounds` to
+  `((s1, s3), (s3, s4))`. Changes the node layout, so it needs a convergence check, not a bit-identity
+  check.
+- **OPEN: delete the `xi_bands = False` legacy localization once testing is done** (§11s). ~90 lines in
+  `get_CSR_wake` plus the `|tan_theta| <= 1` switch and the `x1_l..x4_r` sub-regions, unreachable in
+  any normal run (290 of the shipped configs use `bspline_comoving`). **Blocker:**
+  `test_xi_bands_equiv.py` toggles `xi_bands` to falsify the new bands against the old, so retire or
+  re-point that test against a stored reference first.
 - **OPEN: the D1/D3 wake tails are rough and the cause is unknown** (§11r). Localised to
   |z| > 1.5 sigma_z (84-100 % of the second-difference norm), scales with signal so not a noise floor,
   and NOT a `tau` sampling error -- an 8x `tau_frac` refinement moved it by 0 %. D3's is mesh-edge
