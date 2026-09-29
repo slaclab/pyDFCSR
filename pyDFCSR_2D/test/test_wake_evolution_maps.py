@@ -125,7 +125,7 @@ def integrand_near_region(csr, s, x, t):
     edges and the graded s' nodes the quadrature actually uses.
     """
     bnds = csr._layout_bounds(s, x)
-    s3, s4 = bnds[2]
+    s3, s4 = bnds[-1]        # near region is last in both the 2- and 3-region layouts
     sp = np.linspace(s3, s4, BG_NS)
 
     bands = csr._disjoint_bands(csr._retarded_xi_bands(s, x, t, sp))

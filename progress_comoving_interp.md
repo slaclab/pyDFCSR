@@ -7071,6 +7071,281 @@ hazard when calibrating.
 `pyDFCSR_2D/test/benchmark_results/fodo_auto/` (three figures, the log, the cached cuts).
 
 
+#### 11u. `s2` removed, and the far region rebuilt around the bend-exit case (2026-09-28) ✅ **exit transient 28-103x more accurate; my §11s claim that `s2` was vestigial was wrong**
+
+The task was the author's direction from §11s: delete the middle `s'` seam `s2` and merge the two far
+regions. Doing it exposed that the premise -- my own claim in §11s -- was wrong, and then the author
+raised the case that decides the whole design.
+
+##### Correction 1: `s2` was NOT vestigial. It was setting the cell size
+
+§11s said `s2 = s3 - 200 sigma_z` "only partitions the longitudinal node budget". That is wrong.
+Because every region received the same node COUNT while their lengths differed by ~45x, `s2` set the
+**cell size** -- measured on the single dipole at s = 0.50:
+
+```
+  region            length        cell (200 nodes)
+  1  (s1, s2)   488.198 mm       2453 um = 45.7 sigma_z
+  2  (s2, s3)    10.733 mm         54 um =  1.0 sigma_z
+  3  (s3, s4)     1.234 mm          6 um =  0.1 sigma_z
+```
+
+So it was a crude **two-level grading** -- coarse far away, ~1 sigma_z where it still matters -- and a
+naive uniform merge at matched node count was **3-10x worse**, not equal. That is why the first attempt
+at this task failed, and it is a reminder that "this constant appears in no config" does not mean
+"this constant does nothing".
+
+##### Correction 2: two real bugs in `_layout_bounds`, both near a lattice start
+
+Found while measuring, both pre-existing and both firing whenever `s < d + 200 sigma_z`:
+
+- **region 1 ran backwards.** `s1 = max(0, s2 - n_fl*L_f)` clamped at 0 while `s2 = s3 - 200 sigma_z`
+  stayed negative, giving `s1 = 0 > s2 = -0.01`. Harmless by luck: signed `np.trapz` made regions 1 and
+  2 cancel exactly (`+8.3655229158e-05` against `-8.3655229158e-05`), so the total was right and only
+  the nodes were wasted.
+- **199 of 200 nodes per far region sat at `s' < 0`**, before the lattice exists, where
+  `interpolate1D` returns 0 silently. ~400 of 597 far nodes computed nothing. Same silent-zero
+  mechanism as the §11m nan bug, at the upstream edge instead of the downstream one.
+
+Both are gone: the far region is now `(s1, s3)` with `s1 = max(0, s3 - n_fl*L_f)`, measured to give
+**0 inverted regions and 0 nodes below zero**.
+
+##### The author's objection, which set the design
+
+At a bend **exit** the radiating source is the part of the trajectory still inside the dipole, and the
+author pointed out that this sits in region 1 -- so grading the merged region by distance from the
+observation point would put its coarsest cells on the only part that contributes. Measured 0.2 m past
+the 1 rad dipole, this is exactly right:
+
+```
+  dipole overlap of the old regions:   region 1  77%     region 2  0%     region 3  0%
+```
+
+and the contribution is not spread over region 1 either. The cumulative far-region integral, 0.5 m past
+the exit:
+
+```
+  10% of the integral by   s' = 0.9727   u/L_f = 3.13
+  50%                      s' = 0.9803   u/L_f = 3.09
+  99%                      s' = 0.9848   u/L_f = 3.07
+```
+
+**10% to 99% of the whole far integral lies in 12 mm at u/L_f ~ 3.1**, and log grading spans that with a
+single **30 mm** cell. Measured: plain log grading was **400x worse** than the old three-region layout
+(rel L2 0.412 against 1.02e-03 at 0.5 m past the exit). The author's concern was correct and the
+failure is severe.
+
+##### What the causal edge is, and why it is not a formula
+
+Reading the live path, the lower limit of the useful `s'` range is set by one line in
+`_retarded_xi_bands` (CSR.py:1004): `live &= (w >= tr.w_start)` with
+`w = (z_ret - z_bar)/sigma_z` and `w_start = -zlim`. So the **causal edge** -- defined here as the
+lowest `s'` whose retarded band still has nonzero width -- is where the retarded longitudinal
+coordinate leaves the deposition window. Below it every column is identically zero.
+
+The transition is a genuine jump: measured **0 -> 99.9% of the local band width within 0.38 um**.
+
+The geometry gives it in closed form for a source at angle `phi` before the exit and an observer `d`
+past it, with `y = d/R`:
+
+```
+  slippage = arc - chord = (R phi^3/24) * (phi + 4y)/(phi + y)
+```
+
+verified exact against the coordinates (ratios 0.25000, 0.40000, 0.50000, 0.62500, 0.87500 at
+`y/phi = 0, 0.25, 0.5, 1, 5`). Its two limits are worth recording because they are different physics:
+
+```
+  y = 0    observer at the exit face    slip = R phi^3/24    = L^3/24R^2
+  y >> phi observer far downstream      slip = R phi^3/6     4x larger, SATURATED
+```
+
+**The author's prediction that the straight line matters was right.** Past the exit the arc and the
+chord grow at the same rate, so the slippage stops accumulating -- `L^3/24R^2` evaluated across the
+drift is 1000x too large (10641 um against a 336 um target). And a claim I made earlier, that the edge
+sits at exactly `L_f`, was an artefact of that same mistake: the correct depth is
+`R phi_e = (6 zlim sigma_z R^2)^(1/3) = (1/4)^(1/3) L_f = 0.63 L_f`, and the `4^(1/3)` is precisely the
+`f(0) -> f(inf)` saturation factor.
+
+Also worth recording: the `R phi_m/2` exit scale of §11q and this slippage law **cross at the same
+place**. The Eq. 10 amplitude halves at `y = 0.5000 phi_m` and the slippage doubles at
+`y = 0.5000 phi_m` -- same geometric transition (downstream angle becoming comparable to the bend
+angle), two different observables. They are NOT the same quantity: `R phi^3/6` is a longitudinal length
+in `z`, `R phi_m/2` is a path length in `s`. And Eq. 10 is **not** the `phi`-derivative of the
+slippage; that was checked and `(d slip/d phi)(phi_m + 2y)` is not constant.
+
+Despite all that, the edge is **located by a scan, not by the formula**, for a measured reason: the
+slippage is only exact on the ray the band actually sits on. At shear 20 the band sits at
+`x' = +2.9..3.6 mm` against an observer at `x = -71 um`, so inverting the slippage on the `x' = x` ray
+put the edge 37 mm too high and gave rel L2 **1.015 instead of 1.3e-03**. The closed form is free
+(0.06 ms) and correct at zero tilt; it is wrong exactly where the tilt matters.
+
+##### What was implemented
+
+`_layout_bounds` now returns **two** regions, `((s1, s3), (s3, s4))`, and `_far_region_nodes` builds the
+far one with **two constructions**, per the author's direction:
+
+- **in a bend, or before any bend** -- uniform at `2*far_zbins` nodes, cost-neutral against the two
+  sub-regions it replaces. No causal clip, because in a bend the edge and the `n_fl*L_f` reach agree
+  anyway: measured, the edge sits at `u ~ 1.0 L_f` (0.994 at shear 0, 0.783 at shear 20). Node building
+  costs **0.04 ms** there, since no band solve is needed.
+- **in a drift after a bend** -- clip at the causal edge, then uniform at `far_cell*sigma_z` over
+  `far_window*L_f`, then graded by `near_grade` above that. Node building **1.9 ms**.
+
+The `_exit_transient()` test is just `afterbend and not inbend`, both already maintained by the run
+loop.
+
+**Why the in-bend region is deliberately NOT log-graded.** It was tried and it fails, for the same
+reason as at the exit but in a different place: in a bend at high tilt the mass sits near the FAR end,
+not near `s' = s`. Measured at shear 20, 0.30 m in, 10-99% of the far integral is at
+`u/L_f = 0.12-0.56`, where the log cell is **6139 um = 41 sigma_z**:
+
+```
+  in-bend far region, shear 20 at s = 0.30      rel L2     nodes
+  old three-region layout                      5.34e-02      399
+  pure log grading, near_grade = 0.05          1.79e+00       47
+  pure log grading, near_grade = 0.005         1.16e-02      456
+  uniform (shipped)                            2.01e-03      400
+```
+
+##### Calibration of `far_window`
+
+`far_window` is in `L_f`, not `sigma_z`, because the contributing band sits at fixed `u/L_f`
+independent of position. Swept against a 40000-node reference (far region only):
+
+```
+  window     s=0.50    s=1.20    s=1.30    s=1.60      nodes
+  0.5 L_f   9.8e-04   2.3e-03   4.9e-03   1.9e-02    246-272
+  1.0 L_f   1.5e-04   2.7e-06   5.5e-06   1.8e-05    347-416
+  2.0 L_f   1.7e-04   8.7e-05   1.8e-04   1.8e-05    336-701
+```
+
+**1.0 is best or tied everywhere at no more nodes than the layout it replaces.** A genuine optimum, not
+a saturation: 0.5 under-covers the band, and 2.0 spends so many nodes on the flat part that it crowds
+out the grading near `s' = s`, getting worse while costing up to 701 nodes.
+
+`far_cell = 10 sigma_z` is deliberately coarse. Refining it 20 -> 2 sigma_z at fixed window moved the
+error by 0.1% (2.108e-01 -> 2.111e-01) while tripling the nodes: the integrand is smooth across the
+band, so accuracy is set by WHERE the fine nodes are, not how fine they are.
+
+##### The edge search: three versions, and why the cheapest correct one won
+
+```
+  method                            rel L2 (s=1.60)   cost/mesh point   % of a wake point
+  44-step scalar bisection              1.77e-05          51.6 ms             75%
+  vector scan + 8 bisection steps       1.77e-05          10.1 ms             38%
+  ONE vector scan, last dead node       1.77e-05           1.2 ms            4.6%
+```
+
+Identical accuracy at 43x less cost. `_retarded_xi_bands` solves the retarded condition per column, so
+it costs the same for one `s'` as for a hundred -- 44 scalar steps meant 44 separate solves, to locate
+to 1e-14 m a number that is then discretised onto a 673 um grid. Padding the target by 2 full `zlim`
+moves the answer by 0.3%, which is the honest measure of how much precision this needs.
+
+**And bisection is not merely wasteful, it is unsound here.** The alive mask is **not monotone**: at
+shear 20 it has a dead gap inside the live region at **2 of 40 mesh points**, so bisection can land in
+the gap. "First alive from below" on a scan has no such failure mode. The scan returns the last DEAD
+node deliberately -- truncating a live domain is a one-sided error that cannot average out, while
+starting one cell early costs one cell.
+
+##### `s1` never binds, and is now counted rather than trusted
+
+The author observed that the exit-wake lower limit should be the causal edge, making the
+`n_formation_length*L_f` reach redundant. Measured at every mesh point of both the tilted and untilted
+dipole at four `s` each: the causal edge is above `s1` in **all cases**, and above the retained-history
+start as well. A counter `_far_clip_at_reach` records any point where the reach binds instead, because
+that would mean the integral is truncated by the history budget rather than by causality -- an honest
+limitation, but a different one.
+
+##### New: stop computing wakes far past a bend
+
+Also the author's direction. There was already a disabled `CSR_blocker` block for this, using
+`3*formation_length` and carrying a `Todo` saying the formation length was wrong there. It was wrong,
+and that is presumably why it was never switched on. The correct scale is the bend's own `R*phi`:
+
+```
+  d/(R phi)     0.1     0.2     0.4     0.5
+  on-axis peak, relative to the exit face
+                0.338   0.173   0.073   0.054
+```
+
+`drift_cutoff = 1.0` (in units of `R*phi`) is the default, discarding a few percent at most. Note the
+measured decay is much FASTER than Eq. 10 predicts (0.338 against 0.833 at `d = 0.1 R phi`) because
+Eq. 10 assumes `phi << 1` and this is a 1 rad bend -- so the cutoff is conservative for a strong bend
+and less so for a weak one. On a chicane-like `phi = 0.05` it lands at 0.5 m, so a long downstream drift
+WILL be cut; that is a physics choice about what to discard, so skipped kicks are **counted and
+reported once** rather than silently dropped, which is the §11d failure mode.
+
+Verified on the single dipole: at `drift_cutoff = 1.0` nothing is skipped (`R*phi = 1.0 m`, the trailing
+drift is only 0.5 m); at 0.3 it skips 3 kicks and prints the reason.
+
+##### Net effect
+
+Far region only, against a 40000-node uniform reference that shares no structure with any variant
+(three refined quadratures of different structure agree to 4e-6, so the limit is well defined):
+
+```
+     case      exit?   NEW rel L2  nodes   OLD rel L2  nodes
+  s0  s=0.30   False    1.35e-04    400     3.15e-05    399
+  s0  s=0.50   False    8.42e-04    400     9.22e-05    399
+  s0  s=1.00   False    1.84e-03    400     2.63e-04    399
+  s0  s=1.20   True     2.82e-06    374     2.90e-04    399
+  s0  s=1.60   True     1.77e-05    418     4.99e-04    399
+  s20 s=0.30   False    2.01e-03    400     5.34e-02    399
+  s20 s=0.50   False    1.58e-04    400     1.95e-04    399
+  s20 s=1.00   False    1.34e-04    400     6.50e-04    399
+  s20 s=1.20   True     3.63e-03    112     3.91e-03    399
+  s20 s=1.60   True     6.83e-03    133     5.16e-03    399
+```
+
+- **exit transients 28x and 103x better** at the same or fewer nodes, which was the goal
+- **in-bend at tilt 27x better** (2.01e-03 against 5.34e-02): the `200 sigma_z` seam was badly placed
+  there, and a plain uniform grid over the same domain beats it
+- **in-bend untilted 3-7x WORSE** (8.42e-04 against 9.22e-05, same node count). A real regression, and
+  the price of dropping the seam. Note the reason is NOT that the mass sits near `s' = s` -- the test
+  measures it at `u/L_f = 0.39..0.73` in the bend, and at `0.81..1.06` just past the exit, so it is
+  never near the observation point. What the old `200 sigma_z` seam happened to provide was a ~1 sigma_z
+  cell over the last 200 sigma_z of the far region, and on the untilted dipole that is where enough of
+  the integral sits for the accident to pay. Logged as open below.
+
+A full kick at a 10x30 mesh costs **17.2 ms/point with the clip against 14.4 ms without**, i.e. the
+clip is +20% -- NOT a saving. The scan is only 7% of that; the rest is that clipping concentrates nodes
+in the live region, so more nodes land where the integrand is expensive. The 43% wake difference between
+clipped and unclipped is the unclipped version being wrong (2.18e-01 against 2.06e-05).
+
+![far-region variants in the bend and past the exit](pyDFCSR_2D/test/benchmark_results/merge_far_regions/merge_far_regions.png)
+
+##### Regression checks
+
+- `test_import`, `test_frame_blend`, `test_waist_scan`: **18 passed**
+- `test_xi_bands.py`: converges monotonically, 7.199 -> 0.026 over 50^2 -> 400^2
+- `test_two_branch_bands.py`: worst dE deviation 0.048 with **0.00000 change over the last doubling**
+- `test_xi_bands_equiv.py`, the falsification test for this whole area (it toggles
+  `integration_params.xi_bands` to check the new bands against the legacy ones where the legacy ones
+  were trustworthy). Agreement is unchanged at low tilt and the new path is **much better converged**:
+
+```
+   shear   amplification   old vs new at 800^2    old self-conv at 100^2   new self-conv at 100^2
+       0           1.1 x            0.00023                    0.00069                  0.00008
+       2           1.1 x            0.00416                    0.00059                  0.00002
+      20          91.7 x            6.64571                   46.70027                  0.09165
+```
+
+  At shear 20 the two disagree by 6.6 -- but the legacy path is the one that has not converged: its
+  self-convergence is 46.7 at 100^2 and its roughness still MOVES with grid (1.77 -> 1.66 -> 2.40 ->
+  3.25), whereas the new path is flat at 0.0148 from 200^2 up. That is the expected reading of this test
+  at high tilt and it is why §11s recorded the legacy path as trustworthy only at low tilt.
+- `test_deposit_smooth.py` fails to import, PRE-EXISTING: it imports `deposit_smooth` as a top-level
+  module, which breaks that module's own relative imports. Neither file was touched here.
+
+**Files.** `pyDFCSR_2D/CSR.py` (`_layout_bounds`, `_far_region_nodes`, `_causal_edge`, `_band_alive`,
+`_exit_transient`, `_record_far_nodes`, the `CSR_blocker` cutoff), `pyDFCSR_2D/params.py`
+(`causal_clip`, `far_window`, `far_cell`, `drift_cutoff`),
+`pyDFCSR_2D/test/test_merge_far_regions.py` (new),
+`pyDFCSR_2D/test/{test_flip_integrand,test_waist_quadrature,test_wake_evolution_maps}.py` (unpack two
+regions instead of three).
+
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -7092,12 +7367,16 @@ truncation hole. **On the co-moving path only.** Still outstanding:
   differentiating, rebuilds `h_eff`, then takes the **pointwise minimum with pass-1 `h_eff`** so the
   schedule can only refine and the iteration cannot oscillate. Default `corrector: 0` (report only).
   Was deferred while `tau_frac` and `kappa` were uncalibrated; that blocker is now gone (§11l, §11m).
-- **OPEN: `s2` is vestigial — remove it and merge s' regions 1 and 2** (§11s, author's direction). With
-  per-column ribbons there is no wide transverse window for `s2` to delimit, so it now only splits the
-  longitudinal node budget at a hard-coded, uncalibrated `200 sigma_z`. Measured on the chicane:
-  region 1 is 2327 σ_z with 200 nodes, region 2 is 200 σ_z with 200 nodes. Reduces `_layout_bounds` to
-  `((s1, s3), (s3, s4))`. Changes the node layout, so it needs a convergence check, not a bit-identity
-  check.
+- **DONE: `s2` removed, `_layout_bounds` reduced to `((s1, s3), (s3, s4))`** (§11u). Note the §11s
+  premise was wrong — `s2` was not vestigial, it was setting the cell size (45.7 / 1.0 / 0.1 σ_z across
+  the three regions), so a naive uniform merge was 3–10x worse. The replacement is two constructions:
+  uniform in a bend, and causal-clip + fine window + log grading past a bend exit.
+- **OPEN: the UNTILTED in-bend far region regressed 3–7x** (§11u). 8.42e-04 against the old layout's
+  9.22e-05 at the same node count, on the shear-0 dipole. The old `200 sigma_z` seam was an accidental
+  two-level grading that genuinely helped where the beam is untilted and the far mass sits near
+  `s' = s`; the shipped uniform grid does not. Options: raise `far_zbins` when not at an exit, or
+  reinstate a *calibrated* two-level split instead of the arbitrary `200 sigma_z`. Note the tilted
+  in-bend case went the other way (27x better), so this is specifically the low-tilt regime.
 - **OPEN: delete the `xi_bands = False` legacy localization once testing is done** (§11s). ~90 lines in
   `get_CSR_wake` plus the `|tan_theta| <= 1` switch and the `x1_l..x4_r` sub-regions, unreachable in
   any normal run (290 of the shipped configs use `bspline_comoving`). **Blocker:**

@@ -21,7 +21,9 @@ class Integration_params:
                          xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
                          near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
-                         branch_sin_min = 0.05, near_floor = 20.0):
+                         branch_sin_min = 0.05, near_floor = 20.0,
+                         causal_clip = True, far_window = 1.0, far_cell = 10.0,
+                         drift_cutoff = 1.0):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -94,6 +96,74 @@ class Integration_params:
         # 20 is not tuned -- it is the s3 = s - 20 sigma_z that the deleted
         # |tan theta| <= 1 branch used to provide.
         self.near_floor = near_floor
+        # --- the FAR region: causal clipping and the fine window -------------------
+        #
+        # causal_clip applies ONLY in a drift after a bend, i.e. to the exit transient.
+        # Inside the bend the causal edge and the n_formation_length*L_f reach agree --
+        # measured, the edge sits at u ~ 1.0 L_f (0.994 at shear 0, 0.783 at shear 20) --
+        # so clipping there would buy nothing and cost a band solve per mesh point. Past
+        # the exit the edge moves to u ~ 3 L_f and the two diverge.
+        #
+        # causal_clip: start the far region at the CAUSAL EDGE -- the lowest s' whose
+        # retarded band still has nonzero width -- instead of at
+        # s1 = s3 - n_formation_length*L_f. Below that edge the retarded source has
+        # slipped outside the bunch and every column is identically zero, so the nodes
+        # there compute nothing. It also removes a real defect: with
+        # s2 = s3 - 200 sigma_z still negative while s1 clamps at 0, region 1 came out
+        # INVERTED (s1 > s2) near the lattice start, and ~400 of 597 far nodes landed
+        # at s' < 0 where interpolate1D silently returns 0.
+        #
+        # far_window / far_cell: the far integrand is NOT spread over the region. At a
+        # bend-exit transient 10-99% of it sits in a band ~0.3 L_f wide just above the
+        # causal edge, at u/L_f ~ 2.7-3.1 -- i.e. FAR from s' = s, which is exactly
+        # where grading by distance from s puts its coarsest cells. Measured 0.5 m past
+        # a 1 rad bend, plain log grading left a 30 mm cell spanning the entire
+        # contribution and was 400x worse than the old 3-region split. So the far
+        # region is uniform at far_cell*sigma_z over far_window*L_f above the edge, and
+        # graded by near_grade above that.
+        #
+        # far_window is in L_f, not sigma_z, because the band sits at fixed u/L_f
+        # independent of position. Calibrated on the single dipole (rel L2 of the far
+        # region against a 40000-node reference, 3-region split = baseline):
+        #
+        #     window    s=0.50    s=1.20    s=1.30    s=1.60    nodes
+        #     0.5 L_f  9.8e-04   2.3e-03   4.9e-03   1.9e-02   246-272
+        #     1.0 L_f  1.5e-04   2.7e-06   5.5e-06   1.8e-05   347-416
+        #     2.0 L_f  1.7e-04   8.7e-05   1.8e-04   1.8e-05   336-701
+        #     3 region 9.2e-05   2.9e-04   3.8e-04   5.0e-04   400
+        #
+        # 1.0 is best or tied everywhere at no more nodes than the 3-region split it
+        # replaces. It is a genuine optimum, not a saturation: 0.5 under-covers the
+        # band, and 2.0 spends so many nodes on the flat part that it crowds out the
+        # grading near s' = s and gets WORSE while costing up to 701 nodes.
+        #
+        # far_cell is deliberately coarse. Refining it 20 -> 2 sigma_z at fixed window
+        # changed the error by 0.1% (2.108e-01 -> 2.111e-01) while tripling the nodes:
+        # the integrand is smooth across the band, so the accuracy is set by WHERE the
+        # fine nodes are, not how fine they are.
+        self.causal_clip = causal_clip
+        self.far_window = far_window
+        self.far_cell = far_cell
+        # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
+        # bend it just left, in units of the bend's own R*phi. 0 disables the cutoff.
+        #
+        # R*phi, not a multiple of L_f: the exit decay is geometric, not a formation
+        # length. Eq. 10 of Stupakov & Emma gives W ~ 1/(phi + 2 d/R), halving at
+        # d = R*phi/2, and the retarded slippage saturates at the same point -- both
+        # cross at d/R = 0.5000 phi, which is why the two agree. An earlier commented-out
+        # version of this cutoff used 3*formation_length and carried a Todo saying the
+        # formation length was wrong there; it was, and that is why it stayed disabled.
+        #
+        # Measured on the 1 rad test dipole, on-axis peak relative to the exit face:
+        #     d/(R phi)   0.1     0.2     0.4     0.5
+        #     amplitude   0.338   0.173   0.073   0.054
+        # so 1.0 R*phi discards a few percent at most. The true decay is FASTER than
+        # Eq. 10 predicts (0.338 vs 0.833 at d = 0.1 R phi) because Eq. 10 assumes
+        # phi << 1, making this conservative for a strong bend and less so for a weak
+        # one -- on a chicane-like phi = 0.05 the cutoff lands at 0.5 m, so a long
+        # downstream drift will be cut. That is a physics choice about what to discard,
+        # so skipped kicks are COUNTED and reported rather than silently dropped.
+        self.drift_cutoff = drift_cutoff
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
         # Only meaningful for the bspline_fft deposition, whose grid is sized by

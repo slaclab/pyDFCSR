@@ -1,0 +1,37 @@
+====================================================================================================
+Dropping s2: the 2-region far layout, tested at a bend EXIT transient
+====================================================================================================
+  reference = ONE uniform 40000-node quadrature of the whole far domain,
+  so it shares no structure with any variant. Errors are rel L2 over the z
+  cut; pointwise relative error is meaningless at the +z tail where far and
+  near cancel. Node counts are reported because a merge that costs more is
+  not a simplification.
+
+  s = 0.500 m (in bend, -0.600 m from the exit),  L_f = 186.0 mm,  sigma_z = 53.7 um
+    dipole overlap of the OLD regions 1/2/3: 80% / 100% / 100%   (in bend: all regions are inside the dipole)
+    far-region mass spans u/L_f = 0.39 .. 0.73 (median 0.59), where u = s - s'. Distance grading is coarsest at LARGE u.
+             variant   nodes      rel L2
+      3 region (old)     399   9.223e-05
+       merge uniform     400   8.415e-04
+           merge log     127   4.372e-04
+             SHIPPED     400   8.415e-04
+
+  s = 1.200 m (past exit, +0.100 m from the exit),  L_f = 200.6 mm,  sigma_z = 67.3 um
+    dipole overlap of the OLD regions 1/2/3: 89% / 0% / 0%   <- past the exit the source sits in region 1 ALONE
+    far-region mass spans u/L_f = 0.81 .. 1.06 (median 0.95), where u = s - s'. Distance grading is coarsest at LARGE u.
+             variant   nodes      rel L2
+      3 region (old)     399   2.904e-04
+       merge uniform     400   6.360e-04
+           merge log     133   2.266e-03
+             SHIPPED     374   2.826e-06
+
+  s = 1.600 m (past exit, +0.500 m from the exit),  L_f = 200.6 mm,  sigma_z = 67.3 um
+    dipole overlap of the OLD regions 1/2/3: 40% / 0% / 0%   <- past the exit the source sits in region 1 ALONE
+    far-region mass spans u/L_f = 2.78 .. 2.99 (median 2.90), where u = s - s'. Distance grading is coarsest at LARGE u.
+             variant   nodes      rel L2
+      3 region (old)     399   4.992e-04
+       merge uniform     400   4.322e-03
+           merge log     133   2.026e-01
+             SHIPPED     418   1.767e-05
+
+  wrote merge_far_regions.png

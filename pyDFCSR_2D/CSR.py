@@ -513,16 +513,35 @@ class CSR2D:
                     self.DF_tracker.build_interpolant()
                     self._check_retention()
 
-                # If beam is in an after-bend drift and away from the previous bend for more than n*formation_length, stop calculating wakes
-                #Todo: formation length not correct here
-                #if  self.afterbend and (not self.inbend) and distance_in_current_ele > 3*self.formation_length:
-                #    CSR_blocker = True
-                #    if (not self.parallel) or (self.rank == 0):
-                #        print("Far away from a bending magnet, stopping calculating CSR")
-
-                #else:
-                #    CSR_blocker = False
-                CSR_blocker = False
+                # Stop computing wakes once the beam is far enough past a bend that the
+                # exit transient has died. The scale is R*phi of the bend just left, NOT
+                # a multiple of the formation length -- which is what the old commented
+                # form got wrong, and why it was never enabled. R*phi is the geometric
+                # scale of the exit decay: Stupakov & Emma Eq. 10 gives
+                # W ~ 1/(phi + 2 d/R), halving at d = R*phi/2, and the retarded slippage
+                # saturates at the same place (both cross at d/R = 0.5000 phi).
+                #
+                # Measured on the 1 rad test dipole, on-axis peak relative to the exit
+                # face: 0.338 at d = 0.1 R*phi, 0.173 at 0.2, 0.054 at 0.5. The real
+                # decay is FASTER than Eq. 10 (0.338 vs 0.833 at d = 0.1) because Eq. 10
+                # assumes phi << 1, so R*phi is a conservative cutoff for a strong bend.
+                #
+                # Counted, and reported once, because silently returning no wake is
+                # exactly the failure mode that cost a set of wrong figures in 6f: a
+                # skipped kick must be visible in the log.
+                cutoff = self.integration_params.drift_cutoff
+                CSR_blocker = bool(
+                    cutoff and self._exit_transient() and self.R_rec
+                    and distance_in_current_ele > cutoff * self.R_rec
+                    * abs(self.phi_rec))
+                if CSR_blocker:
+                    self._kicks_skipped = getattr(self, '_kicks_skipped', 0) + 1
+                    if not getattr(self, '_warned_blocker', False):
+                        self._warned_blocker = True
+                        if (not self.parallel) or (self.rank == 0):
+                            print(f'Beyond {cutoff:g} R*phi = '
+                                  f'{cutoff * self.R_rec * abs(self.phi_rec):.4f} m past '
+                                  f'the last bend; skipping CSR from here in this drift.')
                 
                 
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
@@ -1095,13 +1114,155 @@ class CSR2D:
             return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
         return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
 
+    def _band_alive(self, s, x, t, sp):
+        """Whether the retarded band has nonzero width, for each s' in the array."""
+        sp = np.atleast_1d(np.asarray(sp, float))
+        bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp))
+        w = np.zeros(sp.size)
+        for lo, hi in bands:
+            w += np.maximum(hi - lo, 0.0)
+        return w > 0.0
+
+    def _causal_edge(self, s, x, t, sp_far, sp_near, n_scan=64):
+        """
+        Lowest s' in [sp_far, sp_near] whose retarded band still has nonzero width.
+
+        Below this the retarded source has slipped outside the bunch and every column is
+        identically zero, so integrating there is pure cost. ONE vectorised scan, and
+        the LAST DEAD node below the first alive one is returned -- deliberately
+        conservative, since truncating a live domain is a one-sided error that cannot
+        average out, while starting one cell early costs one cell.
+
+        Three things rule out anything cleverer, all measured:
+
+        - NOT a root-find. The alive mask is *not* monotone: at shear 20 it has a dead
+          gap inside the live region at 2 of 40 mesh points, so bisection can land in
+          the gap and return an edge far above the true one. "First alive from below"
+          on a scan has no such failure mode.
+        - NOT a closed form. The edge is where the retarded z leaves the deposition
+          window, and the slippage that sets it is exact only on the ray the band
+          actually sits on. Inverting it analytically on the x' = x ray is free
+          (0.06 ms) and matches this to 4 far-cells at zero tilt, but at shear 20 the
+          band sits at x' = +2.9..3.6 mm against an observer at x = -71 um, and the
+          wrong chord put the edge 37 mm too high -- rel L2 1.0 instead of 1.3e-03.
+        - NOT refined further. A 44-step scalar bisection located the edge to 1e-14 m
+          and cost 75% of a whole wake point, for a number that is then discretised
+          onto a far_cell*sigma_z = 673 um grid. Padding the target by 2 full zlim
+          moves the answer by 0.3%.
+
+        Returns sp_far if the first sample is already alive, or None if the whole
+        interval is dead.
+        """
+        grid = np.linspace(sp_far, sp_near, n_scan)
+        alive = self._band_alive(s, x, t, grid)
+        if not alive.any():
+            return None
+        if alive[0]:
+            return sp_far
+        return grid[max(int(np.argmax(alive)) - 1, 0)]
+
+    def _far_region_nodes(self, s, x, t, sp_far, sp_near):
+        """
+        s' nodes for the merged far region, spanning sp_far (= s1, the causal reach
+        s - n_formation_length*L_f) up to sp_near (= s3, where the near region starts).
+
+        TWO constructions, because the far integrand has two quite different shapes:
+
+        IN A BEND (or before any bend) -- UNIFORM at 2*far_zbins nodes. This is the
+        cost-neutral replacement for the old (s1,s2)+(s2,s3) pair, which gave each
+        sub-region far_zbins nodes. It is deliberately NOT log-graded: grading assumes
+        the contribution decays as 1/u away from the observer, and in a bend at high
+        tilt it does not -- measured at shear 20, 0.30 m in, 10-99% of the far integral
+        sits at u/L_f = 0.12-0.56, i.e. near the FAR end, where distance grading is
+        coarsest. Pure log grading there gave rel L2 1.79 against 5.3e-02 for the old
+        layout, and refining near_grade 0.05 -> 0.005 only reached 1.2e-02 at 456 nodes.
+
+        PAST A BEND EXIT -- causal clip, then a uniform fine window, then log grading.
+        Here the source is the arc still inside the dipole, so the contribution is a
+        narrow band far upstream (u/L_f ~ 2.7-3.1, 10-99% of it inside ~0.3 L_f) and
+        everything below the causal edge is identically zero. Log grading alone put a
+        single 30 mm cell across the entire contribution and was 400x worse than the old
+        layout; with the window it is 28x better at the same node count. See
+        _exit_transient, _causal_edge and Integration_params.
+        """
+        ip = self.integration_params
+        if sp_near <= sp_far:
+            return np.array([sp_far, sp_near])
+
+        if not (ip.causal_clip and self._exit_transient()):
+            # Not an exit transient: uniform, and no band solve. The causal edge would
+            # be redundant here anyway -- measured in a bend it sits at u ~ 1.0 L_f
+            # (0.994 at shear 0, 0.783 at shear 20), which is what n_formation_length
+            # already provides.
+            n = max(2 * ip.far_zbins, 3)
+            return self._record_far_nodes(np.linspace(sp_far, sp_near, n))
+
+        lo = sp_far
+        e = self._causal_edge(s, x, t, sp_far, sp_near)
+        if e is not None:
+            lo = min(max(e, sp_far), sp_near)
+            if e <= sp_far:
+                # The edge should be the tighter limit; if the reach binds instead, the
+                # integral is truncated by the history budget rather than by causality.
+                # Honest, but a different limitation -- count it rather than hide it.
+                self._far_clip_at_reach = getattr(self, '_far_clip_at_reach', 0) + 1
+
+        parts = []
+        top = lo
+        if ip.far_window and ip.far_cell:
+            top = min(lo + ip.far_window * self.formation_length, sp_near)
+            cell = ip.far_cell * self.beam._sigma_z
+            n_fine = int(np.clip(round((top - lo) / cell) + 1, 3, 100 * ip.far_zbins))
+            parts.append(np.linspace(lo, top, n_fine))
+        if top < sp_near:
+            g = ip.near_grade
+            if g:
+                u_hi, u_lo = s - top, max(s - sp_near, 1e-12)
+                if u_hi > u_lo:
+                    k = int(np.ceil(np.log(u_hi / u_lo) / np.log1p(g)))
+                    u = u_lo * (1.0 + g) ** np.arange(k + 1)
+                    parts.append(s - np.minimum(u, u_hi))
+            else:
+                parts.append(np.linspace(top, sp_near, max(ip.far_zbins, 3)))
+        if not parts:
+            parts.append(np.linspace(lo, sp_near, max(ip.far_zbins, 3)))
+        return self._record_far_nodes(np.unique(np.concatenate(parts)))
+
+    def _record_far_nodes(self, sp):
+        """Log the realised far node count, which is now derived rather than fixed."""
+        self._last_region_nodes = list(getattr(self, '_last_region_nodes',
+                                               [self.integration_params.far_zbins] * 2))
+        self._last_region_nodes[0] = len(sp)
+        return sp
+
+    def _exit_transient(self):
+        """
+        Is the beam in a drift after a bend, i.e. computing an EXIT transient?
+
+        This is the only regime where the causal edge is worth locating: it is the only
+        one where it differs from the n_formation_length*L_f reach (u ~ 3 L_f past the
+        exit against ~1 L_f inside the bend), and the only one where the contributing
+        source is a narrow band far upstream rather than a 1/u tail.
+        """
+        return bool(self.afterbend and not self.inbend)
+
     def _layout_bounds(self, s, x):
         """
-        The three s' integration regions for the xi_bands path.
+        The two s' integration regions for the xi_bands path.
 
         Only the region EXTENT is decided here. Whether the two Eq 4.24 branches are
         resolvable is a per-column property of the retarded tilt a(s'), so it is left
         to _retarded_xi_bands; the extent cannot be, since it defines s3 itself.
+
+        Two regions, not three. The old middle seam s2 = s3 - 200 sigma_z dated from the
+        legacy decomposition, where it marked where the +-20 sigma_x WIDE transverse
+        window stopped being needed. With per-column ribbons there is no wide window, so
+        s2 no longer separates anything physical -- but because every region got the same
+        NODE COUNT while their lengths differed ~45x, it was still acting as a crude
+        two-level grading (cells 45.7 / 1.0 / 0.1 sigma_z). Merging the two far regions
+        naively therefore LOST accuracy (3-10x at matched cost); the replacement is
+        _far_region_nodes, which grades the merged region explicitly and is 28x better
+        than the old split at a bend-exit transient for the same node count.
 
         Everything is keyed on sin 2a and cos 2a, never on tan 2a and never on |tau|:
 
@@ -1168,9 +1329,14 @@ class CSR2D:
 
         s4 = s + 3.0 * sigma_z
         s3 = max(0.0, s - d)
-        s2 = s3 - 200.0 * sigma_z
-        s1 = max(0.0, s2 - ip.n_formation_length * self.formation_length)
-        return ((s1, s2), (s2, s3), (s3, s4))
+        # The far edge is the causal reach measured from s3, and it is clamped at 0
+        # because s' < 0 is before the lattice exists -- interpolate1D returns 0 there
+        # silently, so nodes below 0 are not merely wasted but invisible. The old
+        # s1 = s2 - n_fl*L_f with s2 = s3 - 200 sigma_z reached back 200 sigma_z FURTHER
+        # than the retained history supports, and inverted (s1 > s2) whenever s2 went
+        # negative while s1 clamped.
+        s1 = max(0.0, s3 - ip.n_formation_length * self.formation_length)
+        return ((s1, s3), (s3, s4))
 
     def _frame_tilt(self):
         """
@@ -1271,7 +1437,7 @@ class CSR2D:
         uR = side(b - s)
         sp = np.concatenate((s - uL[::-1], s + uR))
         self._last_region_nodes = list(getattr(self, '_last_region_nodes',
-                                               [ip.far_zbins] * 3))
+                                               [ip.far_zbins] * 2))
         self._last_region_nodes[-1] = len(sp)
         return np.unique(sp)
 
@@ -1422,16 +1588,17 @@ class CSR2D:
             # sin 2a instead of |tan_theta| <= 1. The legacy bounds above are left
             # untouched so the xi_bands = False path stays byte-identical.
             bnds = self._layout_bounds(s, x)
-            (s1, s2), (_, s3), (_, s4) = bnds
-            counts = self._region_node_counts(bnds)
-            # far regions uniform; the near region graded about s' = s
-            sps = [np.linspace(a, b, n) for (a, b), n in zip(bnds[:-1], counts[:-1])]
-            sps.append(self._near_region_nodes(s, s3, s4))
+            (s1, s3), (_, s4) = bnds
+            self._region_node_counts(bnds)      # sets _last_region_nodes for diagnostics
+            # far region: causal-clipped, fine over the contributing band, graded above
+            # near region: graded about s' = s
+            sps = [self._far_region_nodes(s, x, t, s1, s3),
+                   self._near_region_nodes(s, s3, s4)]
 
             # Only the last region straddles s' = s, so only it owns the 1/|r-r'|
             # singularity and gets the polar patch.
             radii = self._near_patch_radii(s, s3, s4)
-            tapers = [None, None, None if radii is None else (*radii, False)]
+            tapers = [None, None if radii is None else (*radii, False)]
 
             parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp)
                      for spk, tp in zip(sps, tapers)]

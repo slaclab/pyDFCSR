@@ -192,7 +192,7 @@ def main():
         # --- the claim: cell size vs retarded sigma_z, on the DEFAULT grid ---
         ip.near_cell, ip.near_grade = LADDER[0]
         bnds = csr._layout_bounds(s_mid, x_mid)
-        s3, s4 = bnds[2]
+        s3, s4 = bnds[-1]    # near region is last in both layouts
         nodes = csr._near_region_nodes(s_mid, s3, s4)
         prof = np.linspace(s3, s4, 3000)
         # s' is a good proxy for t_ret along x' = x; exact enough to locate the waist

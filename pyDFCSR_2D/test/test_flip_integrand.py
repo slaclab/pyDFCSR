@@ -128,9 +128,9 @@ def main():
     emit()
 
     bnds = csr._layout_bounds(s_obs, x_obs)
-    (s1, s2), (_, s3), (_, s4) = bnds
+    (s1, s3), (_, s4) = bnds
     emit('s-prime regions (path length, and metres into the dipole):')
-    for nm, (a, c) in zip(('far  s1-s2', 'mid  s2-s3', 'NEAR s3-s4'), bnds):
+    for nm, (a, c) in zip(('far  s1-s3', 'NEAR s3-s4'), bnds):
         emit(f'  {nm}:  [{a:.5f}, {c:.5f}]   dipole [{a-DRIFT:+.5f}, {c-DRIFT:+.5f}]'
              f'   length {c-a:.5f} m')
     emit()
