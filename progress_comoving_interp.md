@@ -7536,6 +7536,52 @@ share of the answer, so it is not a wide margin. The 1 rad single dipole where i
 `R*phi = 1.0 m` and the wake down to 7 % there; a weak bend decays more slowly in units of `R*phi`
 because Eq. 10's decay is set by `d/R` relative to `phi`.
 
+##### Tested and REFUTED: a shared `|tau| >> 1` cause for s = 8.317 and the §11r tail roughness
+
+It was tempting to treat the s = 8.317 map, §11r's D1/D3 tail roughness and §11s's `|tau| >> 1`
+degeneracy as one defect, since all three live at large tilt in a drift. **They are not.** Measured on
+the 105-kick no-cutoff run, splitting each map's second-difference norm into core and tail at
+`|z| = 1.5 sigma_z`:
+
+```
+  drift   |tau| range     amplification sigma_x/sigma_xi
+    D1    0.53 ..  9.04        2.06 .. 63.98
+    D3    2.21 .. 93.07        1.85 ..  6.37
+```
+
+The two drifts cover **complementary** ranges -- D1 is low tilt with huge amplification, D3 is huge tilt
+with low amplification -- and both are rough. So neither variable can explain both, and `|tau|` in
+particular fails: D1's roughest kicks sit at `|tau| ~ 9`, nowhere near degenerate. A naive
+high-vs-low-`|tau|` split appears to show a 22x effect, but that is confounding -- every high-`|tau|`
+point is also a high-amplitude D3 point.
+
+What correlates in BOTH drifts is the amplitude:
+
+```
+                     corr(rough, |tau|)   corr(rough, amplification)   corr(rough, |dE| peak)
+  D1                       +0.752                 +0.815                      +0.876
+  D3 (excl. 8.317)         +0.310                 +0.118                      +0.950
+```
+
+**`|dE|` peak is the only predictor that works in both, and in D3 it is +0.950.** Together with §11r's
+observation that absolute roughness grows *with* amplitude, that points at the METRIC: a
+second-difference norm normalised per row by that row's own peak still scales with signal size if the
+shape error is relative. So the agreed next step is to fix the roughness measure before chasing the
+physics -- if relative roughness turns out flat across D1/D3, §11r is substantially a measurement
+artefact. Cheap, since it only needs the cached maps.
+
+And s = 8.317 is confirmed as a **separate** defect, not an extreme case of §11r:
+
+```
+                  core rough   tail rough   tail fraction
+  s = 8.317          29.03        0.28          0.010
+  its neighbours     ~0.50     0.28-0.50      0.36-0.50
+```
+
+58x its neighbours and **entirely in the CORE**, where every other D1/D3 point has 28-60 % of its
+roughness in the tails. §11r is a tail phenomenon; this is a core phenomenon. They should be attacked
+separately.
+
 ##### The scheduler itself is fine
 
 The author also asked whether `auto` was under-resolving the faces. It is not -- the scheduler places
@@ -7616,6 +7662,13 @@ truncation hole. **On the co-moving path only.** Still outstanding:
   roughness 1.0. The `|tau| ~ 80` regime points at the §11s `|tau| >> 1` item, where the two localization
   bands nearly merge and the decomposition is the wrong description — most likely the same root cause,
   and worth attacking together with §11r.
+- **OPEN, and the recommended NEXT STEP: fix the roughness metric before chasing the roughness**
+  (§11v). `corr(roughness, |dE| peak)` is **+0.876 in D1 and +0.950 in D3**, while `|tau|` and the tilt
+  amplification each predict one drift and fail in the other. The second-difference norm therefore looks
+  like it is largely measuring signal size rather than a defect. Renormalise it and re-rank the maps; if
+  relative roughness is flat across D1/D3 then §11r below is substantially a measurement artefact and the
+  physics work is unnecessary. Cheap — uses the cached 105-map run from commit `24e422a` (the current
+  default run has only 62 kicks because `drift_cutoff` removes the rest).
 - **OPEN: the D1/D3 wake tails are rough and the cause is unknown** (§11r). Localised to
   |z| > 1.5 sigma_z (84-100 % of the second-difference norm), scales with signal so not a noise floor,
   and NOT a `tau` sampling error -- an 8x `tau_frac` refinement moved it by 0 %. D3's is mesh-edge
