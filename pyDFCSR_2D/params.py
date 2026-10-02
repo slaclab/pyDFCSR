@@ -171,11 +171,20 @@ class Integration_params:
         # above 1.0 both ways). An earlier claim here that the rebuild fixed it was an
         # artefact of comparing two different kick positions.
         #
-        # Enabling it is NOT a small perturbation, because suppressing the wake in a drift
-        # also changes the beam entering the next bend and the chicane amplifies that:
-        # measured end-to-end, energy loss -1.6475 -> -1.3825 MeV (16%) and emittance
-        # growth 1.306x -> 1.117x, against the 5.1% direct share. Set drift_cutoff = 0 to
-        # integrate the drifts in full, which reproduces the pre-11v behaviour.
+        # Enabling it is NOT a small perturbation, and its sign is NOT predictable from the
+        # discarded share. Measured end-to-end on the chicane, cutoff 0 -> 1.0: energy loss
+        # -1.6475 -> -1.8474 MeV, i.e. 12% LARGER, and emittance growth 1.304x -> 1.207x.
+        # Along the lattice the cutoff first reduces the loss as expected (+151 keV by
+        # s = 8.4) and then reverses sign through the last bend, because the beam entering
+        # B4 differs -- sigma_x 3.6% smaller, norm_emit_x 5.8% larger -- so B4 radiates
+        # differently. Suppressing a drift wake changes the beam, and a chicane amplifies
+        # that. Set drift_cutoff = 0 to integrate the drifts in full.
+        #
+        # NOTE on the threshold: abs() is required on R_rec. R_rec = L/angle carries the
+        # sign of the bend, so a chicane's negative-angle dipoles gave a NEGATIVE threshold
+        # and blocked their entire downstream drift from the first step -- B2 and B3 kept
+        # one kick each, sitting exactly at the exit face, so their exit transients could
+        # not be plotted. Fixed; the arc length |R*phi| is what the scale means.
         #
         # The scale is R*phi, not a multiple of L_f: the exit decay is geometric. Eq. 10
         # of Stupakov & Emma gives W ~ 1/(phi + 2 d/R), halving at d = R*phi/2, and the

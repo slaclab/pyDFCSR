@@ -529,19 +529,30 @@ class CSR2D:
                 # Counted, and reported once, because silently returning no wake is
                 # exactly the failure mode that cost a set of wrong figures in 6f: a
                 # skipped kick must be visible in the log.
+                # abs() on BOTH: R_rec = L/angle carries the sign of the bend, so a
+                # negative-angle dipole gave a NEGATIVE threshold and every step in its
+                # downstream drift compared "distance > -0.5 m" -> true. Measured on the
+                # chicane, whose B2 and B3 bend the other way: those two lost every kick
+                # past the exit face while B1 and B4 kept five each. The arc length
+                # |R*phi| is what the decay scale means; it cannot be signed.
                 cutoff = self.integration_params.drift_cutoff
                 CSR_blocker = bool(
                     cutoff and self._exit_transient() and self.R_rec
-                    and distance_in_current_ele > cutoff * self.R_rec
+                    and distance_in_current_ele > cutoff * abs(self.R_rec)
                     * abs(self.phi_rec))
                 if CSR_blocker:
-                    self._kicks_skipped = getattr(self, '_kicks_skipped', 0) + 1
+                    # steps, not kicks: this tests every step, and only a subset of steps
+                    # are kick nodes. Reporting it as "kicks skipped" overstated it 5x.
+                    self._steps_blocked = getattr(self, '_steps_blocked', 0) + 1
+                    if sched.is_kick[step_count]:
+                        self._kicks_skipped = getattr(self, '_kicks_skipped', 0) + 1
                     if not getattr(self, '_warned_blocker', False):
                         self._warned_blocker = True
                         if (not self.parallel) or (self.rank == 0):
-                            print(f'Beyond {cutoff:g} R*phi = '
-                                  f'{cutoff * self.R_rec * abs(self.phi_rec):.4f} m past '
-                                  f'the last bend; skipping CSR from here in this drift.')
+                            print(f'Beyond {cutoff:g} |R*phi| = '
+                                  f'{cutoff * abs(self.R_rec) * abs(self.phi_rec):.4f} m '
+                                  f'past the last bend; skipping CSR from here in '
+                                  f'this drift.')
                 
                 
                 if self.CSR_params.compute_CSR and (not CSR_blocker):

@@ -10,45 +10,45 @@ example_chicane.ipynb, run with the current code (auto schedule, comoving deposi
   legacy for comparison: 134 uniform steps at step_size 0.1, kicks every nsep
   running on 1 MPI rank(s)
 
-  captured 105 wake maps at 10x30
-  RUN COMPLETE in 18.8 min (1127 s)
+  captured 62 wake maps at 10x30
+  RUN COMPLETE in 9.9 min (592 s)
 
   final beam (the §11m nan bug would have made the energy columns nan here)
-    sigma_z           18.6146 um
-    sigma_x           53.5724 um
-    sigma_energy   35831.4513 keV
-    mean_energy      4.998352 GeV  (loss -1.6475 MeV)
+    sigma_z           18.5438 um
+    sigma_x           55.0560 um
+    sigma_energy   35623.0152 keV
+    mean_energy      4.998153 GeV  (loss -1.8474 MeV)
     nan count in the statistics arrays: 0
 
   compression along the lattice
        s [m]   sigma_z um   sigma_x um  sigma_E keV
        0.000      200.000       63.875   36000.0007
        0.600      201.422      106.420   35994.7522
-       5.598      201.410     1825.149   35971.0592
-       6.102      111.068     1917.032   35954.9499
-       7.106      110.269     1916.855   35932.3869
-       7.602       20.071     1829.255   35876.6367
-      12.594       19.368       56.866   36061.9024
-      13.102       18.660       51.588   35861.9492
-      13.312       18.615       53.572   35831.4513
+       5.598      201.410     1825.166   35981.8725
+       6.102      111.068     1917.026   35965.9136
+       7.106      110.268     1916.742   35950.5480
+       7.602       20.076     1829.041   35894.3950
+      12.594       19.373       55.049   35864.7810
+      13.102       18.591       52.936   35651.1463
+      13.312       18.544       55.056   35623.0152
 
   wake smoothness: second-difference norm along z, relative to each map amplitude
   (a smooth curve at 30 z-bins is O(0.1); >~ 1 means the shape is not resolved)
-    amplitude floor 1e-06 x the run maximum excludes 34 of 105 x_kick maps as numerically zero (drifts have no transverse force)
-    dE     mean over kicks 0.4488, worst map 2.6483 at s = 8.317 m
-    x_kick mean over kicks 0.1756, worst map 2.0504 at s = 8.317 m
-    worst SINGLE x row (dE) 2.9201 at s = 8.317 m
-    kicks with dE roughness > 1.0: 11 of 105
+    amplitude floor 1e-06 x the run maximum excludes 1 of 62 x_kick maps as numerically zero (drifts have no transverse force)
+    dE     mean over kicks 0.2813, worst map 0.4686 at s = 8.069 m
+    x_kick mean over kicks 0.1447, worst map 0.3652 at s = 7.602 m
+    worst SINGLE x row (dE) 0.6525 at s = 8.069 m
+    kicks with dE roughness > 1.0: 0 of 62
 
        s [m]   element  dE rough  xk rough   |dE| peak
        0.338    B1 mid    0.2608    0.0953     0.01696
-       2.030  D1 early    0.1357       nan     0.02781
-       5.009   D1 late    0.8418       nan     0.09480
-       5.854    B2 mid    0.3291    0.1156     0.38606
-       6.687    D2 mid    0.2573    0.0997     0.06677
-       7.354    B3 mid    0.2429    0.1820     1.76919
-      10.058    D3 mid    1.0853       nan     0.29167
-      12.907    B4 mid    0.2721    0.1257     3.44705
+       1.037  D1 early    0.1451    0.1015     0.09069
+       5.637   D1 late    0.4209    0.1120     0.30265
+       5.854    B2 mid    0.3292    0.1156     0.38619
+       6.445    D2 mid    0.2669    0.0917     0.09409
+       7.354    B3 mid    0.2441    0.1808     1.77165
+       8.069    D3 mid    0.4686    0.2477     0.53637
+      12.907    B4 mid    0.2727    0.1197     3.83333
 
   wrote chicane_wakes_longitudinal.png
   wrote chicane_wakes_transverse.png
