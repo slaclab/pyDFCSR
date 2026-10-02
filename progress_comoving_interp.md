@@ -7346,6 +7346,156 @@ clipped and unclipped is the unclipped version being wrong (2.18e-01 against 2.0
 regions instead of three).
 
 
+#### 11v. The chicane with the §11u far region, and how much of the loss comes from the untrusted drift (2026-10-01) ⚠️ **answer: 5.1 %, of which 90 % is ONE defective map — and §11u does NOT fix it**
+
+Re-ran the §11q chicane with the two-region far layout, and plotted the entrance and exit transients for
+all four dipoles. The run is clean, but answering the author's question about the noisy far-drift wake
+turned up a defect that is still open, and corrected two claims I had made along the way.
+
+##### The run
+
+```
+  489 nodes, 488 snapshots, 105 kicks, all computed    18.8 min on 1 rank, zero nan
+  energy loss -1.6475 MeV   (the pre-11u code gave -1.6484, so the rebuild is NEUTRAL here)
+  sigma_z 18.6146 um, sigma_x 53.5724 um
+```
+
+That neutrality is the result worth having: §11u was a **quadrature** change and the end-to-end physics
+answer moves by 0.05 %, which is what a quadrature improvement should do.
+
+**The committed figures and log are the `drift_cutoff = 0` run**, i.e. all 105 kicks integrated, because
+that is the one that shows the exit transients the author asked for -- with the cutoff enabled, B2 and B3
+keep only the kicks inside `1 R*phi` and their exit decay cannot be plotted. The shipped DEFAULT is
+`drift_cutoff = 1.0`, so a default run will produce 53 kicks and the numbers in the last table below.
+
+![entrance transient through each chicane dipole](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transients.png)
+
+![exit transient for all four bends](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transients_all.png)
+
+The §11q picture is unchanged -- the entrance transient is longer than the magnet in every dipole, so
+none reaches steady state -- and all four exits now resolve:
+
+```
+   bend  sigma_z um  L_entrance  L_ent/L_bend  kicks in   entrance->exit growth
+     B1      200.00      1.3705          2.74         4         13.3x
+     B2      201.41      1.3737          2.75        18          1.6x
+     B3      110.27      1.1238          2.25        18         93.0x
+     B4       19.37      0.6293          1.26         8          1.1x
+
+   bend   on-axis at the face   at 1 L_exit   Eq. 10 predicts
+     B1         0.0410 MeV/m        1.366          0.500
+     B2         0.3128              0.336          0.500
+     B3         5.2988              0.155          0.500
+     B4         2.1311              0.463          0.500
+```
+
+##### The author's question: how much energy loss comes from the far drift?
+
+Each kick weighted by its **arc length** `L_kick`, not by kick count. That distinction is the whole
+measurement: drift kicks span 0.25 m against 0.005 m inside a bend, so a count-weighted sum understates
+the drifts by ~50x. I made exactly that error first and reported the far drift as carrying 0.7 %.
+
+```
+  region                              integrated mean dE   share
+  inside the four dipoles                     -0.41911     55.1 %
+  drift, within 1 R*phi of an exit            -0.30228     39.8 %
+  drift, BEYOND 1 R*phi  <- the suspect       -0.03857      5.1 %
+  drift before any bend                       -0.00006      0.0 %
+```
+
+**5.1 % -- and 90.5 % of that is a single kick.** At s = 8.317 m, 0.711 m past the B3 exit:
+
+```
+  neighbouring kicks   s = 8.0688   mean dE -0.00234   |peak| 0.537
+  THE MAP              s = 8.3175   mean dE -0.13015   |peak| 5.141
+  neighbouring kicks   s = 8.5662   mean dE -0.00199   |peak| 0.204
+```
+
+70x its neighbours. Excluding it, **the entire far-drift region carries 0.48 %** -- genuinely
+negligible, which is the direct answer to the question.
+
+##### What is wrong with that map
+
+Not a diffuse noise floor. A sharp local anomaly:
+
+```
+  worst row (x = 5417 um), dE against z:
+     z/sigma_z    +0.25     +0.46     +0.67
+        dE       -1.1778   -5.1412   +1.0648
+  largest jump between ADJACENT z cells: 6.25
+  row peaks ramp monotonically with x:  1.85  1.39  1.04  1.31  2.80  3.82  4.47  4.84  5.02  5.14
+```
+
+A sign flip of order the peak across one cell, growing toward the large-x edge of the mesh. Meanwhile
+everything that could explain it varies smoothly through the step: `sigma_z` 19.320 -> 19.324 -> 19.326
+um, `sigma_x` 1663 -> 1575 -> 1486 um, `sigma_xi` 265 -> 253 -> 241 um, `tau` -84.97 -> -80.42 ->
+-75.87, and the mesh extent is 3.44 `sigma_x` at every one of these kicks. So it is a localized
+integrand feature being straddled rather than resolved, at `|tau| ~ 80`.
+
+##### Correction: §11u does NOT fix it, and the roughness did not improve
+
+I reported a 3.2x improvement (peak 5.19 -> 1.60). **That was wrong.** The single-step run I measured
+stopped at s = 8.36723, a DIFFERENT kick, and I compared it against the old s = 8.3175. At the same
+position:
+
+```
+                    |dE| peak   roughness   mean dE
+  pre-11u code         5.1864      4.601    -0.14041
+  post-11u code        5.1412      4.720    -0.13015
+```
+
+Unchanged. And run-wide: **dE roughness mean 1.5767 -> 1.5814, with 70 of 105 maps above 1.0 both
+ways.** An earlier version of this entry reported the roughness as much improved; that was entirely an
+artefact of the drift cutoff having deleted the rough maps before the metric saw them. The author
+anticipated exactly this ("are you sure this is not from the noisy wakes in the drift"), and was right.
+
+##### The cutoff: what enabling it costs, measured
+
+`drift_cutoff` is ON by default at `1.0 R*phi`, which is the author's decision on the grounds that the
+far-drift wake cannot be trusted. The cost is recorded here because it is **not** a small perturbation:
+
+```
+                              emit growth   energy loss   sigma_z    sigma_x   kicks
+  pre-11u code                   1.303x      -1.6484 MeV  18.6166   53.5046     105
+  post-11u, cutoff OFF           1.306x      -1.6475 MeV  18.6146   53.5724     105
+  post-11u, cutoff ON (default)  1.117x      -1.3825 MeV  18.4860   56.3493      53
+```
+
+**16 % in the energy loss and 14 % in the emittance growth**, against a 5.1 % direct share. The excess is
+indirect: suppressing the wake in a drift changes the beam entering the next bend, and a chicane
+amplifies that. So this is a physics choice, not an optimisation, and `drift_cutoff = 0` restores the
+full integration.
+
+A separate reason the scale needs care: `R*phi = 0.5002 m` here, and **39.8 % of the loss sits inside
+1 R*phi of an exit**. The cutoff is therefore positioned immediately outside a region carrying a large
+share of the answer, so it is not a wide margin. The 1 rad single dipole where it was calibrated has
+`R*phi = 1.0 m` and the wake down to 7 % there; a weak bend decays more slowly in units of `R*phi`
+because Eq. 10's decay is set by `d/R` relative to `phi`.
+
+##### Also recorded: a scheduler check that came out clean
+
+The author asked whether `auto` was under-resolving the faces, since only 1 kick appeared past some
+exits. It is not -- the scheduler places 4-5 kicks within `1 R*phi` of every exit and 2-16 after every
+entrance:
+
+```
+    face         s      nodes after  kicks after   nodes before  kicks before
+  B2 ent    5.6060           80          16             21            4
+  B3 ent    7.1062           80          16             11            3
+  B2 exit   6.1062           17           4             81           17
+  B3 exit   7.6064           21           5             81           17
+```
+
+The missing kicks were the cutoff, not `h_2`/`edge_steps`. Diagnosing this also exposed that my check of
+"did the cutoff fire" was unsound: I grepped the run log for the one-time warning, but the `tail -60` I
+had piped through truncated it, so I wrongly concluded the cutoff was inactive. Comparing the scheduled
+kick list against the captured maps is the reliable test, and it showed all 52 missing kicks starting at
+d = 0.6855 m, just past `R*phi = 0.5002 m`.
+
+**Files.** `pyDFCSR_2D/params.py` (`drift_cutoff` documented with the measurement),
+`pyDFCSR_2D/test/benchmark_results/chicane_auto/` (log, maps, stats, six figures).
+
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus
@@ -7388,6 +7538,14 @@ truncation hole. **On the co-moving path only.** Still outstanding:
   dipole-free example, hence the only one where `h_tau`/`h_2` are inert) and the wake moved by 6e-10,
   but that lattice has a smooth `sigma_xi` and a weak-signal wake 3 orders below the chicane's. Needs a
   **bending** lattice with a `sigma_xi` waist near a dipole; no shipped example has one.
+- **OPEN: a single defective wake map at s = 8.317 m in the chicane** (§11v). 0.711 m past the B3 exit,
+  `|tau| ~ 80`. Mean `dE` is 70x both neighbours, the wake swings −5.14 → +1.06 across one z cell
+  (largest adjacent jump 6.25), and the row peaks ramp monotonically 1.85 → 5.14 toward the large-x mesh
+  edge — while `sigma_z`, `sigma_x`, `sigma_xi`, `tau` and the mesh extent all vary smoothly through the
+  step. **§11u did not fix it** (peak 5.1864 → 5.1412). It is 90.5 % of the far-drift energy-loss share,
+  so `drift_cutoff` currently hides it rather than solving it. The `|tau| ~ 80` regime points at the
+  §11s `|tau| >> 1` item, where the two localization bands nearly merge and the decomposition is the
+  wrong description — most likely the same root cause, and worth attacking together with §11r.
 - **OPEN: the D1/D3 wake tails are rough and the cause is unknown** (§11r). Localised to
   |z| > 1.5 sigma_z (84-100 % of the second-difference norm), scales with signal so not a noise floor,
   and NOT a `tau` sampling error -- an 8x `tau_frac` refinement moved it by 0 %. D3's is mesh-edge

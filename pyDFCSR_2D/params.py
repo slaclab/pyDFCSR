@@ -145,24 +145,50 @@ class Integration_params:
         self.far_window = far_window
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
-        # bend it just left, in units of the bend's own R*phi. 0 disables the cutoff.
+        # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.
         #
-        # R*phi, not a multiple of L_f: the exit decay is geometric, not a formation
-        # length. Eq. 10 of Stupakov & Emma gives W ~ 1/(phi + 2 d/R), halving at
-        # d = R*phi/2, and the retarded slippage saturates at the same point -- both
-        # cross at d/R = 0.5000 phi, which is why the two agree. An earlier commented-out
-        # version of this cutoff used 3*formation_length and carried a Todo saying the
-        # formation length was wrong there; it was, and that is why it stayed disabled.
+        # ON by default at 1.0, which is the author's decision and rests on the far-drift
+        # wake being untrustworthy there rather than on it being negligible. The numbers
+        # below are what that costs and what it removes; both matter.
         #
-        # Measured on the 1 rad test dipole, on-axis peak relative to the exit face:
+        # What it discards. On the chicane, with each kick weighted by its arc length
+        # L_kick (drift kicks span 0.25 m against 0.005 m in a bend, so weighting by kick
+        # COUNT understates them ~50x -- an error that was made once here):
+        #
+        #     region                              integrated mean dE   share
+        #     inside the four dipoles                     -0.41911     55.1 %
+        #     drift, within 1 R*phi of an exit            -0.30228     39.8 %
+        #     drift, beyond 1 R*phi                       -0.03857      5.1 %
+        #
+        # and 90.5% of that 5.1% is ONE kick, at s = 8.317 (0.711 m past the B3 exit),
+        # whose mean dE is 70x its two neighbours and whose wake swings -5.19 -> +1.06
+        # across a single z cell. Excluding it, the entire far-drift region carries 0.48%.
+        # So the cutoff removes ~0.5% of real signal plus one map that is visibly wrong.
+        #
+        # The defect is NOT repaired by the 11u far-region rebuild: measured at the same
+        # position, peak 5.1864 -> 5.1412 and roughness 4.601 -> 4.720, i.e. unchanged.
+        # Run-wide roughness is likewise unchanged (mean 1.577 -> 1.581, 70 of 105 maps
+        # above 1.0 both ways). An earlier claim here that the rebuild fixed it was an
+        # artefact of comparing two different kick positions.
+        #
+        # Enabling it is NOT a small perturbation, because suppressing the wake in a drift
+        # also changes the beam entering the next bend and the chicane amplifies that:
+        # measured end-to-end, energy loss -1.6475 -> -1.3825 MeV (16%) and emittance
+        # growth 1.306x -> 1.117x, against the 5.1% direct share. Set drift_cutoff = 0 to
+        # integrate the drifts in full, which reproduces the pre-11v behaviour.
+        #
+        # The scale is R*phi, not a multiple of L_f: the exit decay is geometric. Eq. 10
+        # of Stupakov & Emma gives W ~ 1/(phi + 2 d/R), halving at d = R*phi/2, and the
+        # retarded slippage saturates at the same point (both cross at d/R = 0.5 phi). An
+        # earlier commented-out version of this cutoff used 3*formation_length and carried
+        # a Todo saying the formation length was wrong there; it was, which is presumably
+        # why it was never enabled. Measured decay on the 1 rad test dipole, on-axis peak
+        # relative to the exit face:
         #     d/(R phi)   0.1     0.2     0.4     0.5
         #     amplitude   0.338   0.173   0.073   0.054
-        # so 1.0 R*phi discards a few percent at most. The true decay is FASTER than
-        # Eq. 10 predicts (0.338 vs 0.833 at d = 0.1 R phi) because Eq. 10 assumes
-        # phi << 1, making this conservative for a strong bend and less so for a weak
-        # one -- on a chicane-like phi = 0.05 the cutoff lands at 0.5 m, so a long
-        # downstream drift will be cut. That is a physics choice about what to discard,
-        # so skipped kicks are COUNTED and reported rather than silently dropped.
+        # faster than Eq. 10 predicts (0.338 vs 0.833 at 0.1) because Eq. 10 assumes
+        # phi << 1 -- so R*phi is conservative for a strong bend and much less so for a
+        # weak one. Skipped kicks are COUNTED and reported once when this is enabled.
         self.drift_cutoff = drift_cutoff
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
