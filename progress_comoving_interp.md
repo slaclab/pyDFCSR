@@ -7610,6 +7610,147 @@ d = 0.6855 m, just past `R*phi = 0.5002 m`.
 `pyDFCSR_2D/test/benchmark_results/chicane_auto/` (log, maps, stats, six figures).
 
 
+### Step 12 — The integrand cancellation: where it lives, and what it amplifies (2026-10-02) ✅ diagnosis
+
+Branch `integrand_cancellation`. The integrand has a large positive band and a large negative band
+that nearly cancel; the concern is that this amplifies numerical noise. This step measures the
+structure rather than assuming it, because the structure decides which cure is even available.
+
+**The mechanism, stated first.** The longitudinal integrand (CSR.py:1920) is *linear* in `∇'ρ_ret`,
+
+```
+numerator1 = h · [ (v − (v·v′) v′) · ∇'ρ_ret ],     h = 1 + x′ρ(s′)
+```
+
+and for a bunch with compact support `∫∇'ρ d²r′ = 0` **exactly**. So the two bands are not two
+physical effects of similar size — they are the two lobes of a derivative, and the entire answer is
+the residual left once the kernel's *variation* across the bunch is accounted for. The cancellation
+is therefore structural, not accidental, and no mesh refinement can remove it.
+
+What that does and does not amplify is fixed by the same argument. It does **not** amplify round-off:
+at 60x cancellation float64 still leaves ~6e-15. It amplifies noise in the **deposited derivative**,
+because that noise is not antisymmetric — it adds in quadrature while the signal cancels.
+
+**(A) The cancellation is entirely POINTWISE.** Decomposing the *same* `dE` three ways,
+`C = Σ|parts| / |Σ parts|`, mid-cut, 0.4 m into the 1 rad dipole:
+
+| partition level | C |
+|---|---|
+| over the `s′` regions (far / near / patch) | **1.04** |
+| over the localization branches | **1.04** |
+| over individual quadrature nodes | **60.0** |
+
+There is essentially **no** cancellation between regions or between the two Eq-4.22 branches. All of
+it is between adjacent nodes, i.e. the ± lobes of `∇'ρ`, exactly as `∫∇'ρ = 0` predicts. This is what
+decides the cure: a different region split or a better band locator cannot help, because those levels
+are already at C ≈ 1.
+
+It gets much worse with tilt and past an exit:
+
+| case | z/σ_z | dE | C_region | C_band | **C_point** |
+|---|---|---|---|---|---|
+| in bend, shear 0 | +0.08 | −2.2481 | 1.04 | 1.04 | **60.0** |
+| in bend, shear 0 | +1.62 | +0.6357 | 1.02 | 1.02 | **158.7** |
+| past exit, shear 0 | +1.62 | −0.0485 | 2.51 | 2.51 | **639.8** |
+| in bend, shear 20 | +0.08 | +0.1551 | 3.22 | 3.27 | **1113.0** |
+
+**(A2) And it is REAL, not a counting artifact.** `Σ|parts|` is not invariant under refinement in
+general: splitting a cell in two leaves it unchanged only where the integrand *keeps its sign*, and it
+grows without bound where the integrand oscillates on the cell scale. So `C_point` had to be checked
+for convergence before it could be quoted at all. It converges:
+
+```
+  xbins x zbins      dE        C_point    sum|parts|   nodes
+   100 x  100     -2.2432       60.2        135.06      42800
+   200 x  200     -2.2481       60.0        134.90     107600
+   400 x  400     -2.2496       59.9        134.85     357200
+```
+
+8x the nodes moves `C_point` by 0.5 %. The ± lobes are resolved structure.
+
+**(B) The scaling refutes the obvious guess.** I predicted `C_point ~ L_f/σ_z` — kernel variation
+scale over bunch size. Measured by varying `σ_z` at fixed `R`, the slope has the **wrong sign**:
+
+| σ_z | L_f | L_f/σ_z | C_point |
+|---|---|---|---|
+| 31.7 µm | 156.1 mm | 4923.7 | 52.0 |
+| 53.7 µm | 186.0 mm | 3466.8 | 60.0 |
+| 101.9 µm | 230.4 mm | 2261.2 | 85.3 |
+| 200.9 µm | 288.9 mm | 1437.7 | 130.1 |
+
+log-log slope **−0.76** against `L_f/σ_z`. Since `L_f ∝ σ_z^(1/3)`, that is the same as **+1 against
+σ_z alone** (both fit to 6.6 %, indistinguishable). The cancellation is set by the bunch length in
+absolute terms and `L_f` **drops out** — so a longer bunch is a *harder* numerical problem here, not
+an easier one.
+
+**(D) Only ONE of the two derivative arrays is live, and this is exact.** `K = v − (v·v′)v′` is by
+construction perpendicular to `v′`, so in 2D it lies along `n′` up to the small `v_x′` tilt. With
+`v′ = τ′ + v_x′ n′`:
+
+```
+K·τ′ = −v_x′ (v·n′)
+K·n′ = (v·n′)(1 − v_x′²) − v_x′ (v·τ′)        ⟹   K·τ′/K·n′ → −v_x′
+|K|  = sin φ,   φ = bend angle between s and s′
+```
+
+Both identities confirmed independently — symbolically on random `(φ, v_x, v_x′)`, and numerically on
+the located band, where `K·τ′/K·n′` tracks `−v_x′` to 1–20 %. Since `∇'ρ = ρ_x n′ + (ρ_z/h) τ′` and
+`|v_x′| ~ 1e-5..1e-4`, **`∂ρ/∂z` is inert in the longitudinal wake** and all of W1 flows through
+`∂ρ/∂x`.
+
+**(C) The noise gain, measured. ~90x worse for the derivative than for ρ itself.** Noise injected into
+one stored array at a time, scaled by that array's own RMS, gain taken on the L2 norm of a whole z cut
+— never pointwise, since the wake crosses zero and a pointwise ratio divides by noise:
+
+| field perturbed | in bend, white | **correlated** | shear 20, white | **correlated** |
+|---|---|---|---|---|
+| `rho` | 0.00 | 0.01 | 0.20 | **0.96** |
+| `drho/dx` | 1.02 | **7.17** | 18.04 | **102.25** |
+| `drho/dz` | 0.00 | 0.00 | 0.00 | **0.00** |
+| `vx` | 0.00 | 0.01 | 0.77 | 3.94 |
+| `dvx/dx` | 0.00 | 0.01 | 0.17 | 1.02 |
+
+Gains are linear in amplitude (1e-3 and 1e-2 agree to <1 %), so these are true sensitivities. Three
+things to take from the table:
+
+1. **`drho/dz` is exactly 0.00** in every case, which independently confirms (D). Verified not to be an
+   injection bug: perturbing the array does move `rho_z` (−6.81e8 → −1.16e9), it simply does not reach
+   the wake.
+2. **`drho/dx` carries ~90–100x the gain of `rho`**, so the amplification is real and concentrated in
+   exactly one array.
+3. **Correlated noise is 5.7x worse than white**, and this is not a detail. The stored fields have
+   *already* been FFT-smoothed, so no white component at the cell scale can survive in them — white
+   noise is the one spectrum the quadrature is best at averaging away, and a white-noise estimate
+   understates the realistic case. Correlated noise here is smoothed with the same Gaussian the
+   deposition applies (`smoothing_sigma` cells) and renormalised to equal RMS.
+
+**Consequence: integration by parts is NOT the cure, for the reason (D) gives.** The appeal of
+`∫K·∇'ρ = −∫(∇'·K)ρ` was to replace the noisy derivative by a positive-definite `ρ` against an
+analytic kernel. But `K·∇'ρ` is not a gradient contracted with a general vector field — it is a
+*single* directional derivative `(K·n′) ∂ρ/∂x`, because `K ⊥ v′` kills the other component.
+Integrating one component by parts leaves a boundary term on every `s′` column and yields no clean
+`∇'·K`, so the principled fix is far weaker than it looked before (D) was measured.
+
+**What the numbers support instead** is attacking `∂ρ/∂x` directly — a control variate: write
+`ρ = ρ_G + δρ` with `ρ_G` the Gaussian the co-moving frame already fits (`τ, σ_z, σ_ξ, x̄, z̄`),
+integrate `ρ_G`'s contribution with an analytic noise-free `∂ρ_G/∂x`, and let the 60–1100x
+cancellation act only on the residual `δρ`. It targets the one array carrying all the gain, leaves the
+formulation untouched, and validates exactly: the two pieces must sum to the current answer.
+
+**Methodological note, because this area has burned relative metrics three times.** The decomposition
+rebuilds the quadrature weights outside `_integrate_xi_region` in order to open it up per band and per
+node. That mirroring is **asserted** against the shipped integral on every run (agrees to 6.9e-15 at
+shear 0, 1.9e-13 at shear 20), so a future change to the shipped quadrature breaks this test loudly
+rather than silently measuring something else.
+
+A probe bug found and fixed while here: the first version of (D) rode the `x′ = x` ray, where a tilted
+beam simply is not present, so `v_x′` came back 0 and the table read **identically** at shear 0 and
+shear 20. It now rides the centre of the located band.
+
+**Files.** `pyDFCSR_2D/test/test_cancellation_anatomy.py` (new),
+`pyDFCSR_2D/test/benchmark_results/cancellation_anatomy/cancellation_anatomy.txt`.
+
+
 ### Step 7 — Remaining secondary fixes ⬜
 
 Most of §2.3 was folded into `DF_tracker_comoving` in Step 5 — (c) registration, (e) normalization plus

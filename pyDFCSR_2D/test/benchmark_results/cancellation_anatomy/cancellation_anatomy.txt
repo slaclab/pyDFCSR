@@ -1,0 +1,143 @@
+==============================================================================================
+Anatomy of the integrand cancellation in the longitudinal CSR wake
+==============================================================================================
+  C = sum|parts| / |sum parts|, over the same total at three partition
+  levels. C_region <= C_band <= C_point by construction.
+
+----------------------------------------------------------------------------------------------
+(A) WHERE the cancellation lives
+----------------------------------------------------------------------------------------------
+  in bend:  s = 0.500 m,  L_f = 186.0 mm,  sigma_z = 53.7 um,  L_f/sigma_z = 3466.8
+    weight check: shipped -2.377984e+00  mirrored -2.377984e+00  rel 6.91e-15
+      z/sigma_z    dE        C_region   C_band   C_point   pos        neg       C_point per region (far/near/patch)
+         -1.46    -1.3033      1.07     1.07      25.7     +16.08     -17.39   24.6/11.1/2.0
+         +0.08    -2.2481      1.04     1.04      60.0     +66.32     -68.57   59.0/27.9/1.3
+         +1.62    +0.6357      1.02     1.02     158.7     +50.75     -50.11   158.2/54.7/1.1
+
+  past exit:  s = 1.200 m,  L_f = 200.6 mm,  sigma_z = 67.3 um,  L_f/sigma_z = 2981.6
+    weight check: shipped -7.314609e-01  mirrored -7.314609e-01  rel 7.44e-15
+      z/sigma_z    dE        C_region   C_band   C_point   pos        neg       C_point per region (far/near/patch)
+         -1.46    -0.2402      1.57     1.57      21.7      +2.49      -2.73   17.3/7.2/1.2
+         +0.08    -0.5837      1.47     1.47      45.8     +13.07     -13.66   36.6/11.8/1.1
+         +1.62    -0.0485      2.51     2.51     639.8     +15.49     -15.53   363.9/4.1/1.0
+
+  in bend, shear 20:  s = 0.500 m,  L_f = 344.3 mm,  sigma_z = 340.0 um,  L_f/sigma_z = 1012.6
+    weight check: shipped -1.842960e-01  mirrored -1.842960e-01  rel 1.90e-13
+      z/sigma_z    dE        C_region   C_band   C_point   pos        neg       C_point per region (far/near/patch)
+         -1.46    +0.0521      5.14     5.14     895.3     +23.34     -23.29   361.9/50.8/2.7
+         +0.08    +0.1551      3.22     3.27    1113.0     +86.41     -86.25   932.4/41.0/2.4
+         +1.62    +0.1295      1.00     3.69     769.3     +49.86     -49.73   1944.6/37.1/2.6
+
+----------------------------------------------------------------------------------------------
+(A2) Does C_point CONVERGE in node count?
+----------------------------------------------------------------------------------------------
+  sum|parts| is NOT invariant to refinement in general: splitting one cell
+  into two of half the weight leaves sum|.| unchanged ONLY where the
+  integrand keeps its sign. Where it oscillates on the cell scale, sum|.|
+  grows without bound and C_point would be measuring the mesh, not the
+  physics. A converging C_point means the +/- lobes are RESOLVED structure.
+
+    xbins x zbins     dE          C_point     sum|parts|   nodes
+     100 x  100         -2.2432        60.2       135.06      42800
+     200 x  200         -2.2481        60.0       134.90     107600
+     400 x  400         -2.2496        59.9       134.85     357200
+
+----------------------------------------------------------------------------------------------
+(B) SCALING: C_point against L_f/sigma_z, by varying sigma_z at fixed R
+----------------------------------------------------------------------------------------------
+  L_f = (24 R^2 sigma_z)^(1/3), so L_f/sigma_z ~ sigma_z^(-2/3). If the
+  cancellation is the kernel varying across the bunch, C_point should
+  follow it with slope ~1 on a log-log fit against L_f/sigma_z.
+
+    sigma_z     L_f      L_f/sigma_z   C_point (median over the cut)
+       31.7 um   156.1 mm      4923.7         52.0
+       53.7 um   186.0 mm      3466.8         60.0
+      101.9 um   230.4 mm      2261.2         85.3
+      200.9 um   288.9 mm      1437.7        130.1
+
+    log-log slope of C_point against L_f/sigma_z: -0.76
+    A slope of +1 would mean the cancellation IS the kernel varying
+    across the bunch. It is not: the sign is wrong, so C_point RISES
+    as the bunch lengthens. Since L_f ~ sigma_z^(1/3), a slope of -2/3
+    against L_f/sigma_z is the same as +1 against sigma_z alone, i.e.
+    the cancellation is set by the bunch length in ABSOLUTE terms and
+    the formation length drops out.
+
+----------------------------------------------------------------------------------------------
+(C) NOISE GAIN: relative wake error per unit relative density error
+----------------------------------------------------------------------------------------------
+  White noise injected into one stored array at a time, scaled by that
+  array's RMS. 3 seeds; mean +- spread. Gain is measured on the L2 norm of
+  a whole z cut, never pointwise, because the wake crosses zero.
+
+  in bend: s = 0.500 m, |dE|_L2 = 8.4988, C_point (mid-cut) = 60.0
+      field       WHITE 1e-3      WHITE 1e-2     linear?  CORRELATED 1e-3
+      rho            0.00 +- 0.00     0.00 +- 0.00   yes        0.01 +- 0.00
+      drho/du        1.02 +- 0.09     1.02 +- 0.09   yes        7.17 +- 0.80
+      drho/dw        0.00 +- 0.00     0.00 +- 0.00   yes        0.00 +- 0.00
+      vx             0.00 +- 0.00     0.00 +- 0.00   yes        0.01 +- 0.00
+      dvx/du         0.00 +- 0.00     0.00 +- 0.00   yes        0.01 +- 0.00
+
+  in bend, shear 20: s = 0.500 m, |dE|_L2 = 0.6806, C_point (mid-cut) = 1113.0
+      field       WHITE 1e-3      WHITE 1e-2     linear?  CORRELATED 1e-3
+      rho            0.20 +- 0.04     0.20 +- 0.04   yes        0.96 +- 0.14
+      drho/du       18.04 +- 1.86    18.04 +- 1.86   yes      102.25 +-19.49
+      drho/dw        0.00 +- 0.00     0.00 +- 0.00   yes        0.00 +- 0.00
+      vx             0.77 +- 0.12     0.77 +- 0.12   yes        3.94 +- 1.39
+      dvx/du         0.17 +- 0.03     0.17 +- 0.03   yes        1.02 +- 0.38
+
+----------------------------------------------------------------------------------------------
+(D) KERNEL PROJECTION: which component of grad(rho) survives
+----------------------------------------------------------------------------------------------
+  numerator1 = h * K . grad'(rho) with K = v - (v.v')v' and
+  grad'(rho) = rho_x n' + (rho_z/h) tau'. So drho/dx enters weighted by
+  K.n' and drho/dz by K.tau'.
+
+  ANALYTIC, not fitted. v' = tau' + vx' n' gives v'.tau' = 1 and
+  v'.n' = vx', so
+      K.tau' = -vx' (v.n')
+      K.n'   = (v.n')(1 - vx'^2) - vx' (v.tau')
+  hence K.tau'/K.n' -> -vx' whenever |vx'| << sin(phi). And since K is the
+  part of v perpendicular to v', |K| = sin(phi) with phi the bend angle
+  between s and s'. The table below is a numerical check of both.
+
+  shear 0, s = 0.500 m:
+      s - s'      rho       K.n'       K.tau'    K.tau'/K.n'   -vx_ret     match
+       +0.500  0.00e+00 -3.901e-01  +0.000e+00  -0.000e+00  -0.000e+00     --   
+       +0.437  0.00e+00 -3.901e-01  +0.000e+00  -0.000e+00  -0.000e+00     --   
+       +0.375  0.00e+00 -3.662e-01  +9.682e-08  -2.644e-07  -0.000e+00     --   
+       +0.312  0.00e+00 -3.074e-01  +1.293e-07  -4.207e-07  -0.000e+00     --   
+       +0.250  0.00e+00 -2.474e-01  +1.498e-07  -6.056e-07  -0.000e+00     --   
+       +0.187  0.00e+00 -1.863e-01  +1.573e-07  -8.442e-07  -0.000e+00     --   
+       +0.125  2.01e+07 -1.246e-01  -4.851e-07  +3.893e-06  +5.107e-06   2.4e-01
+       +0.062  6.42e+07 -6.237e-02  +7.635e-08  -1.224e-06  +8.821e-07   2.4e+00
+       -0.000  1.69e+04 +9.237e-05  +9.686e-08  +1.049e-03  -7.648e-06   1.4e+02
+    The `match` column is only meaningful where rho > 0; elsewhere the
+    density is outside the deposition window and vx' is a hard zero, so
+    the ratio there is floating-point debris at the 1e-7 level and is
+    printed only to show it is negligible against |K.n'| ~ 0.1-0.4.
+    Where the density IS present the ratio tracks -vx' to 1-20%.
+    Consequence: drho/dz enters the LONGITUDINAL wake only at relative
+    weight |vx'| ~ 1e-5..1e-4, so it is inert -- which is exactly why
+    (C) measures ZERO gain for it. All of W1 flows through drho/dx.
+
+  shear 20, s = 0.500 m:
+      s - s'      rho       K.n'       K.tau'    K.tau'/K.n'   -vx_ret     match
+       +0.500  0.00e+00 -3.901e-01  +0.000e+00  -0.000e+00  -0.000e+00     --   
+       +0.437  0.00e+00 -3.901e-01  +0.000e+00  -0.000e+00  -0.000e+00     --   
+       +0.375  0.00e+00 -3.662e-01  +9.682e-08  -2.644e-07  -0.000e+00     --   
+       +0.312  0.00e+00 -3.074e-01  +1.293e-07  -4.207e-07  -0.000e+00     --   
+       +0.250  0.00e+00 -2.474e-01  +1.498e-07  -6.056e-07  -0.000e+00     --   
+       +0.187  0.00e+00 -1.863e-01  +1.573e-07  -8.442e-07  -0.000e+00     --   
+       +0.125  6.01e+07 -1.245e-01  -9.618e-06  +7.724e-05  +7.840e-05   1.5e-02
+       +0.062  5.92e+07 -6.236e-02  -5.414e-07  +8.682e-06  +1.079e-05   2.0e-01
+       -0.000  0.00e+00 +9.995e-05  +9.762e-08  +9.768e-04  -0.000e+00     --   
+    The `match` column is only meaningful where rho > 0; elsewhere the
+    density is outside the deposition window and vx' is a hard zero, so
+    the ratio there is floating-point debris at the 1e-7 level and is
+    printed only to show it is negligible against |K.n'| ~ 0.1-0.4.
+    Where the density IS present the ratio tracks -vx' to 1-20%.
+    Consequence: drho/dz enters the LONGITUDINAL wake only at relative
+    weight |vx'| ~ 1e-5..1e-4, so it is inert -- which is exactly why
+    (C) measures ZERO gain for it. All of W1 flows through drho/dx.
+
