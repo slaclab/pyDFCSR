@@ -1,0 +1,10 @@
+sigma_x=5um + sigma_E=50keV (comoving, CSR on vs off), final s = 1.6 m
+  core mean slice sE: init 50.0, off 50.0, on 168.5 keV
+  peak slice sE on: 219.0 keV at z = 10 um; slices on<off: 0 of 40
+  CSR-added (quadrature) max 213.2 keV, core-weighted rms 165.8 keV
+  max |dDeltaE/dz| = 63.1 keV/um; peak CSR loss -3245 keV
+  residual full-bend z-shift: R51*sx = 4.21, R52*sx' = 2.30, R56*sd = 1.59 -> rms 5.05 um
+  chirp-within-slice term: |dE/dz| * w/sqrt(12) <= 126.1 keV (slice width 6.9 um)
+  wake x-dependence at fixed z: worst-z rms over beam per step [MeV/m]: [0.032, 0.041, 0.062, 0.074, 0.08, 0.078, 0.072, 0.068, 0.087, 0.148, 0.191, 0.125, 0.107, 0.102, 0.095, 0.1]
+     coherent upper bound on accumulated spread from it: 146.2 keV
+  fit CSR-added = a + b*|dDeltaE/dz|: a = 54.9 keV, b = 2.02 um, r = 0.664

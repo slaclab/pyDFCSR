@@ -1,0 +1,22 @@
+
+baseline σx=50 µm, σE=500 keV  (core |z|<2 sigma_z, slice variances in keV^2, CSR-added total = 281362 keV^2 -> 530 keV)
+  initial spread of the slice members                 227803
+  2 cov(delta0, K)  [R56 compression term]             99857  (  35.5% of added)
+  var K_z, mixing part                                230556  (  81.9% of added)
+  var K_z, chirp within slice                           3175  (   1.1% of added)
+  var K_x  [wake x-dependence]                          5136  (   1.8% of added)
+  2 cov(K_z, K_x)                                     -57362  ( -20.4% of added)
+  mixing part attributed by regression: R51 (x0) 166040, R52 (x0') 2344, R56 (delta0) 98366 keV^2
+  check: d0 + cov + mix + chirp + Kx + cross = 509165 vs total 509165
+  particles ever outside the wake mesh: 1.44%; var K_x of those vs the rest: 156087 vs 6989 keV^2
+
+null test σx=5 µm, σE=50 keV  (core |z|<2 sigma_z, slice variances in keV^2, CSR-added total = 17026 keV^2 -> 130 keV)
+  initial spread of the slice members                   2486
+  2 cov(delta0, K)  [R56 compression term]              2328  (  13.7% of added)
+  var K_z, mixing part                                 12346  (  72.5% of added)
+  var K_z, chirp within slice                           7163  (  42.1% of added)
+  var K_x  [wake x-dependence]                          1271  (   7.5% of added)
+  2 cov(K_z, K_x)                                      -6082  ( -35.7% of added)
+  mixing part attributed by regression: R51 (x0) 5093, R52 (x0') 4077, R56 (delta0) 2007 keV^2
+  check: d0 + cov + mix + chirp + Kx + cross = 19512 vs total 19512
+  particles ever outside the wake mesh: 2.08%; var K_x of those vs the rest: 430880 vs 1765 keV^2

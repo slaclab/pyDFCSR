@@ -1,0 +1,20 @@
+Chicane, 1D vs 2D: bunch length, energy, emittance, beam size and slice emittance, CSR on and off.
+Final-beam statistics are computed the SAME way for both codes, from the particles:
+  2D: example/output/ts_chic_{on,off}-<first run>-particles-end.h5 (openPMD, all 1e6 particles)
+  1D: 1d_chic{,_off}_nsb500.mat Xs = [x, x', z, delta] (1 mm bend slices, converged)
+Emittance: projected sqrt(det cov(x,x')) and dispersion-corrected (x, x' with the linear fit in delta
+removed; same as csr_calc's emitxc and pyDFCSR's twiss eta-subtraction). Normalised by gamma0 = 9784.8.
+Slice emittance: 40 slices over +-3 sigma_z, dispersion-corrected within each slice, core |z| < 2 sigma_z.
+Along s: pyDFCSR statistics.h5 (sigma_z, sigma_x, sigma_energy, twiss norm_emit_x) and csr_calc's sigZ/sigX/sigE.
+initial: sigma_z 200 um, norm. emittance 0.998 um
+
+final beam (s = 13.31 m)                    2D off     2D on       CSR |    1D off     1D on       CSR
+rms bunch length sigma_z [um]               18.351    18.616    +0.265 |    20.547    20.672    +0.125
+peak current [kA]                            6.748     6.445    -0.303 |     5.986     5.848    -0.138
+mean energy change [MeV]                     0.000    -1.640    -1.640 |     0.000    -1.721    -1.721
+rms energy spread [MeV]                     36.000    35.827    -0.173 |    36.000    35.765    -0.235
+rms beam size sigma_x [um]                  57.946    53.528    -4.419 |    22.933    23.925    +0.991
+residual dispersion dx/ddelta [mm]          -7.483    -6.580    +0.903 |    -0.000     0.497    +0.497
+projected norm. emittance [um]               3.113     2.757    -0.356 |     0.998     1.536    +0.537
+dispersion-corrected norm. emittance [um]     1.000     1.301    +0.302 |     0.998     1.515    +0.516
+core slice norm. emittance [um]              0.997     1.049    +0.052 |     0.998     0.998    -0.000

@@ -1,0 +1,74 @@
+start reinterpolation. number of slice 1
+xbins = 500  zbins =  500
+Starting the DFCSR run
+  [schedule] mode=legacy  nodes=17  steps=16  snapshots=16  kicks=16
+  step size: min 0.1 m, max 0.1 m, ratio 1.0
+  [schedule] history at most 16 snapshots x 0.40 MB = 0.01 GB at 100x100 deposition
+Drift(L=0.1)
+start reinterpolation. number of slice 2
+xbins = 500  zbins =  500
+Wakes written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/slice_espread_on_guard-2026-10-28T14_13_29-07_00-wakes.h5
+Finish step 1, s = 0.1,  in 1.0959858894348145 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 502  zbins =  502
+Finish step 2, s = 0.2,  in 1.8845961093902588 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 509  zbins =  509
+Finish step 3, s = 0.30000000000000004,  in 1.7917609214782715 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 518  zbins =  518
+Finish step 4, s = 0.4,  in 1.508713960647583 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 525  zbins =  525
+Finish step 5, s = 0.5,  in 1.570594072341919 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 528  zbins =  530
+Finish step 6, s = 0.6,  in 1.6287260055541992 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 523  zbins =  532
+Finish step 7, s = 0.7,  in 1.3625237941741943 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 509  zbins =  532
+Finish step 8, s = 0.7999999999999999,  in 1.3214247226715088 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 520  zbins =  531
+Finish step 9, s = 0.8999999999999999,  in 1.3846969604492188 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 561  zbins =  528
+Finish step 10, s = 0.9999999999999999,  in 1.3249149322509766 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+start reinterpolation. number of slice 3
+xbins = 608  zbins =  526
+Finish step 11, s = 1.0999999999999999,  in 1.7060470581054688 seconds
+Drift(L=0.10000000000000009)
+start reinterpolation. number of slice 3
+xbins = 644  zbins =  512
+Finish step 12, s = 1.2,  in 1.2663452625274658 seconds
+Drift(L=0.1)
+start reinterpolation. number of slice 3
+xbins = 657  zbins =  500
+Finish step 13, s = 1.3,  in 1.4435760974884033 seconds
+Drift(L=0.1)
+start reinterpolation. number of slice 3
+xbins = 653  zbins =  500
+Finish step 14, s = 1.4000000000000001,  in 1.4411907196044922 seconds
+Drift(L=0.1)
+start reinterpolation. number of slice 3
+xbins = 642  zbins =  500
+Finish step 15, s = 1.5000000000000002,  in 1.3202769756317139 seconds
+Drift(L=0.1)
+start reinterpolation. number of slice 3
+xbins = 630  zbins =  500
+Finish step 16, s = 1.6000000000000003,  in 1.4972128868103027 seconds
+Beam at position 1.6000000000000003 is written to /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/slice_espread_on_guard-2026-10-28T14_13_29-07_00-particles-end.h5
+Statistics written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/slice_espread_on_guard-2026-10-28T14_13_29-07_00-statistics.h5
+saved

@@ -163,7 +163,26 @@ class Integration_params:
         # and 90.5% of that 5.1% is ONE kick, at s = 8.317 (0.711 m past the B3 exit),
         # whose mean dE is 70x its two neighbours and whose wake swings -5.19 -> +1.06
         # across a single z cell. Excluding it, the entire far-drift region carries 0.48%.
-        # So the cutoff removes ~0.5% of real signal plus one map that is visibly wrong.
+        #
+        # That 0.48% is what the 2D code computes there, NOT what the physics puts there
+        # (progress.md, top TODO, 2026-10-29). The 2D far-drift wake is the broken part:
+        # past ~1.9 R*phi in D3 it turns bipolar across x, its x-average goes positive, and
+        # it GROWS toward B4 instead of decaying. A 1D run (Emma csr_calc, same particles,
+        # same 1 R*phi cutoff rule) puts a large share of the chicane's CSR effect in the
+        # region this cutoff removes, almost all of it in D3:
+        #
+        #     chicane exit, 1D                  full drift   far drift alone   share
+        #     mean CSR energy loss                -1721 keV         -638 keV    37 %
+        #     emittance growth (eta-corrected)    +0.516 um       +0.297 um     58 %
+        #     CSR-added slice sigma_E               45.6 keV        19.9 keV    44 %
+        #
+        # The bunch is fully compressed (19 um) after B3, and the exit wake decays only as
+        # 1/(phi + 2d/R): still -0.05 MeV/m at the B4 entrance, 4.5 m on, acting while the
+        # dispersion is being closed. So this cutoff removes a wrong 2D wake AND a large real
+        # effect. 2D chicane results with it ON are missing that effect, and with it OFF they
+        # include the bad wake, which produced a spurious 8x slice-energy-spread excess over
+        # 1D. With the cutoff applied to BOTH codes, the emittance growth agrees within 4%
+        # (2D 0.211 vs 1D 0.220 um). Report the cut share whenever this is on.
         #
         # The defect is NOT repaired by the 11u far-region rebuild: measured at the same
         # position, peak 5.1864 -> 5.1412 and roughness 4.601 -> 4.720, i.e. unchanged.

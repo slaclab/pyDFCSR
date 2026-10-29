@@ -1,0 +1,33 @@
+Chicane: 1D (Emma csr_calc) vs 2D (pyDFCSR) slice energy spread.
+Both codes start from the same 1e6 particles at the B1 entrance (s = 0.1 m); each is compared with its own
+CSR-off run. The chicane leaves a large residual chirp (36 MeV across sigma_z ~ 19 um), so a raw slice rms
+is dominated by the chirp across the slice width. Slice spread here is therefore the rms after removing a
+quadratic fit in z within each slice, and is checked against the slice count (it must not depend on it).
+Core = |z| < 2 sigma_z. CSR-added = sqrt(<var_on - var_off>), slice-population weighted.
+
+== chicane exit, s = 13.31 m ==
+  code      slices  sigma_z um  slice sE off        on  CSR-added  [keV]
+  2D            40       18.62         153.2     391.2      360.0
+  2D            80       18.62         153.7     392.6      361.3
+  2D           160       18.62         153.4     392.2      360.9
+  1D 5 mm       40       20.67         104.7     113.8       44.6
+  1D 5 mm       80       20.67         105.0     114.0       44.4
+  1D 5 mm      160       20.67         104.9     113.9       44.5
+  1D 1 mm       40       20.67         104.7     114.3       45.9
+  1D 1 mm       80       20.67         105.0     114.5       45.6
+  1D 1 mm      160       20.67         104.9     114.4       45.7
+
+== B4 entrance, s = 12.61 m (1D lattice cut after D3) ==
+  code      slices  sigma_z um  slice sE off        on  CSR-added  [keV]
+  1D 5 mm       40       19.17        2274.0    2270.7     -123.9
+  1D 5 mm       80       19.17        2278.5    2275.2     -122.7
+  1D 5 mm      160       19.17        2276.1    2272.8     -123.3
+  1D 1 mm       40       19.16        2273.9    2270.4     -126.3
+  1D 1 mm       80       19.16        2278.4    2275.1     -124.1
+  1D 1 mm      160       19.16        2276.0    2272.6     -125.2
+
+  2D at the B4 entrance comes from the per-node slice table (40 slices, LINEAR detrend only):
+    B4 entrance  s = 12.612: off 2126.2, CSR-added 1156.6 keV
+    exit         s = 13.312: off 153.0, CSR-added 360.9 keV
+
+  mean CSR energy change [MeV]: 2D exit -1.640, B4 entr -1.148; 1D exit 5mm -1.689; 1D exit_nsb500 -1.721; 1D B4 entr 5mm -1.171; 1D B4 entr_nsb500 -1.195

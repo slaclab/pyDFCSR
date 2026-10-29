@@ -1,0 +1,6 @@
+Chicane exit, CSR effect vs each code's own CSR-off run (1D at 1 mm bend slices)
+                                mean dE [keV]  slice sE added [keV]  emit growth [um]  sigma_z [um]
+2D full drift (cutoff 0)                -1640                 361.3             0.302         18.62
+2D cutoff 1 Rphi (default)              -1844                  80.6             0.211         18.55
+1D full drift                           -1721                  45.6             0.516         20.67
+1D cutoff 1 Rphi                        -1084                  25.8             0.220         20.70

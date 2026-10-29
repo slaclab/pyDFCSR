@@ -1,0 +1,13 @@
+2D chicane: which part of the CSR kick makes the slice energy spread at the exit?
+Per particle (tilt_scan_run.py): K = total CSR energy kick, K_z = the kick from the wake taken at the
+beam-centre x along the particle's own z path, K_x = K - K_z (the wake's x-dependence). Within each final-z
+slice, each quantity has a quadratic fit in z removed (the residual chirp), then its variance is taken.
+Particles that ever left the wake mesh (zero kick, fill_value=0) are excluded and counted.
+particles ever outside the wake mesh: 0.82% (excluded)
+identity check: d0 + 2cov(d0,K) + var K = 148193 vs total 148193 keV^2
+CSR-added slice variance (in-mesh, 80 slices, |z|<2sz): 105898 keV^2 -> 325 keV
+  2 cov(delta0, K)                -109248  (-103.2%)
+  var K_z  (no x-dependence)         9761  (   9.2%)
+  var K_x  (x-dependence)          217657  ( 205.5%)
+  2 cov(K_z, K_x)                  -12271  ( -11.6%)
+  -> wake x-dependence, net         205386  ( 193.9%)

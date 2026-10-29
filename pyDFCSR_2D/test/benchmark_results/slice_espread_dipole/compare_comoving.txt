@@ -1,0 +1,15 @@
+baseline: σx=50 µm, σE=500 keV
+  comoving wake range over all steps: -3.09 / 2.93 MeV/m
+  final mean CSR dE: comoving -1385, legacy -1407 keV
+  core mean slice sE: off 485.9, legacy 698.9, comoving 703.6 keV; max |comoving-legacy| over slices 23.2 keV
+  comoving: slices with on<off 17 of 39, min ratio 0.83; ratio fit a=1.18 b=0.0232/(keV/um) r=0.985
+σx=5 µm (no R51 term)
+  comoving wake range over all steps: -3.38 / 2.89 MeV/m
+  final mean CSR dE: comoving -1515, legacy -1559 keV
+  core mean slice sE: off 476.9, legacy 681.0, comoving 683.1 keV; max |comoving-legacy| over slices 48.6 keV
+  comoving: slices with on<off 20 of 39, min ratio 0.48; ratio fit a=1.07 b=0.0190/(keV/um) r=0.995
+σE=50 keV (no R56 term)
+  comoving wake range over all steps: -3.09 / 2.93 MeV/m
+  final mean CSR dE: comoving -1496, legacy -1528 keV
+  core mean slice sE: off 50.0, legacy 369.4, comoving 370.1 keV; max |comoving-legacy| over slices 26.7 keV
+  comoving: slices with on<off 0 of 39, min ratio 1.69; ratio fit a=5.41 b=0.1160/(keV/um) r=0.801

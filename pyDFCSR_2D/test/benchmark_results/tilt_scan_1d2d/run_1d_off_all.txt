@@ -1,0 +1,1022 @@
+WARNING: package sun.awt.X11 not in java.desktop
+WARNING: package sun.awt.X11 not in java.desktop
+START TIME: 28-OCT-2026 16:48:51
+Loading file ts_p5.csr...
+Tracking  1000000 particles
+  0.7%
+  1.3%
+  2.0%
+  2.7%
+  3.3%
+  4.0%
+  4.7%
+  5.3%
+  6.0%
+  6.7%
+  7.3%
+  8.0%
+  8.7%
+  9.3%
+ 10.0%
+ 10.7%
+ 11.3%
+ 12.0%
+ 12.7%
+ 13.3%
+ 14.0%
+ 14.7%
+ 15.3%
+ 16.0%
+ 16.7%
+ 17.3%
+ 18.0%
+ 18.7%
+ 19.3%
+ 20.0%
+ 20.7%
+ 21.3%
+ 22.0%
+ 22.7%
+ 23.3%
+ 24.0%
+ 24.7%
+ 25.3%
+ 26.0%
+ 26.7%
+ 27.3%
+ 28.0%
+ 28.7%
+ 29.3%
+ 30.0%
+ 30.7%
+ 31.3%
+ 32.0%
+ 32.7%
+ 33.3%
+ 34.0%
+ 34.7%
+ 35.3%
+ 36.0%
+ 36.7%
+ 37.3%
+ 38.0%
+ 38.7%
+ 39.3%
+ 40.0%
+ 40.7%
+ 41.3%
+ 42.0%
+ 42.7%
+ 43.3%
+ 44.0%
+ 44.7%
+ 45.3%
+ 46.0%
+ 46.7%
+ 47.3%
+ 48.0%
+ 48.7%
+ 49.3%
+ 50.0%
+ 50.7%
+ 51.3%
+ 52.0%
+ 52.7%
+ 53.3%
+ 54.0%
+ 54.7%
+ 55.3%
+ 56.0%
+ 56.7%
+ 57.3%
+ 58.0%
+ 58.7%
+ 59.3%
+ 60.0%
+ 60.7%
+ 61.3%
+ 62.0%
+ 62.7%
+ 63.3%
+ 64.0%
+ 64.7%
+ 65.3%
+ 66.0%
+ 66.7%
+ 67.3%
+ 68.0%
+ 68.7%
+ 69.3%
+ 70.0%
+ 70.7%
+ 71.3%
+ 72.0%
+ 72.7%
+ 73.3%
+ 74.0%
+ 74.7%
+ 75.3%
+ 76.0%
+ 76.7%
+ 77.3%
+ 78.0%
+ 78.7%
+ 79.3%
+ 80.0%
+ 80.7%
+ 81.3%
+ 82.0%
+ 82.7%
+ 83.3%
+ 84.0%
+ 84.7%
+ 85.3%
+ 86.0%
+ 86.7%
+ 87.3%
+ 88.0%
+ 88.7%
+ 89.3%
+ 90.0%
+ 90.7%
+ 91.3%
+ 92.0%
+ 92.7%
+ 93.3%
+ 94.0%
+ 94.7%
+ 95.3%
+ 96.0%
+ 96.7%
+ 97.3%
+ 98.0%
+ 98.7%
+ 99.3%
+ 100.0%
+Incremental slice pointers:
+===========================
+     1   100
+   101   150
+
+ 
+END TIME: 28-OCT-2026 16:50:06
+ 
+Preparing plots...
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 57)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 145)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 152)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+Initial projected normalized emittance   =    12.473234 mm-mrad
+Final projected normalized emittance     =   210.304360 mm-mrad
+Final eta-corrected normalized emittance =    12.473234 mm-mrad
+Final core-slice normalized emittance    =    13.629487 mm-mrad
+Final core-slice energy spread           =     0.009954 %
+Final CSR-induced energy spread          =     0.000000 %
+Final rms bunch length                   =     0.166575 mm
+Final LINEAR beta function (w/o CSR)     =     0.753738 m
+Final LINEAR alpha function (w/o CSR)    =     5.120229
+Final beta function (from tracking)      =     0.405377 m
+Final alpha function (from tracking)     =    -0.040967
+Tracked-beta back propagated to start    =     3.122528 m
+Tracked-alpha back propagated to start   =     0.179795
+post-processing error caught (slice-emittance block): Index in position 2 exceeds array bounds. Index must not exceed 2.
+1D p5 done: 1000000 particles, s_end = 1.500 m
+START TIME: 28-OCT-2026 16:50:14
+Loading file ts_p20.csr...
+Tracking  1000000 particles
+  0.7%
+  1.3%
+  2.0%
+  2.7%
+  3.3%
+  4.0%
+  4.7%
+  5.3%
+  6.0%
+  6.7%
+  7.3%
+  8.0%
+  8.7%
+  9.3%
+ 10.0%
+ 10.7%
+ 11.3%
+ 12.0%
+ 12.7%
+ 13.3%
+ 14.0%
+ 14.7%
+ 15.3%
+ 16.0%
+ 16.7%
+ 17.3%
+ 18.0%
+ 18.7%
+ 19.3%
+ 20.0%
+ 20.7%
+ 21.3%
+ 22.0%
+ 22.7%
+ 23.3%
+ 24.0%
+ 24.7%
+ 25.3%
+ 26.0%
+ 26.7%
+ 27.3%
+ 28.0%
+ 28.7%
+ 29.3%
+ 30.0%
+ 30.7%
+ 31.3%
+ 32.0%
+ 32.7%
+ 33.3%
+ 34.0%
+ 34.7%
+ 35.3%
+ 36.0%
+ 36.7%
+ 37.3%
+ 38.0%
+ 38.7%
+ 39.3%
+ 40.0%
+ 40.7%
+ 41.3%
+ 42.0%
+ 42.7%
+ 43.3%
+ 44.0%
+ 44.7%
+ 45.3%
+ 46.0%
+ 46.7%
+ 47.3%
+ 48.0%
+ 48.7%
+ 49.3%
+ 50.0%
+ 50.7%
+ 51.3%
+ 52.0%
+ 52.7%
+ 53.3%
+ 54.0%
+ 54.7%
+ 55.3%
+ 56.0%
+ 56.7%
+ 57.3%
+ 58.0%
+ 58.7%
+ 59.3%
+ 60.0%
+ 60.7%
+ 61.3%
+ 62.0%
+ 62.7%
+ 63.3%
+ 64.0%
+ 64.7%
+ 65.3%
+ 66.0%
+ 66.7%
+ 67.3%
+ 68.0%
+ 68.7%
+ 69.3%
+ 70.0%
+ 70.7%
+ 71.3%
+ 72.0%
+ 72.7%
+ 73.3%
+ 74.0%
+ 74.7%
+ 75.3%
+ 76.0%
+ 76.7%
+ 77.3%
+ 78.0%
+ 78.7%
+ 79.3%
+ 80.0%
+ 80.7%
+ 81.3%
+ 82.0%
+ 82.7%
+ 83.3%
+ 84.0%
+ 84.7%
+ 85.3%
+ 86.0%
+ 86.7%
+ 87.3%
+ 88.0%
+ 88.7%
+ 89.3%
+ 90.0%
+ 90.7%
+ 91.3%
+ 92.0%
+ 92.7%
+ 93.3%
+ 94.0%
+ 94.7%
+ 95.3%
+ 96.0%
+ 96.7%
+ 97.3%
+ 98.0%
+ 98.7%
+ 99.3%
+ 100.0%
+Incremental slice pointers:
+===========================
+     1   100
+   101   150
+
+ 
+END TIME: 28-OCT-2026 16:51:22
+ 
+Preparing plots...
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 57)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 145)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 152)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+Initial projected normalized emittance   =    48.985002 mm-mrad
+Final projected normalized emittance     =   825.847208 mm-mrad
+Final eta-corrected normalized emittance =    48.985002 mm-mrad
+Final core-slice normalized emittance    =    22.791135 mm-mrad
+Final core-slice energy spread           =     0.010001 %
+Final CSR-induced energy spread          =     0.000000 %
+Final rms bunch length                   =     0.792754 mm
+Final LINEAR beta function (w/o CSR)     =     2.869134 m
+Final LINEAR alpha function (w/o CSR)    =    20.145036
+Final beta function (from tracking)      =     0.262041 m
+Final alpha function (from tracking)     =     1.107171
+Tracked-beta back propagated to start    =    11.902773 m
+Tracked-alpha back propagated to start   =     0.045734
+post-processing error caught (slice-emittance block): Index in position 2 exceeds array bounds. Index must not exceed 2.
+1D p20 done: 1000000 particles, s_end = 1.500 m
+START TIME: 28-OCT-2026 16:51:27
+Loading file ts_p40.csr...
+Tracking  1000000 particles
+  0.7%
+  1.3%
+  2.0%
+  2.7%
+  3.3%
+  4.0%
+  4.7%
+  5.3%
+  6.0%
+  6.7%
+  7.3%
+  8.0%
+  8.7%
+  9.3%
+ 10.0%
+ 10.7%
+ 11.3%
+ 12.0%
+ 12.7%
+ 13.3%
+ 14.0%
+ 14.7%
+ 15.3%
+ 16.0%
+ 16.7%
+ 17.3%
+ 18.0%
+ 18.7%
+ 19.3%
+ 20.0%
+ 20.7%
+ 21.3%
+ 22.0%
+ 22.7%
+ 23.3%
+ 24.0%
+ 24.7%
+ 25.3%
+ 26.0%
+ 26.7%
+ 27.3%
+ 28.0%
+ 28.7%
+ 29.3%
+ 30.0%
+ 30.7%
+ 31.3%
+ 32.0%
+ 32.7%
+ 33.3%
+ 34.0%
+ 34.7%
+ 35.3%
+ 36.0%
+ 36.7%
+ 37.3%
+ 38.0%
+ 38.7%
+ 39.3%
+ 40.0%
+ 40.7%
+ 41.3%
+ 42.0%
+ 42.7%
+ 43.3%
+ 44.0%
+ 44.7%
+ 45.3%
+ 46.0%
+ 46.7%
+ 47.3%
+ 48.0%
+ 48.7%
+ 49.3%
+ 50.0%
+ 50.7%
+ 51.3%
+ 52.0%
+ 52.7%
+ 53.3%
+ 54.0%
+ 54.7%
+ 55.3%
+ 56.0%
+ 56.7%
+ 57.3%
+ 58.0%
+ 58.7%
+ 59.3%
+ 60.0%
+ 60.7%
+ 61.3%
+ 62.0%
+ 62.7%
+ 63.3%
+ 64.0%
+ 64.7%
+ 65.3%
+ 66.0%
+ 66.7%
+ 67.3%
+ 68.0%
+ 68.7%
+ 69.3%
+ 70.0%
+ 70.7%
+ 71.3%
+ 72.0%
+ 72.7%
+ 73.3%
+ 74.0%
+ 74.7%
+ 75.3%
+ 76.0%
+ 76.7%
+ 77.3%
+ 78.0%
+ 78.7%
+ 79.3%
+ 80.0%
+ 80.7%
+ 81.3%
+ 82.0%
+ 82.7%
+ 83.3%
+ 84.0%
+ 84.7%
+ 85.3%
+ 86.0%
+ 86.7%
+ 87.3%
+ 88.0%
+ 88.7%
+ 89.3%
+ 90.0%
+ 90.7%
+ 91.3%
+ 92.0%
+ 92.7%
+ 93.3%
+ 94.0%
+ 94.7%
+ 95.3%
+ 96.0%
+ 96.7%
+ 97.3%
+ 98.0%
+ 98.7%
+ 99.3%
+ 100.0%
+Incremental slice pointers:
+===========================
+     1   100
+   101   150
+
+ 
+END TIME: 28-OCT-2026 16:52:29
+ 
+Preparing plots...
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 57)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 145)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 152)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+Initial projected normalized emittance   =    97.878287 mm-mrad
+Final projected normalized emittance     =  1650.141618 mm-mrad
+Final eta-corrected normalized emittance =    97.878286 mm-mrad
+Final core-slice normalized emittance    =    45.241753 mm-mrad
+Final core-slice energy spread           =     0.009998 %
+Final CSR-induced energy spread          =     0.000000 %
+Final rms bunch length                   =     1.633566 mm
+Final LINEAR beta function (w/o CSR)     =     5.723445 m
+Final LINEAR alpha function (w/o CSR)    =    40.256153
+Final beta function (from tracking)      =     0.385467 m
+Final alpha function (from tracking)     =     2.343917
+Tracked-beta back propagated to start    =    23.745921 m
+Tracked-alpha back propagated to start   =     0.022855
+post-processing error caught (slice-emittance block): Index in position 2 exceeds array bounds. Index must not exceed 2.
+1D p40 done: 1000000 particles, s_end = 1.500 m
+START TIME: 28-OCT-2026 16:52:34
+Loading file ts_m5.csr...
+Tracking  1000000 particles
+  0.7%
+  1.3%
+  2.0%
+  2.7%
+  3.3%
+  4.0%
+  4.7%
+  5.3%
+  6.0%
+  6.7%
+  7.3%
+  8.0%
+  8.7%
+  9.3%
+ 10.0%
+ 10.7%
+ 11.3%
+ 12.0%
+ 12.7%
+ 13.3%
+ 14.0%
+ 14.7%
+ 15.3%
+ 16.0%
+ 16.7%
+ 17.3%
+ 18.0%
+ 18.7%
+ 19.3%
+ 20.0%
+ 20.7%
+ 21.3%
+ 22.0%
+ 22.7%
+ 23.3%
+ 24.0%
+ 24.7%
+ 25.3%
+ 26.0%
+ 26.7%
+ 27.3%
+ 28.0%
+ 28.7%
+ 29.3%
+ 30.0%
+ 30.7%
+ 31.3%
+ 32.0%
+ 32.7%
+ 33.3%
+ 34.0%
+ 34.7%
+ 35.3%
+ 36.0%
+ 36.7%
+ 37.3%
+ 38.0%
+ 38.7%
+ 39.3%
+ 40.0%
+ 40.7%
+ 41.3%
+ 42.0%
+ 42.7%
+ 43.3%
+ 44.0%
+ 44.7%
+ 45.3%
+ 46.0%
+ 46.7%
+ 47.3%
+ 48.0%
+ 48.7%
+ 49.3%
+ 50.0%
+ 50.7%
+ 51.3%
+ 52.0%
+ 52.7%
+ 53.3%
+ 54.0%
+ 54.7%
+ 55.3%
+ 56.0%
+ 56.7%
+ 57.3%
+ 58.0%
+ 58.7%
+ 59.3%
+ 60.0%
+ 60.7%
+ 61.3%
+ 62.0%
+ 62.7%
+ 63.3%
+ 64.0%
+ 64.7%
+ 65.3%
+ 66.0%
+ 66.7%
+ 67.3%
+ 68.0%
+ 68.7%
+ 69.3%
+ 70.0%
+ 70.7%
+ 71.3%
+ 72.0%
+ 72.7%
+ 73.3%
+ 74.0%
+ 74.7%
+ 75.3%
+ 76.0%
+ 76.7%
+ 77.3%
+ 78.0%
+ 78.7%
+ 79.3%
+ 80.0%
+ 80.7%
+ 81.3%
+ 82.0%
+ 82.7%
+ 83.3%
+ 84.0%
+ 84.7%
+ 85.3%
+ 86.0%
+ 86.7%
+ 87.3%
+ 88.0%
+ 88.7%
+ 89.3%
+ 90.0%
+ 90.7%
+ 91.3%
+ 92.0%
+ 92.7%
+ 93.3%
+ 94.0%
+ 94.7%
+ 95.3%
+ 96.0%
+ 96.7%
+ 97.3%
+ 98.0%
+ 98.7%
+ 99.3%
+ 100.0%
+Incremental slice pointers:
+===========================
+     1   100
+   101   150
+
+ 
+END TIME: 28-OCT-2026 16:53:40
+ 
+Preparing plots...
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 57)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 145)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 152)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+Initial projected normalized emittance   =    12.473121 mm-mrad
+Final projected normalized emittance     =   210.302279 mm-mrad
+Final eta-corrected normalized emittance =    12.473121 mm-mrad
+Final core-slice normalized emittance    =     9.730077 mm-mrad
+Final core-slice energy spread           =     0.009983 %
+Final CSR-induced energy spread          =     0.000000 %
+Final rms bunch length                   =     0.264233 mm
+Final LINEAR beta function (w/o CSR)     =     0.753711 m
+Final LINEAR alpha function (w/o CSR)    =     5.120115
+Final beta function (from tracking)      =     0.405347 m
+Final alpha function (from tracking)     =    -0.041075
+Tracked-beta back propagated to start    =     3.122645 m
+Tracked-alpha back propagated to start   =     0.179931
+post-processing error caught (slice-emittance block): Index in position 2 exceeds array bounds. Index must not exceed 2.
+1D m5 done: 1000000 particles, s_end = 1.500 m
+START TIME: 28-OCT-2026 16:53:44
+Loading file ts_m20.csr...
+Tracking  1000000 particles
+  0.7%
+  1.3%
+  2.0%
+  2.7%
+  3.3%
+  4.0%
+  4.7%
+  5.3%
+  6.0%
+  6.7%
+  7.3%
+  8.0%
+  8.7%
+  9.3%
+ 10.0%
+ 10.7%
+ 11.3%
+ 12.0%
+ 12.7%
+ 13.3%
+ 14.0%
+ 14.7%
+ 15.3%
+ 16.0%
+ 16.7%
+ 17.3%
+ 18.0%
+ 18.7%
+ 19.3%
+ 20.0%
+ 20.7%
+ 21.3%
+ 22.0%
+ 22.7%
+ 23.3%
+ 24.0%
+ 24.7%
+ 25.3%
+ 26.0%
+ 26.7%
+ 27.3%
+ 28.0%
+ 28.7%
+ 29.3%
+ 30.0%
+ 30.7%
+ 31.3%
+ 32.0%
+ 32.7%
+ 33.3%
+ 34.0%
+ 34.7%
+ 35.3%
+ 36.0%
+ 36.7%
+ 37.3%
+ 38.0%
+ 38.7%
+ 39.3%
+ 40.0%
+ 40.7%
+ 41.3%
+ 42.0%
+ 42.7%
+ 43.3%
+ 44.0%
+ 44.7%
+ 45.3%
+ 46.0%
+ 46.7%
+ 47.3%
+ 48.0%
+ 48.7%
+ 49.3%
+ 50.0%
+ 50.7%
+ 51.3%
+ 52.0%
+ 52.7%
+ 53.3%
+ 54.0%
+ 54.7%
+ 55.3%
+ 56.0%
+ 56.7%
+ 57.3%
+ 58.0%
+ 58.7%
+ 59.3%
+ 60.0%
+ 60.7%
+ 61.3%
+ 62.0%
+ 62.7%
+ 63.3%
+ 64.0%
+ 64.7%
+ 65.3%
+ 66.0%
+ 66.7%
+ 67.3%
+ 68.0%
+ 68.7%
+ 69.3%
+ 70.0%
+ 70.7%
+ 71.3%
+ 72.0%
+ 72.7%
+ 73.3%
+ 74.0%
+ 74.7%
+ 75.3%
+ 76.0%
+ 76.7%
+ 77.3%
+ 78.0%
+ 78.7%
+ 79.3%
+ 80.0%
+ 80.7%
+ 81.3%
+ 82.0%
+ 82.7%
+ 83.3%
+ 84.0%
+ 84.7%
+ 85.3%
+ 86.0%
+ 86.7%
+ 87.3%
+ 88.0%
+ 88.7%
+ 89.3%
+ 90.0%
+ 90.7%
+ 91.3%
+ 92.0%
+ 92.7%
+ 93.3%
+ 94.0%
+ 94.7%
+ 95.3%
+ 96.0%
+ 96.7%
+ 97.3%
+ 98.0%
+ 98.7%
+ 99.3%
+ 100.0%
+Incremental slice pointers:
+===========================
+     1   100
+   101   150
+
+ 
+END TIME: 28-OCT-2026 16:54:56
+ 
+Preparing plots...
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 57)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 145)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+[Warning: Limiting legend entries to 50. Specify a vector of graphics objects to
+display more than 50 entries.] 
+[> In legend>process_inputs (line 562)
+In legend>make_legend (line 319)
+In legend (line 263)
+In enhance_plot (line 79)
+In csr_plots (line 152)
+In csr_calc (line 218)
+In run_ts (line 16)] 
+Initial projected normalized emittance   =    48.984887 mm-mrad
+Final projected normalized emittance     =   825.845088 mm-mrad
+Final eta-corrected normalized emittance =    48.984887 mm-mrad
+Final core-slice normalized emittance    =    22.759521 mm-mrad
+Final core-slice energy spread           =     0.009998 %
+Final CSR-induced energy spread          =     0.000000 %
+Final rms bunch length                   =     0.892607 mm
+Final LINEAR beta function (w/o CSR)     =     2.869107 m
+Final LINEAR alpha function (w/o CSR)    =    20.144920
+Final beta function (from tracking)      =     0.262007 m
+Final alpha function (from tracking)     =     1.107064
+Tracked-beta back propagated to start    =    11.902891 m
+Tracked-alpha back propagated to start   =     0.045871
+post-processing error caught (slice-emittance block): Index in position 2 exceeds array bounds. Index must not exceed 2.
+1D m20 done: 1000000 particles, s_end = 1.500 m

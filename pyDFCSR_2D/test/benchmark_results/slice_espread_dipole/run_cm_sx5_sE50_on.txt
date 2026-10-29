@@ -1,0 +1,44 @@
+Starting the DFCSR run
+  [schedule] mode=legacy  nodes=17  steps=16  snapshots=16  kicks=16
+  step size: min 0.1 m, max 0.1 m, ratio 1.0
+  [schedule] history at most 16 snapshots x 1.60 MB = 0.03 GB at 200x200 deposition
+  [retention] precomputed floor from linear optics: max depth 0.3413 m -> 12 snapshots at step_size 0.1 m (safety 1.25)
+Drift(L=0.1)
+Wakes written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/slice_espread_cm_sx5_sE50_on-2026-10-28T14_39_09-07_00-wakes.h5
+Finish step 1, s = 0.1,  in 4.170623064041138 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 2, s = 0.2,  in 3.9012389183044434 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 3, s = 0.30000000000000004,  in 3.7408370971679688 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 4, s = 0.4,  in 3.809889078140259 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 5, s = 0.5,  in 3.910022258758545 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 6, s = 0.6,  in 3.7962429523468018 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 7, s = 0.7,  in 3.8713228702545166 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.11% of the charge fell outside the +-5/5 sigma grid at t = 0.8000
+Finish step 8, s = 0.7999999999999999,  in 3.7262349128723145 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.14% of the charge fell outside the +-5/5 sigma grid at t = 0.9000
+Finish step 9, s = 0.8999999999999999,  in 3.7460498809814453 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.13% of the charge fell outside the +-5/5 sigma grid at t = 1.0000
+Finish step 10, s = 0.9999999999999999,  in 3.6417410373687744 seconds
+SBend(L=0.1, P0C=5000000026.236991, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 11, s = 1.0999999999999999,  in 3.8113951683044434 seconds
+Drift(L=0.10000000000000009)
+Finish step 12, s = 1.2,  in 4.366073846817017 seconds
+Drift(L=0.1)
+Finish step 13, s = 1.3,  in 4.330996036529541 seconds
+Drift(L=0.1)
+Finish step 14, s = 1.4000000000000001,  in 4.3818042278289795 seconds
+Drift(L=0.1)
+Finish step 15, s = 1.5000000000000002,  in 4.230011224746704 seconds
+Drift(L=0.1)
+Finish step 16, s = 1.6000000000000003,  in 4.242572069168091 seconds
+Beam at position 1.6000000000000003 is written to /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/slice_espread_cm_sx5_sE50_on-2026-10-28T14_39_09-07_00-particles-end.h5
+Statistics written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/slice_espread_cm_sx5_sE50_on-2026-10-28T14_39_09-07_00-statistics.h5
+saved

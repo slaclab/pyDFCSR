@@ -1,0 +1,18 @@
+baseline: σx=50 µm, σE=500 keV
+  final sigma_z on/off: 62.8
+  core mean slice sE: init 500.0, off 485.9, on 699.2 keV
+  CSR-added in quadrature (core, weighted): 542.4 keV
+  min / max of (on - off) over slices with n>1000: -85.2 / 473.6 keV; slices with on<off: 17 of 39
+  peak slice CSR energy loss: -2314 keV
+σx=5 µm (no R51 mixing)
+  final sigma_z on/off: 47.3
+  core mean slice sE: init 500.0, off 476.9, on 682.6 keV
+  CSR-added in quadrature (core, weighted): 559.8 keV
+  min / max of (on - off) over slices with n>1000: -250.2 / 526.5 keV; slices with on<off: 19 of 40
+  peak slice CSR energy loss: -2752 keV
+σE=50 keV (no R56 mixing)
+  final sigma_z on/off: 60.8
+  core mean slice sE: init 50.0, off 50.0, on 369.7 keV
+  CSR-added in quadrature (core, weighted): 392.8 keV
+  min / max of (on - off) over slices with n>1000: 30.0 / 522.5 keV; slices with on<off: 0 of 39
+  peak slice CSR energy loss: -2576 keV

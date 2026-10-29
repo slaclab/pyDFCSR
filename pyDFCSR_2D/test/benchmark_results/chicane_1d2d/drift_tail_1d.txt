@@ -1,0 +1,32 @@
+1D (csr_calc) calibration: how much does the far-drift CSR wake -- the part pyDFCSR's drift_cutoff = 1.0
+discards (more than 1 R*phi past a bend exit) -- contribute to the final energy loss, energy spread
+(projected and slice) and emittance?  Compares 1D runs with the cutoff off and on, each against the 1D
+CSR-off run, at 5 mm and 1 mm bend slices.  Also splits the 1D wake integral along s by region, using
+dE_dct on its bin grid and the per-slice length (the energy change a particle at the bunch centroid
+collects), so the far-drift share can be read without rerunning.
+Statistics are computed exactly as in compare_stats.py / compare_chicane.py.
+
+== 1D, 5 mm bend slices ==
+                                                  full drift  cut 1 Rphi  far-drift part   share
+  mean CSR energy change [keV]                     -1689.480   -1042.013        -647.467   38.3%
+  projected sigma_E change [keV]                    -224.251    -271.489          47.238  -21.1%
+  CSR-added core slice sigma_E [keV]                  44.412      24.057          20.355   45.8%
+  emittance growth, dispersion-corrected [um]          0.496       0.200           0.296   59.7%
+  final emittance, dispersion-corrected [um]           1.494       1.198           0.296   19.8%
+  core slice emittance [um]                            0.996       0.997          -0.001   -0.1%
+  final sigma_z [um]                                  20.666      20.691          -0.025   -0.1%
+
+== 1D, 1 mm bend slices ==
+                                                  full drift  cut 1 Rphi  far-drift part   share
+  mean CSR energy change [keV]                     -1721.349   -1083.636        -637.713   37.0%
+  projected sigma_E change [keV]                    -235.390    -282.293          46.904  -19.9%
+  CSR-added core slice sigma_E [keV]                  45.639      25.761          19.878   43.6%
+  emittance growth, dispersion-corrected [um]          0.516       0.220           0.297   57.5%
+  final emittance, dispersion-corrected [um]           1.515       1.218           0.297   19.6%
+  core slice emittance [um]                            0.996       0.997          -0.001   -0.1%
+  final sigma_z [um]                                  20.672      20.697          -0.024   -0.1%
+
+1D charge-weighted wake integral along s, by region (1 mm run, no cutoff) [keV]:
+  inside the dipoles                    -470.4  ( 27.5%)
+  drift, within 1 Rphi of an exit       -599.6  ( 35.1%)
+  drift, beyond 1 Rphi (cut)            -638.0  ( 37.4%)

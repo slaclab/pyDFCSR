@@ -1,0 +1,46 @@
+Attribute the 2D chicane's CSR-added exit slice spread to lattice regions, and to the single s = 8.317 m
+D3 kick that progress_comoving_interp.md §11v flags as defective (roughness 58x its neighbours).
+Kr[r] = per-particle CSR energy kick accumulated in region r (the 8.317 kick is its own region and is
+excluded from D3). Within each final-z slice (80 over +-3 sigma_z, |z| < 2 sigma_z, in-mesh particles only)
+each quantity has a quadratic-in-z fit removed. Since delta_f = delta_0 + sum_r Kr,
+    var(delta_f) - var(delta_0) = sum_r [ var Kr + 2 cov(delta_0, Kr) ] + sum_{r != q} cov(Kr, Kq)
+so 'own' is var Kr + 2cov(delta_0, Kr), and the pairwise cross terms are listed separately.
+Counterfactual: the exit CSR-added spread with the 8.317 kick removed (delta_f - K_8317).
+in-mesh particles; CSR-added slice variance 105898 keV^2 -> 325 keV
+  identity check: sum(own) + sum(off-diagonal) = 105898
+
+  region   own = var K_r + 2cov(d0,K_r)   share     var K_r alone
+  B1                  17                0.0%              1
+  D1                1645                1.6%             73
+  B2                1905                1.8%             75
+  D2                -409               -0.4%              3
+  B3               15568               14.7%           4308
+  D3*              64281               60.7%         161875
+  B4               -8217               -7.8%          16611
+  Df                -451               -0.4%             19
+  k8317             9201                8.7%           9823
+
+  largest cross terms 2cov(K_r, K_q):
+    D3*    x B4    :        91674  (  86.6%)
+    B3     x D3*   :       -45262  ( -42.7%)
+    B3     x B4    :       -14084  ( -13.3%)
+    B2     x D3*   :        -5819  (  -5.5%)
+    D3*    x k8317 :        -5435  (  -5.1%)
+    D3*    x Df    :         2339  (   2.2%)
+
+COUNTERFACTUAL without the s = 8.317 kick: CSR-added 102739 keV^2 -> 321 keV (with it: 325 keV)
+  (first-order: removes the kick but not its effect on later tracking/wakes)
+
+D3 (without 8.317) split, slice variance after quadratic detrend [keV^2]:
+  var K_z (wake at centre x, own z path)         397
+  var K_x (wake x-dependence)                172411
+  2cov(K_z, K_x)                             -10933
+  mean in-slice corr(delta0, K_x)            -0.632
+beam in D3 (s = 10.01 m, CSR off): sigma_x 0.97 mm, sigma_z 19.3 um;
+  B3 radius R = 10.36 m -> (R sigma_z^2)^(1/3) = 1.57 mm, sigma_x / (R sigma_z^2)^(1/3) = 0.62
+
+COUNTERFACTUAL exit CSR-added slice sigma_E with regions removed [keV]:
+  without nothing               :   325.4
+  without k8317                 :   320.5
+  without D3*+k8317             :   -64.6
+  without D3*+k8317+B4+Df       :   140.8

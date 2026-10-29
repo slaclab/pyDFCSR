@@ -1,0 +1,42 @@
+start reinterpolation. number of slice 1
+xbins = 500  zbins =  500
+Starting the DFCSR run
+  [schedule] mode=legacy  nodes=17  steps=16  snapshots=16  kicks=16
+  step size: min 0.1 m, max 0.1 m, ratio 1.0
+  [schedule] history at most 16 snapshots x 0.40 MB = 0.01 GB at 100x100 deposition
+Drift(L=0.1)
+Finish step 1, s = 0.1,  in 0.22168302536010742 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 2, s = 0.2,  in 0.29889488220214844 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 3, s = 0.30000000000000004,  in 0.3101308345794678 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 4, s = 0.4,  in 0.32860493659973145 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 5, s = 0.5,  in 0.32993102073669434 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 6, s = 0.6,  in 0.34284305572509766 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 7, s = 0.7,  in 0.32973194122314453 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 8, s = 0.7999999999999999,  in 0.3413870334625244 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 9, s = 0.8999999999999999,  in 0.34471583366394043 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 10, s = 0.9999999999999999,  in 0.34211206436157227 seconds
+SBend(L=0.1, P0C=5000000026.236993, G=1.0, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.1, FINTX=0.5, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 11, s = 1.0999999999999999,  in 0.340792179107666 seconds
+Drift(L=0.10000000000000009)
+Finish step 12, s = 1.2,  in 0.29164719581604004 seconds
+Drift(L=0.1)
+Finish step 13, s = 1.3,  in 0.29476213455200195 seconds
+Drift(L=0.1)
+Finish step 14, s = 1.4000000000000001,  in 0.2938969135284424 seconds
+Drift(L=0.1)
+Finish step 15, s = 1.5000000000000002,  in 0.2885439395904541 seconds
+Drift(L=0.1)
+Finish step 16, s = 1.6000000000000003,  in 0.28560900688171387 seconds
+Beam at position 1.6000000000000003 is written to /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/dipole_chirp0-2026-10-28T13_51_30-07_00-particles-end.h5
+Statistics written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/example/output/dipole_chirp0-2026-10-28T13_51_30-07_00-statistics.h5
+saved
+

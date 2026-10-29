@@ -22,6 +22,7 @@ the fix for a different defect. The noise fix is the integration-quadrature alig
 | §6j/6k/6l — longitudinal extents verified; resolution scale identified as `σ_ξ`; per-region allocation (`near_cell`, `far_zbins`) | ✅ **implemented**; shear-50 error 4.3% → 0.48% |
 | §6m — log-graded near-region nodes (`near_grade`) | 🟡 **implemented**; 12× fewer nodes where `1/u` holds, **but fails near a bend entrance** |
 | **`\|τ\| ≫ 1` degeneracy at full compression** (called `\|τ\| → ∞` in §6m/§6n — a misnomer, see §11s) — breaks the localization (§6m) *and* the frame blend (§6n) | ❌ **open, and the main correctness gap** |
+| ⚠️ **Far-drift wake (> ~1.9 R·φ past a bend exit) fails, and `drift_cutoff = 1.0` discards real physics** (2026-10-29): in the chicane's D3 the 2D wake becomes bipolar and *grows* toward B4, while in 1D the same region carries **37% of the energy loss and 58% of the emittance growth**. The `params.py` estimate of "~0.5% discarded" is wrong for this case. See the HIGH-PRIORITY TODO at the top of `../progress.md` | ❌ **open, high priority** |
 | Step 7 — remaining secondary fixes (`lattice.py` key order, `bilinear_single` OOB on the *old* paths, a pre-existing test failure) | ❌ not started |
 | Step 8 — validate and document | ❌ not started |
 
