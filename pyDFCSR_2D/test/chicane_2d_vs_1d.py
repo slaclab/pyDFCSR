@@ -172,23 +172,29 @@ def slices(z, d, ns=80, sz=None):
 
 
 def metrics(b, off, E0):
+    """
+    Final-beam CSR effects against the CSR-off beam. The core slice energy spread is computed for each
+    beam on its OWN slicing (slice_variance: 80 slices over +-3 sigma_z of that beam, quadratic chirp
+    removed, |z| < 2 sigma_z), the same definition as the along_s.png panels, and reported as the
+    LINEAR change dsEs = sigma_CSR - sigma_off [keV] and the relative change rsEs [%]. (It used to be
+    sqrt(<var_CSR - var_off>) with the off beam sliced on the CSR beam's grid -- an 'added in
+    quadrature' spread, 80.6 keV for the nominal 2D run where the linear change is +20.5 keV.)
+    """
     G = E0 / MC2
     zc, sz, ed, idx = slices(b['z'], b['pz'])
-    zo, _, _, io_ = slices(off['z'], off['pz'], sz=sz)
-    v, w, se = [], [], []
+    w, se = [], []
     for i in range(len(ed) - 1):
         c = 0.5 * (ed[i] + ed[i + 1])
-        m, mo = idx == i, io_ == i
-        if abs(c) > 2 * sz or m.sum() < 500 or mo.sum() < 500:
+        m = idx == i
+        if abs(c) > 2 * sz or m.sum() < 500:
             continue
-        r = lambda zz, e: np.var(e - np.polyval(np.polyfit(zz, e, 2), zz))
-        v.append(r(zc[m], b['pz'][m] * E0) - r(zo[mo], off['pz'][mo] * E0)); w.append(m.sum())
-        se.append(emit(b['x'][m], b['px'][m], b['pz'][m], G))
-    a = np.average(v, weights=w)
+        w.append(m.sum()); se.append(emit(b['x'][m], b['px'][m], b['pz'][m], G))
+    s_on = np.sqrt(slice_variance(b['z'], b['pz'], E0))
+    s_off = np.sqrt(slice_variance(off['z'], off['pz'], E0))
     h, e = np.histogram(zc, 400)
     return dict(dE=(b['pz'].mean() - off['pz'].mean()) * E0 / 1e3,
                 dsEp=(b['pz'].std() - off['pz'].std()) * E0 / 1e3,
-                sEs=np.sign(a) * np.sqrt(abs(a)) / 1e3,
+                sEs=s_on / 1e3, dsEs=(s_on - s_off) / 1e3, rsEs=100 * (s_on - s_off) / s_off,
                 emit=emit(b['x'], b['px'], b['pz'], G) * 1e6,
                 demit=(emit(b['x'], b['px'], b['pz'], G) - emit(off['x'], off['px'], off['pz'], G)) * 1e6,
                 semit=np.average(se, weights=w) * 1e6,
@@ -235,13 +241,14 @@ def analyze():
                  f"{np.array_equal(np.sort(q['zf']), np.sort(off['z']))}, pz bit-identical = {np.array_equal(np.sort(q['df']), np.sort(off['pz']))}")
     M = {n: metrics(r, off, E0) for n, r in R.items() if n not in ('off', 'off_fine')}
     rows = [('dE', 'mean CSR energy change [keV]'), ('dsEp', 'projected sigma_E change [keV]'),
-            ('sEs', 'CSR-added core slice sigma_E [keV]'), ('demit', 'emittance growth, eta-corr. [um]'),
+            ('sEs', 'core slice sigma_E [keV]'), ('dsEs', 'change of core slice sigma_E [keV]'),
+            ('rsEs', 'change of core slice sigma_E [%]'), ('demit', 'emittance growth, eta-corr. [um]'),
             ('semit', 'core slice emittance [um]'), ('sz', 'final sigma_z [um]'), ('Ipk', 'peak current [kA]')]
     names = [n for n in LABEL if n in M]
     Moff = metrics(off, off, E0)
     L += ['', f"{'chicane exit, vs CSR off':38s}" + ''.join(f'{n:>14s}' for n in names) + f"{'CSR off':>12s}"]
     for k, lab in rows:
-        L.append(f'{lab:38s}' + ''.join(f'{M[n][k]:14.3f}' for n in names) + (f'{Moff[k]:12.3f}' if k in ('semit', 'sz', 'Ipk') else ''))
+        L.append(f'{lab:38s}' + ''.join(f'{M[n][k]:14.3f}' for n in names) + (f'{Moff[k]:12.3f}' if k in ('sEs', 'semit', 'sz', 'Ipk') else ''))
     L.append(f"{'runtime [min]':38s}" + ''.join(f"{float(R[n]['runtime']) / 60:14.1f}" for n in names))
     # per element energy loss
     L += ['', 'mean CSR energy change collected in each element [keV] (from mean_energy along s, minus CSR off):']

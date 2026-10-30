@@ -18,7 +18,9 @@ runs available: off, 2d, 1d, 1d_full
 chicane exit, vs CSR off                          2d            1d       1d_full     CSR off
 mean CSR energy change [keV]                -207.693      -160.187      -325.938
 projected sigma_E change [keV]              -124.772      -114.021      -116.726
-CSR-added core slice sigma_E [keV]            -6.889        -3.084        -2.280
+core slice sigma_E [keV]                      20.797        21.689        21.788      21.908
+change of core slice sigma_E [keV]            -1.111        -0.218        -0.119
+change of core slice sigma_E [%]              -5.072        -0.997        -0.545
 emittance growth, eta-corr. [um]               0.017         0.017         0.045
 core slice emittance [um]                      1.007         0.998         0.998       0.998
 final sigma_z [um]                            99.133        99.164        99.166      98.989

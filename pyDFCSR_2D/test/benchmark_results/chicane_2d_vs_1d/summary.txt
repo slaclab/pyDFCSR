@@ -19,7 +19,9 @@ CSR-off reference (CSR1D) vs the earlier CSR2D CSR-off run: z bit-identical = Tr
 chicane exit, vs CSR off                          2d        2d_noT            1d       1d_full       1d_fine  1d_fine_full     CSR off
 mean CSR energy change [keV]               -1843.718     -1834.752     -1203.959     -1803.427     -1152.256     -1782.745
 projected sigma_E change [keV]              -386.713      -443.365      -351.095      -309.395      -352.562      -309.655
-CSR-added core slice sigma_E [keV]            80.621        83.646        24.898        41.867        24.084        42.144
+core slice sigma_E [keV]                     173.149       175.031       155.601       159.311       155.438       159.356     152.612
+change of core slice sigma_E [keV]            20.537        22.419         2.989         6.699         2.826         6.744
+change of core slice sigma_E [%]              13.457        14.690         1.959         4.390         1.852         4.419
 emittance growth, eta-corr. [um]               0.203         0.532         0.266         0.544         0.245         0.537
 core slice emittance [um]                      1.080         1.076         0.992         0.991         0.992         0.991       0.993
 final sigma_z [um]                            18.545        18.506        18.538        18.526        18.533        18.521      18.351

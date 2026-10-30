@@ -15,11 +15,10 @@ for sh in SHEARS:
     off = R['off']; E0 = float(off['E0'])
     M = {n: C.metrics(R[n], off, E0) for n in ('2d', '1d', '1d_full')}
     Moff = C.metrics(off, off, E0)
-    s0 = np.sqrt(off['slice_var'][-1])
-    rel = {n: 100 * (np.sqrt(R[n]['slice_var'][-1]) - s0) / s0 for n in ('2d', '1d', '1d_full')}
+    rel = {n: M[n]['rsEs'] for n in ('2d', '1d', '1d_full')}      # same definition as the along_s panels
     el = {n: C.per_element_loss(R[n]) - C.per_element_loss(off) for n in ('2d', '1d')}
     rows.append(dict(sh=sh, h=sh / 5.0, C=200.0 / Moff['sz'], sz_off=Moff['sz'], szmin=off['sigma_z'].min() * 1e6,
-                     M=M, slice_off=s0 / 1e3, rel=rel, el=el, emit_off=Moff['semit'],
+                     M=M, slice_off=Moff['sEs'], rel=rel, el=el, emit_off=Moff['semit'],
                      kicks=int(np.sum(np.diff(R['2d']['s']) > 0)),   # tracking steps (nodes - 1), not CSR kicks
                      rt=float(R['2d']['runtime']) / 60))
 L = [__doc__.strip(), '']
