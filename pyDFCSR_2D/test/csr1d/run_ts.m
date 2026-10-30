@@ -18,7 +18,9 @@ function run_ts(tag, outdir, fac_in, nsb, cutoff)
   assert(contains(osrc, 'csr_4case_calc_orig('), 'could not rename the original csr_4case_calc');
   fid = fopen(fullfile(W, 'csr_4case_calc_orig.m'), 'w'); fprintf(fid, '%s', osrc); fclose(fid); rehash;
   assert(strcmp(fileparts(which('csr_4case_calc')), HERE), 'the cutoff shim must shadow the original');
-  tmpl = fullfile(HERE, ['ts_' tag '_template_csr.m']); if ~exist(tmpl, 'file'), tmpl = fullfile(HERE, 'ts_template_csr.m'); end
+  tmpl = fullfile(HERE, ['ts_' tag '_template_csr.m']);
+  if ~exist(tmpl, 'file') && exist(fullfile('/tmp/csr1d_wrap', ['ts_' tag '_latt.m']), 'file'), tmpl = fullfile(HERE, 'generic_template_csr.m'); end
+  if ~exist(tmpl, 'file'), tmpl = fullfile(HERE, 'ts_template_csr.m'); end
   src = fileread(tmpl); src = strrep(src, 'TAG', ['ts_' tag]); src = strrep(src, 'NSB', sprintf('%d', nsb));
   src = [src sprintf('\nfac = %d;\n', fac_in)];
   fn_tmp = sprintf('ts_%s_n%d', tag, nsb); fid = fopen(fullfile(W, [fn_tmp '_csr.m']), 'w'); fprintf(fid, '%s', src); fclose(fid);

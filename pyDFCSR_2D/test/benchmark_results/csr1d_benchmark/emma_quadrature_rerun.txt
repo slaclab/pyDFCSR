@@ -1,0 +1,8 @@
+
+=== D_dogleg: pyDFCSR 1D with EMMA'S quadrature vs Emma ===
+                                     pyDFCSR+Emma-quad       Emma   ratio
+  mean CSR energy change [keV]               -2455.107  -2485.059   0.988
+  projected sigma_E change [keV]               798.062    801.837   0.995
+  CSR-added slice sigma_E [keV]               -131.610   -103.248   1.275
+  emittance growth [um]                          4.794      4.809   0.997
+  final sigma_z [um]                            24.630     24.618   1.000

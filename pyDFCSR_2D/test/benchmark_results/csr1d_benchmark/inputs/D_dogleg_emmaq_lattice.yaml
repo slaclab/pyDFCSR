@@ -1,0 +1,38 @@
+step_size: 0.1
+D0:
+  type: drift
+  L: 0.1
+  nsep: 1
+  steps: 1
+B1:
+  type: dipole
+  L: 0.5
+  angle: 0.15
+  E1: 0.0
+  E2: 0.0
+  nsep: 1
+  steps: 500
+Q1:
+  type: quad
+  L: 0.2
+  K1: 3.0
+  nsep: 1
+  steps: 200
+D1:
+  type: drift
+  L: 0.6
+  nsep: 1
+  steps: 300
+B2:
+  type: dipole
+  L: 0.5
+  angle: -0.15
+  E1: 0.0
+  E2: 0.0
+  nsep: 1
+  steps: 500
+D2:
+  type: drift
+  L: 0.4
+  nsep: 1
+  steps: 200

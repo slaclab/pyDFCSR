@@ -1,0 +1,31 @@
+
+Attribute the per-kick wake difference between pyDFCSR's 1D mode and Emma's csr_calc to the kernel
+quadrature. At sampled kicks of each case, both kernels are evaluated on EMMA'S OWN line density
+(his smoothed fi, his bin grid Si, his derivative rule) and compared with a reference: pyDFCSR's
+product-integrated kernel on an 8x finer grid through a cubic spline of that same density. Same
+lambda for all three, so the difference is the quadrature alone. Geometry from the pyDFCSR run.
+Writes kernel_attribution.txt.
+
+A_dipole        39 kicks | Emma vs ref: median 0.0647 max 0.1680 | pyDFCSR kernel vs ref: median 0.0033 max 0.0103 | pyDFCSR vs Emma: median 0.0644
+B_weak_long     31 kicks | Emma vs ref: median 0.0730 max 0.3985 | pyDFCSR kernel vs ref: median 0.0062 max 0.1829 | pyDFCSR vs Emma: median 0.0717
+D_dogleg        38 kicks | Emma vs ref: median 0.0576 max 0.3368 | pyDFCSR kernel vs ref: median 0.0055 max 0.0324 | pyDFCSR vs Emma: median 0.0569
+G_doublehorn    36 kicks | Emma vs ref: median 0.0633 max 0.1583 | pyDFCSR kernel vs ref: median 0.0079 max 0.0147 | pyDFCSR vs Emma: median 0.0622
+F_lowE          37 kicks | Emma vs ref: median 0.0452 max 0.3335 | pyDFCSR kernel vs ref: median 0.0015 max 0.0054 | pyDFCSR vs Emma: median 0.0450
+
+Attribute the per-kick wake difference between pyDFCSR's 1D mode and Emma's csr_calc to the kernel
+quadrature. At sampled kicks of each case, both kernels are evaluated on EMMA'S OWN line density
+(his smoothed fi, his bin grid Si, his derivative rule) and compared with a reference: pyDFCSR's
+product-integrated kernel on an 8x finer grid through a cubic spline of that same density. Same
+lambda for all three, so the difference is the quadrature alone. Geometry from the pyDFCSR run.
+Writes kernel_attribution.txt.
+
+E_tilted        14 kicks | Emma vs ref: median 0.0647 max 0.0669 | pyDFCSR kernel vs ref: median 0.0040 max 0.0053 | pyDFCSR vs Emma: median 0.0644
+
+Attribute the per-kick wake difference between pyDFCSR's 1D mode and Emma's csr_calc to the kernel
+quadrature. At sampled kicks of each case, both kernels are evaluated on EMMA'S OWN line density
+(his smoothed fi, his bin grid Si, his derivative rule) and compared with a reference: pyDFCSR's
+product-integrated kernel on an 8x finer grid through a cubic spline of that same density. Same
+lambda for all three, so the difference is the quadrature alone. Geometry from the pyDFCSR run.
+Writes kernel_attribution.txt.
+
+C_chicane       14 kicks | Emma vs ref: median 0.0353 max 0.3342 | pyDFCSR kernel vs ref: median 0.0011 max 0.0162 | pyDFCSR vs Emma: median 0.0352

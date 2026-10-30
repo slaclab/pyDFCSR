@@ -1,0 +1,23 @@
+CSR_1D:
+  nbins: 300
+  nsmooth: 2
+  record: true
+CSR_computation:
+  apply_CSR: 1
+  compute_CSR: 1
+  workdir: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/csr1d_benchmark/runs
+  write_beam: null
+  write_name: G_doublehorn_on
+  write_wakes: true
+input_beam:
+  beamfile: /tmp/csr1d_wrap/G_doublehorn_initial.txt
+  charge: 1.0e-09
+  energy: 5000000000.0
+  style: from_file
+input_lattice:
+  lattice_input_file: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My
+    Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/csr1d_benchmark/inputs/G_doublehorn_lattice.yaml
+step_control:
+  default_kick_every: 1
+  kick_interval: trailing
+  mode: manual

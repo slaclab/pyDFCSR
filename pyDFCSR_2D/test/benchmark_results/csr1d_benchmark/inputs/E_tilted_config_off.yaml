@@ -1,0 +1,22 @@
+CSR_1D:
+  nbins: 300
+  nsmooth: 2
+  record: false
+CSR_computation:
+  apply_CSR: 0
+  compute_CSR: 0
+  workdir: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/csr1d_benchmark/runs
+  write_beam: null
+  write_name: E_tilted_off
+  write_wakes: false
+input_beam:
+  distgen_input_file: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My
+    Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/csr1d_benchmark/inputs/E_tilted_beam.yaml
+  style: distgen
+input_lattice:
+  lattice_input_file: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My
+    Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/csr1d_benchmark/inputs/E_tilted_lattice.yaml
+step_control:
+  default_kick_every: 1
+  kick_interval: trailing
+  mode: manual
