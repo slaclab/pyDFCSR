@@ -15,8 +15,10 @@ The 2D run with drift_cutoff = 0 is NOT rerun: its far-drift wake is the known f
 (progress.md, top TODO), and the 2D code has not changed since chicane_1d2d/ recorded it.
 
 Usage:
-  python chicane_2d_vs_1d.py run <name>     # one run -> benchmark_results/chicane_2d_vs_1d/<name>.npz
-  python chicane_2d_vs_1d.py analyze        # compare all available runs -> summary.txt + plots
+  python chicane_2d_vs_1d.py run <name> [--shear S]   # one run -> <out>/<name>.npz
+  python chicane_2d_vs_1d.py analyze [--shear S]      # compare all available runs -> summary.txt + plots
+--shear S replaces the beam's z:pz shear (GeV/c/m; the reference is -180, i.e. h = -36 /m) and puts
+everything in benchmark_results/chicane_2d_vs_1d/shear<S>/ instead of the base folder.
 """
 import contextlib
 import glob
@@ -31,6 +33,9 @@ import yaml
 HERE = os.path.dirname(os.path.abspath(__file__))
 INP = os.path.join(HERE, '..', 'example', 'input')
 OUT = os.path.join(HERE, 'benchmark_results', 'chicane_2d_vs_1d')
+SHEAR = float(sys.argv[sys.argv.index('--shear') + 1]) if '--shear' in sys.argv else None
+if SHEAR is not None:
+    OUT = os.path.join(OUT, f'shear{SHEAR:g}')
 MC2 = 510998.95
 BENDS = [(0.1, 0.6002, 'B1'), (5.606, 6.1062, 'B2'), (7.1062, 7.6064, 'B3'), (12.6122, 13.1124, 'B4')]
 EDGES = [0.0, 0.1, 0.6002, 5.606, 6.1062, 7.1062, 7.6064, 12.6122, 13.1124, 13.3124]
@@ -49,6 +54,10 @@ BASE = {
 }
 RUNS = {
     'off': dict(cls='1d', csr=False),
+    # CSR off on the fine schedule: the slice-sigma_E reference for the fine runs at their OWN nodes.
+    # Interpolating the auto-schedule 'off' onto fine nodes is wrong where slice sigma_E rises fast
+    # (10 -> 35 keV over the first 2 cm of B1) and showed up as a spurious -41% spike there.
+    'off_fine': dict(cls='1d', csr=False, fine=True),
     '2d': dict(cls='2d'),
     '2d_noT': dict(cls='2d', transverse=0),
     '1d': dict(cls='1d', cutoff=1.0),
@@ -64,6 +73,11 @@ LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force', '1d': '
 def config(name):
     r = RUNS[name]
     cfg = yaml.safe_load(yaml.safe_dump(BASE))
+    if SHEAR is not None:
+        b = yaml.safe_load(open(BASE['input_beam']['distgen_input_file']))
+        b['transforms']['s1']['shear_coefficient']['value'] = SHEAR
+        bf = os.path.join(OUT, 'inputs', 'beam.yaml'); yaml.safe_dump(b, open(bf, 'w'))
+        cfg['input_beam']['distgen_input_file'] = bf
     cfg['CSR_computation'].update(workdir=os.path.join(OUT, 'runs'), write_name=name)
     if r.get('csr') is False:
         cfg['CSR_computation'].update(compute_CSR=0, apply_CSR=0, write_wakes=False)
@@ -85,6 +99,34 @@ def config(name):
     return f
 
 
+def slice_variance(z, pz, E0, ns=80, zr=3.0, core=2.0, nmin=500):
+    """
+    Core slice energy variance [eV^2]: ns slices over +-zr sigma_z, a quadratic fit in z removed within
+    each slice (the chicane leaves a large chirp across a slice), averaged over the slices with
+    |centre| < core sigma_z, weighted by population. Same definition as metrics() below, but from
+    per-slice moments (bincount), so it is cheap enough to call at every step on 1e6 particles.
+    """
+    zc = z - z.mean(); sz = zc.std()
+    ed = np.linspace(-zr * sz, zr * sz, ns + 1); w = ed[1] - ed[0]
+    idx = np.digitize(zc, ed) - 1
+    ok = (idx >= 0) & (idx < ns)
+    i = idx[ok]
+    u = (zc[ok] - 0.5 * (ed[i] + ed[i + 1])) / w                     # local coordinate in the slice
+    e = pz[ok] * E0
+    n = np.bincount(i, minlength=ns).astype(float)
+    em = np.bincount(i, e, ns) / np.maximum(n, 1)
+    e = e - em[i]                                                     # remove each slice's mean first
+    M = np.stack([np.bincount(i, u ** k, ns) for k in range(5)])
+    Y = np.stack([np.bincount(i, e * u ** k, ns) for k in range(3)])
+    ee = np.bincount(i, e * e, ns)
+    ctr = 0.5 * (ed[1:] + ed[:-1])
+    use = (np.abs(ctr) < core * sz) & (n > nmin)
+    A = np.stack([[M[0], M[1], M[2]], [M[1], M[2], M[3]], [M[2], M[3], M[4]]]).transpose(2, 0, 1)[use]
+    coef = np.linalg.solve(A, Y.T[use][..., None])[..., 0]
+    ss = ee[use] - np.sum(coef * Y.T[use], axis=1)                   # residual sum of squares per slice
+    return ss.sum() / n[use].sum()
+
+
 def run(name):
     os.makedirs(os.path.join(OUT, 'runs'), exist_ok=True); os.makedirs(os.path.join(OUT, 'inputs'), exist_ok=True)
     f = config(name)
@@ -94,12 +136,26 @@ def run(name):
         from pyDFCSR_2D.csr1d import CSR1D as Cls
     t0 = time.time()
     sim = Cls(input_file=f)
+    # core slice energy variance along s: every node for the auto schedule, ~600 points for fine ones
+    E0 = sim.beam.init_energy
+    n_nodes = len(sim.lattice.schedule.s_nodes)
+    stride = max(1, int(np.ceil(n_nodes / 600)))
+    rec_s, rec_v = [sim.beam.position], [slice_variance(sim.beam.z, sim.beam.particle.pz, E0)]
+    upd = sim.update_statistics
+
+    def update_statistics(step):
+        upd(step)
+        if step % stride == 0 or step == n_nodes - 1:
+            rec_s.append(sim.beam.position)
+            rec_v.append(slice_variance(sim.beam.z, sim.beam.particle.pz, E0))
+    sim.update_statistics = update_statistics
     sim.run()
     p = sim.beam.particle
     st = {k: v for k, v in sim.statistics.items() if not isinstance(v, dict)}
     tw = {f'twiss_{k}': v for k, v in sim.statistics['twiss'].items()}
-    np.savez(os.path.join(OUT, f'{name}.npz'), x=p.x, px=p.px, z=p.z, pz=p.pz, E0=sim.beam.init_energy,
-             s=np.array(sim.lattice.steps_record), runtime=time.time() - t0, prefix=sim.prefix, **st, **tw)
+    np.savez(os.path.join(OUT, f'{name}.npz'), x=p.x, px=p.px, z=p.z, pz=p.pz, E0=E0,
+             s=np.array(sim.lattice.steps_record), runtime=time.time() - t0, prefix=sim.prefix,
+             slice_s=np.array(rec_s), slice_var=np.array(rec_v), **st, **tw)
     print(f'{name}: done in {(time.time() - t0) / 60:.1f} min', flush=True)
 
 
@@ -173,11 +229,11 @@ def analyze():
     for n in ('2d', '1d'):
         pass
     prev = sorted(glob.glob(os.path.join(HERE, 'benchmark_results', 'chicane_1d2d', '2d_chic_off.npz')))
-    if prev:
+    if prev and SHEAR is None:
         q = np.load(prev[0])
         L.append(f"CSR-off reference (CSR1D) vs the earlier CSR2D CSR-off run: z bit-identical = "
                  f"{np.array_equal(np.sort(q['zf']), np.sort(off['z']))}, pz bit-identical = {np.array_equal(np.sort(q['df']), np.sort(off['pz']))}")
-    M = {n: metrics(r, off, E0) for n, r in R.items() if n != 'off'}
+    M = {n: metrics(r, off, E0) for n, r in R.items() if n not in ('off', 'off_fine')}
     rows = [('dE', 'mean CSR energy change [keV]'), ('dsEp', 'projected sigma_E change [keV]'),
             ('sEs', 'CSR-added core slice sigma_E [keV]'), ('demit', 'emittance growth, eta-corr. [um]'),
             ('semit', 'core slice emittance [um]'), ('sz', 'final sigma_z [um]'), ('Ipk', 'peak current [kA]')]
@@ -216,17 +272,47 @@ def analyze():
 
     # ---- plots
     cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4'}
-    fig, ax = plt.subplots(2, 2, figsize=(14, 8.5), layout='constrained'); ax = ax.ravel()
+    have_slice = all('slice_var' in R[n] for n in ['off'] + names)
+    if have_slice:
+        fig = plt.figure(figsize=(14, 16.5), layout='constrained')
+        gs = fig.add_gridspec(4, 2)
+        ax = [fig.add_subplot(gs[i // 2, i % 2]) for i in range(6)] + [fig.add_subplot(gs[3, :])]
+    else:
+        fig, ax = plt.subplots(2, 2, figsize=(14, 8.5), layout='constrained')
+        ax = ax.ravel()
     for n in ['off'] + names:
         r = R[n]; c = cols.get(n, 'k'); ls = ':' if n == 'off' else '-'; lab = LABEL.get(n, 'CSR off')
         ax[0].plot(r['s'], r['sigma_z'] * 1e6, ls, c=c, label=lab)
         ax[1].plot(r['s'], (r['mean_energy'] - off['mean_energy'][0]) / 1e3 if n != 'off' else 0 * r['s'], ls, c=c, label=lab)
         ax[2].plot(r['s'], r['twiss_norm_emit_x'] * 1e6, ls, c=c, label=lab)
         ax[3].plot(r['s'], r['sigma_energy'] / 1e6, ls, c=c, label=lab)
-    for a, yl, t in zip(ax, ['σz [µm]', 'mean CSR energy change [keV]', 'εn,x, η-corrected [µm]', 'σE [MeV]'],
-                        ['bunch length', 'energy loss', 'emittance', 'energy spread']):
+        if have_slice:
+            ax[4].plot(r['slice_s'], np.sqrt(r['slice_var']) / 1e3, ls, c=c, label=lab)
+            if n != 'off':
+                # actual change of the core slice sigma_E against the CSR-off run at the same s, in keV
+                # and relative. NOT signed sqrt|sigma^2 - sigma0^2|: inside the chicane sigma0 is ~2 MeV
+                # (the slice cuts across the dispersed, chirped ribbon), and that form turned a 0.3% change
+                # into a -155 keV "dip"
+                ref = R['off_fine'] if (RUNS.get(n, {}).get('fine') and 'off_fine' in R) else off
+                if not np.array_equal(np.round(r['slice_s'], 9), np.round(ref['slice_s'], 9)):
+                    print(f'  [along_s] {n}: no CSR-off run on the same nodes; slice change interpolated')
+                s0 = np.sqrt(np.interp(r['slice_s'], ref['slice_s'], ref['slice_var']))
+                ds = np.sqrt(r['slice_var']) - s0
+                ax[5].plot(r['slice_s'], ds / 1e3, ls, c=c, label=lab)
+                ax[6].plot(r['slice_s'], 100 * ds / s0, ls, c=c, label=lab)
+    titles = ['bunch length', 'energy loss', 'emittance', 'projected energy spread']
+    ylabs = ['σz [µm]', 'mean CSR energy change [keV]', 'εn,x, η-corrected [µm]', 'projected σE [MeV]']
+    if have_slice:
+        titles += ['core slice energy spread (|z| < 2σz, 80 slices, quadratic chirp removed)',
+                   'change of core slice σE vs CSR off at the same s',
+                   'relative change of core slice σE vs CSR off at the same s']
+        ylabs += ['slice σE [keV]', 'σE(CSR) − σE(off) [keV]', '[σE(CSR) − σE(off)] / σE(off) [%]']
+    for a, yl, t in zip(ax, ylabs, titles):
         [a.axvspan(lo, hi, color='0.92', zorder=-1) for lo, hi, _ in BENDS]; a.set(xlabel='s [m]', ylabel=yl, title=t)
     ax[0].set_yscale('log'); ax[1].legend(fontsize=8)
+    if have_slice:
+        for a in (ax[5], ax[6]):
+            a.axhline(0, c='k', lw=0.5)
     plt.savefig(os.path.join(OUT, 'along_s.png'), dpi=110); plt.close()
 
     if '2d' in R and '1d' in R:

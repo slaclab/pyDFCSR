@@ -13,7 +13,7 @@ Runs (name: class, schedule, CSR settings):
 The 2D run with drift_cutoff = 0 is NOT rerun: its far-drift wake is the known failure mode
 (progress.md, top TODO), and the 2D code has not changed since chicane_1d2d/ recorded it.
 
-runs available: off, 2d, 2d_noT, 1d, 1d_full, 1d_fine, 1d_fine_full
+runs available: off, off_fine, 2d, 2d_noT, 1d, 1d_full, 1d_fine, 1d_fine_full
 CSR-off reference (CSR1D) vs the earlier CSR2D CSR-off run: z bit-identical = True, pz bit-identical = True
 
 chicane exit, vs CSR off                          2d        2d_noT            1d       1d_full       1d_fine  1d_fine_full     CSR off
@@ -24,7 +24,7 @@ emittance growth, eta-corr. [um]               0.203         0.532         0.266
 core slice emittance [um]                      1.080         1.076         0.992         0.991         0.992         0.991       0.993
 final sigma_z [um]                            18.545        18.506        18.538        18.526        18.533        18.521      18.351
 peak current [kA]                              6.570         6.490         6.536         6.507         6.528         6.506       6.748
-runtime [min]                                   24.8          24.5           1.5           1.6          12.2          14.2
+runtime [min]                                   29.6          29.7           2.0           2.0          14.5          16.6
 
 mean CSR energy change collected in each element [keV] (from mean_energy along s, minus CSR off):
                        D0       B1       D1       B2       D2       B3       D3       B4       Df

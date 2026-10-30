@@ -1,0 +1,39 @@
+The benchmark chicane with 2D CSR (CSR2D) and 1D CSR (CSR1D), both in pyDFCSR, on the SAME bmad-x
+tracking, beam (chicane_init_beam.yaml, 1e6 particles) and lattice. With CSR off the two classes give
+bit-identical particles (test_csr1d.py), so ONE CSR-off run is the reference for every CSR-on run.
+
+Runs (name: class, schedule, CSR settings):
+  off        CSR1D  auto (= the 2D schedule: 489 nodes, 105 midpoint kicks)   CSR off   (shared reference)
+  2d         CSR2D  auto                                                      drift_cutoff 1.0 (default)
+  2d_noT     CSR2D  auto                                                      drift_cutoff 1.0, transverse off
+  1d         CSR1D  auto                                                      drift_cutoff 1.0  (like-for-like)
+  1d_full    CSR1D  auto                                                      no drift cutoff
+  1d_fine    CSR1D  manual: 1 mm in bends, 5 mm in drifts, kick every step    drift_cutoff 1.0
+  1d_fine_full  as 1d_fine                                                    no drift cutoff
+The 2D run with drift_cutoff = 0 is NOT rerun: its far-drift wake is the known failure mode
+(progress.md, top TODO), and the 2D code has not changed since chicane_1d2d/ recorded it.
+
+runs available: off, 2d, 1d, 1d_full
+
+chicane exit, vs CSR off                          2d            1d       1d_full     CSR off
+mean CSR energy change [keV]               -4343.054     -4102.260     -5320.663
+projected sigma_E change [keV]               131.800      -284.873      -565.955
+CSR-added core slice sigma_E [keV]           784.799     -1023.288     -1465.395
+emittance growth, eta-corr. [um]               1.275         1.504         2.181
+core slice emittance [um]                      1.088         1.205         1.211       0.991
+final sigma_z [um]                            12.552        12.520        12.511      12.792
+peak current [kA]                             11.757        10.900        11.464      12.411
+runtime [min]                                   30.5           1.9           2.0
+
+mean CSR energy change collected in each element [keV] (from mean_energy along s, minus CSR off):
+                       D0       B1       D1       B2       D2       B3       D3       B4       Df
+2d                   -0.3     -0.7    -10.3   -145.0    -33.0  -1362.0  -1709.3   -705.7   -376.7
+1d                    0.0     -3.0    -18.6    -11.5    -52.8  -1679.9   -730.6  -1219.7   -386.1
+1d_full               0.0     -3.0    -65.9    -11.5    -83.0  -1679.6  -1897.5  -1200.8   -379.3
+
+wakes at the 72 common kicks (2D: Gaussian-weighted average over the 12 x-rows):
+  B1       3 kicks: rel L2(2D avg - 1D) median 0.563; peak 2D/1D median 0.484; 2D x-spread / 1D peak median 0.073
+  drift   15 kicks: rel L2(2D avg - 1D) median 0.690; peak 2D/1D median 0.978; 2D x-spread / 1D peak median 0.091
+  B2      19 kicks: rel L2(2D avg - 1D) median 4.270; peak 2D/1D median 4.595; 2D x-spread / 1D peak median 0.915
+  B3      29 kicks: rel L2(2D avg - 1D) median 0.989; peak 2D/1D median 1.614; 2D x-spread / 1D peak median 0.412
+  B4       6 kicks: rel L2(2D avg - 1D) median 0.624; peak 2D/1D median 0.626; 2D x-spread / 1D peak median 0.085
