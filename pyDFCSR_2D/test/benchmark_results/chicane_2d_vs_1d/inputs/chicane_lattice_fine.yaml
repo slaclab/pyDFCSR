@@ -1,0 +1,58 @@
+step_size: 0.1
+D0:
+  type: drift
+  L: 0.1
+  nsep: 1
+  steps: 20
+B1:
+  type: dipole
+  L: 0.5002
+  angle: 0.0483
+  E1: 0.0
+  E2: 0.0483
+  nsep: 1
+  steps: 500
+D1:
+  type: drift
+  L: 5.0058
+  nsep: 5
+  steps: 1001
+B2:
+  type: dipole
+  L: 0.5002
+  angle: -0.0483
+  E1: -0.0483
+  E2: 0.0
+  nsep: 1
+  steps: 500
+D2:
+  type: drift
+  L: 1.0
+  nsep: 1
+  steps: 200
+B3:
+  type: dipole
+  L: 0.5002
+  angle: -0.0483
+  E1: 0.0
+  E2: -0.0483
+  nsep: 1
+  steps: 500
+D3:
+  type: drift
+  L: 5.0058
+  nsep: 5
+  steps: 1001
+B4:
+  type: dipole
+  L: 0.5002
+  angle: 0.0483
+  E1: 0.0483
+  E2: 0
+  nsep: 1
+  steps: 500
+Df:
+  type: drift
+  L: 0.2
+  nsep: 1
+  steps: 40
