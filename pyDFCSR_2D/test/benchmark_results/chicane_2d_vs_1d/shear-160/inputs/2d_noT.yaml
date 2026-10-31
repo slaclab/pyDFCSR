@@ -1,0 +1,37 @@
+CSR_computation:
+  apply_CSR: 1
+  compute_CSR: 1
+  transverse_on: 0
+  workdir: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/shear-160/runs
+  write_beam: null
+  write_name: 2d_noT
+  write_wakes: true
+  xbins: 12
+  xlim: 4
+  zbins: 40
+  zlim: 4
+CSR_integration:
+  drift_cutoff: 1.0
+  n_formation_length: 1
+  xbins: 200
+  zbins: 200
+input_beam:
+  distgen_input_file: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My
+    Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/shear-160/inputs/beam.yaml
+  style: distgen
+input_lattice:
+  lattice_input_file: /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My
+    Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/../example/input/chicane_lattice.yaml
+particle_deposition:
+  method: bspline_comoving
+  poly_degree: 1
+  smoothing_sigma: 3.0
+  velocity_threhold: 1000
+  xbins: 300
+  xlim: 5
+  zbins: 300
+  zlim: 5
+step_control:
+  kick_interval: midpoint
+  mode: auto
+  n_sub: 400
