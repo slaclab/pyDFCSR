@@ -1,0 +1,4 @@
+n_fl  1.0: reach s' >= 10.876 m (last bend B3 7.106..7.606; reach covers its exit: False), history 10.754..11.550 m (17 snapshots) | x-avg at z = -2,-1,0,+1,+2 sigma: +0.0256 +0.0794 +0.0759 -0.0920 -0.0419 | x-spread rms 0.1143 | row range z=0 -0.157..+0.586 | 143 s
+n_fl  6.0: reach s' >= 7.729 m (last bend B3 7.106..7.606; reach covers its exit: False), history 6.784..11.550 m (180 snapshots) | x-avg at z = -2,-1,0,+1,+2 sigma: +0.0272 +0.0796 +0.0760 -0.0891 -0.0488 | x-spread rms 0.1145 | row range z=0 -0.157..+0.587 | 144 s
+1D line charge (x_R = 0.381)          x-avg at z = -2,-1,0,+1,+2 sigma: -0.0147 -0.0502 -0.0919 -0.0589 -0.0015
+/Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/d3_diagnostic/reach_11.5500.png

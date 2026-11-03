@@ -1,0 +1,4 @@
+drift wake vs n_formation_length at s = 5.0 (frozen CSR-off history)
+n_fl  1.0: reach s' >= 3.571 m (last bend B1 0.100..0.600; reach covers its exit: False), history 3.321..5.009 m (35 snapshots) | x-avg at z = -2,-1,0,+1,+2 sigma: -0.0114 -0.0094 -0.0116 -0.0026 +0.0156 | x-spread rms 0.0061 | row range z=0 -0.036..-0.003 | 43 s
+n_fl  6.0: reach s' >= 0.000 m (last bend B1 0.100..0.600; reach covers its exit: True), history 0.000..5.009 m (118 snapshots) | x-avg at z = -2,-1,0,+1,+2 sigma: -0.0126 -0.0139 -0.0159 +0.0008 +0.0209 | x-spread rms 0.0061 | row range z=0 -0.040..-0.007 | 45 s
+1D line charge (x_R = 0.426)          x-avg at z = -2,-1,0,+1,+2 sigma: -0.0012 -0.0050 -0.0076 -0.0040 -0.0007

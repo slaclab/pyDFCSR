@@ -243,7 +243,7 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
 
 ---
 
-## 8. Known limits (as of 2026-11-02)
+## 8. Known limits (as of 2026-11-03)
 
 - **|τ| ≫ 1: branches parallel, not coincident.** As `tan 2α → 0` the two Eq 4.24 branches become
   parallel. The chirp branch stays inside the beam over a distance that grows like `σx/|tan 2α|`, but
@@ -258,17 +258,34 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
   - **Consequence:** noise in `∂ρ/∂x` reaches the wake with ~100× the gain of noise in `ρ`, and
     correlated noise is 5.7× worse than white.
   - **Proposed fix:** a control variate, computing the fitted-Gaussian part of `∂ρ/∂x` analytically.
-- **Drift wakes.**
-  - **Failure past ~1.9 R·φ:** the 2D wake in the chicane's D3 turns bipolar and grows toward B4,
-    while 1D decays. This is the known failure mode `drift_cutoff = 1.0` exists for.
+- **Drift wakes: diagnosed 2026-11-03** (`test/d3_wake_diagnostic.py`; results in
+  `test/benchmark_results/d3_diagnostic/`, written up in `progress.md`). The chicane's D3 far-drift
+  failure is **two separate defects**, neither in the quadrature:
+  1. **The reach does not get back to the bend.** In a drift, `L_f` stays the in-bend formation length
+     of the last bend, `(24 R²·5σz)^(1/3)` (`_refresh_formation_length`), so the integral reaches only
+     `d + n_formation_length·L_f` behind the observer. Both the s′ range (`_layout_bounds`) and the
+     retained history are cut there. But the post-bend source is the bend itself, which recedes. With
+     the chicane's `n_formation_length = 1`, B3 leaves the reach about 1.7 R·φ past its exit, and the
+     wake then has the wrong sign (energy gain). Covering the bend (n_fl 6 at s = 8.57 and 10.06 m)
+     flips the x-averaged core from +0.03 to −0.26 and −0.08 MeV/m (1D: −0.35, −0.15). n_fl 6 and 8 are
+     identical to every digit.
+  2. **The transverse-velocity terms produce a growing x-structure.** With `ignore_vx`, the D3 wake
+     becomes x-independent: the x-spread falls 0.043 → 0.010, 0.063 → 0.0003 and 0.224 → 0.0000 MeV/m at
+     s = 8.57, 10.06, 12.30 m. The core then sits 15–25% below 1D at every position. The v_x term grows
+     with the beam's convergence, ⟨xx′⟩/⟨x²⟩ = −0.24 → −2.6 /m toward B4, which is 10–50× what the FODO
+     W2 test validated (±0.05 /m). **Physics or deposition noise in v_x and ∂v_x/∂x: not yet decided.**
+  - **The integration itself is converged there:** at s = 10.058 m, `near_grade`, `near_cell`, `xbins`,
+    `xi_band_margin`, `branch_sin_min`, `near_patch`, `far_cell` and `far_window` move the map by
+    ≤ 18% and the x-average by ≤ 4%, and none changes the sign or the x-pattern.
   - **That region still matters:** 1D shows it carries 37% of the energy loss and 58% of the emittance
-    growth (`progress.md`, top TODO).
+    growth (`progress.md`, top TODO). `drift_cutoff = 1.0` remains the safe default until both defects
+    are fixed.
   - **Tail roughness in D1/D3 (§11r, §11v):**
     - **Not caused by:** a noise floor; the bunch core; `tau_frac`; snapshot density.
     - **Possibly** a roughness-metric artefact (it correlates with amplitude).
   - **s = 8.317 m:** a separate defect, located in the bunch core.
-- **Never tested in the drift:** deposition resolution, `CSR_integration` bins, and the band geometry
-  at extreme tilt.
+- **Never tested in the drift:** deposition resolution (the deposition sweep was started and stopped
+  when the reach finding came up).
 
 ---
 

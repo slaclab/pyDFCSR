@@ -1,0 +1,24 @@
+D3 wake sweep (integration) at s = 10.058; full 12 x 40 map per variant; rel L2 vs baseline over the map; x-avg = charge-weighted average over the 12 x-rows; x-spread = charge-weighted rms over x at fixed z
+baseline                                             rel L2 vs base  0.000 | x-avg peak 0.0943, rel L2(x-avg)  0.000 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 |  44.5 s
+near_grade 0.02                                      rel L2 vs base  0.034 | x-avg peak 0.0941, rel L2(x-avg)  0.009 | x-spread rms 0.0626 | row-spread at z=0 -0.092..+0.284 |  44.7 s
+near_grade 0.01                                      rel L2 vs base  0.031 | x-avg peak 0.0941, rel L2(x-avg)  0.010 | x-spread rms 0.0625 | row-spread at z=0 -0.092..+0.284 |  48.1 s
+near_grade 0.005                                     rel L2 vs base  0.031 | x-avg peak 0.0941, rel L2(x-avg)  0.010 | x-spread rms 0.0626 | row-spread at z=0 -0.092..+0.284 | 7185.9 s
+near_cell 0.25                                       rel L2 vs base  0.058 | x-avg peak 0.0947, rel L2(x-avg)  0.035 | x-spread rms 0.0636 | row-spread at z=0 -0.098..+0.285 | 2986.3 s
+near_cell 0.1                                        rel L2 vs base  0.076 | x-avg peak 0.0949, rel L2(x-avg)  0.042 | x-spread rms 0.0638 | row-spread at z=0 -0.100..+0.284 | 698.5 s
+xbins 400                                            rel L2 vs base  0.072 | x-avg peak 0.0943, rel L2(x-avg)  0.016 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 | 2134.6 s
+xbins 800                                            rel L2 vs base  0.079 | x-avg peak 0.0943, rel L2(x-avg)  0.015 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 | 167.7 s
+margin 3                                             rel L2 vs base  0.117 | x-avg peak 0.0944, rel L2(x-avg)  0.036 | x-spread rms 0.0639 | row-spread at z=0 -0.097..+0.284 |  38.8 s
+margin 4                                             rel L2 vs base  0.179 | x-avg peak 0.0947, rel L2(x-avg)  0.040 | x-spread rms 0.0632 | row-spread at z=0 -0.096..+0.284 |  35.6 s
+branch_sin_min 0.2                                   rel L2 vs base  0.014 | x-avg peak 0.0943, rel L2(x-avg)  0.007 | x-spread rms 0.0627 | row-spread at z=0 -0.092..+0.284 |  67.3 s
+branch_sin_min 0.02                                  rel L2 vs base  0.001 | x-avg peak 0.0943, rel L2(x-avg)  0.002 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 |  43.2 s
+branch_sin_min 0.01                                  rel L2 vs base  0.001 | x-avg peak 0.0943, rel L2(x-avg)  0.002 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 |  43.1 s
+near_patch 10                                        rel L2 vs base  0.000 | x-avg peak 0.0943, rel L2(x-avg)  0.000 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 |  49.8 s
+near_patch 2.5                                       rel L2 vs base  0.000 | x-avg peak 0.0943, rel L2(x-avg)  0.000 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 |  43.4 s
+far_cell 3                                           rel L2 vs base  0.000 | x-avg peak 0.0943, rel L2(x-avg)  0.000 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 | 139.7 s
+far_window 2                                         rel L2 vs base  0.000 | x-avg peak 0.0943, rel L2(x-avg)  0.000 | x-spread rms 0.0628 | row-spread at z=0 -0.092..+0.284 | 340.6 s
+ALL fine: grade 0.005, cell 0.1, xbins 800, margin 3 rel L2 vs base  0.082 | x-avg peak 0.0946, rel L2(x-avg)  0.033 | x-spread rms 0.0637 | row-spread at z=0 -0.098..+0.284 | 1065.7 s
+
+1D line-charge wake on the same beam (x_R = 0.237): peak 0.1471 MeV/m; x-avg 2D vs 1D at z = -2,-1,0,1,2 sigma:
+   baseline                                             2D x-avg: +0.0385 +0.0258 +0.0377 -0.0532 -0.0206
+   ALL fine: grade 0.005, cell 0.1, xbins 800, margin 3 2D x-avg: +0.0376 +0.0236 +0.0373 -0.0540 -0.0206
+   1D                                                             -0.0233 -0.0802 -0.1453 -0.0910 -0.0018

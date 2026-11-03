@@ -1,0 +1,3 @@
+vx terms ON                x-avg at z = -2,-1,0,+1,+2 sigma: +0.0312 -0.0306 -0.0759 -0.1091 +0.0181 | x-spread rms 0.0631 | row range z=0 -0.206..+0.172 | 88 s
+vx terms OFF (ignore_vx)   x-avg at z = -2,-1,0,+1,+2 sigma: -0.0075 -0.0562 -0.1153 -0.0614 +0.0463 | x-spread rms 0.0003 | row range z=0 -0.117..-0.114 | 89 s
+1D line charge             x-avg at z = -2,-1,0,+1,+2 sigma: -0.0233 -0.0802 -0.1453 -0.0910 -0.0018   | beam convergence <x x'>/<x^2> = -0.375 /m, sigma_x 0.952 mm, tau -49.3

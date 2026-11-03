@@ -1,0 +1,97 @@
+D3 anatomy at s = 10.0581: tau(frame) -49.26, sigma_x 0.952 mm, sigma_xi 153.0 um, sigma_z 19.34 um, L_f 0.6291 m
+
+(x row 2, z = -0.9 sigma_z): total -0.1532 MeV/m; near length d = 199.7 mm = 210 sigma_x; patch -0.0063
+   far  3253 s' nodes over u = 199.7..828.8 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0046  live 3253  cancellation C    101.4  width median 23.4 / min 21.38 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.317..1.317
+        band 1: dead
+   near  122 s' nodes over u = -0.1..199.7 mm; live columns per raw branch [121, 112]
+        band 0: dE -0.1326  live  121  cancellation C      7.9  width median 20.1 / min 20.08 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.000..0.317
+        band 1: dE -0.0098  live  112  cancellation C     52.8  width median 5.4 / min 0.11 sigma_xi, max col-to-col jump 0.76 sigma_xi;  live over u/L_f = 0.000..0.206
+
+(x row 2, z = +0.1 sigma_z): total +0.0046 MeV/m; near length d = 180.5 mm = 190 sigma_x; patch -0.0002
+   far  3253 s' nodes over u = 180.5..809.5 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0051  live 3253  cancellation C     11.9  width median 23.3 / min 21.26 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.287..1.287
+        band 1: dead
+   near  120 s' nodes over u = -0.1..180.5 mm; live columns per raw branch [119, 107]
+        band 0: dE +0.0302  live  119  cancellation C     23.6  width median 20.1 / min 20.08 sigma_xi, max col-to-col jump 0.05 sigma_xi;  live over u/L_f = 0.000..0.287
+        band 1: dE -0.0203  live  107  cancellation C      4.2  width median 5.0 / min 0.10 sigma_xi, max col-to-col jump 0.74 sigma_xi;  live over u/L_f = 0.000..0.162
+
+(x row 2, z = +1.1 sigma_z): total +0.0087 MeV/m; near length d = 161.2 mm = 169 sigma_x; patch +0.0004
+   far  3253 s' nodes over u = 161.2..790.3 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0021  live 3253  cancellation C     31.0  width median 23.2 / min 21.13 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.256..1.256
+        band 1: dead
+   near  118 s' nodes over u = -0.1..161.2 mm; live columns per raw branch [117, 102]
+        band 0: dE +0.0192  live  117  cancellation C     11.4  width median 20.1 / min 20.08 sigma_xi, max col-to-col jump 0.05 sigma_xi;  live over u/L_f = 0.000..0.256
+        band 1: dE -0.0088  live  102  cancellation C      4.0  width median 4.5 / min 0.10 sigma_xi, max col-to-col jump 0.76 sigma_xi;  live over u/L_f = 0.000..0.127
+
+(x row 5, z = -0.9 sigma_z): total -0.0167 MeV/m; near length d = 206.4 mm = 217 sigma_x; patch -0.0058
+   far  3253 s' nodes over u = 206.4..835.5 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0003  live 3253  cancellation C     65.2  width median 23.4 / min 21.43 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.328..1.328
+        band 1: dead
+   near  123 s' nodes over u = -0.1..206.4 mm; live columns per raw branch [122, 114]
+        band 0: dE -0.0086  live  122  cancellation C    141.5  width median 20.2 / min 20.08 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.000..0.328
+        band 1: dE -0.0020  live  114  cancellation C      9.5  width median 3.2 / min 0.02 sigma_xi, max col-to-col jump 0.88 sigma_xi;  live over u/L_f = 0.000..0.227
+
+(x row 5, z = +0.1 sigma_z): total -0.0922 MeV/m; near length d = 187.1 mm = 197 sigma_x; patch -0.0088
+   far  3253 s' nodes over u = 187.1..816.2 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0029  live 3253  cancellation C     38.5  width median 23.3 / min 21.30 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.297..1.297
+        band 1: dead
+   near  121 s' nodes over u = -0.1..187.1 mm; live columns per raw branch [120, 110]
+        band 0: dE -0.0719  live  120  cancellation C     10.4  width median 20.1 / min 20.08 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.000..0.297
+        band 1: dE -0.0086  live  110  cancellation C     10.5  width median 2.8 / min 0.01 sigma_xi, max col-to-col jump 0.91 sigma_xi;  live over u/L_f = 0.000..0.187
+
+(x row 5, z = +1.1 sigma_z): total -0.0884 MeV/m; near length d = 167.9 mm = 176 sigma_x; patch -0.0066
+   far  3253 s' nodes over u = 167.9..797.0 mm; live columns per raw branch [3253, 0]
+        band 0: dE +0.0030  live 3253  cancellation C     23.5  width median 23.2 / min 21.17 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.267..1.267
+        band 1: dead
+   near  119 s' nodes over u = -0.1..167.9 mm; live columns per raw branch [118, 106]
+        band 0: dE -0.0882  live  118  cancellation C      4.2  width median 20.1 / min 20.08 sigma_xi, max col-to-col jump 0.05 sigma_xi;  live over u/L_f = 0.000..0.267
+        band 1: dE +0.0033  live  106  cancellation C     14.7  width median 2.4 / min 0.01 sigma_xi, max col-to-col jump 0.90 sigma_xi;  live over u/L_f = 0.000..0.154
+
+(x row 6, z = -0.9 sigma_z): total +0.0679 MeV/m; near length d = 208.6 mm = 219 sigma_x; patch -0.0045
+   far  3253 s' nodes over u = 208.6..837.7 mm; live columns per raw branch [3253, 0]
+        band 0: dE +0.0006  live 3253  cancellation C     35.7  width median 23.5 / min 21.44 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.332..1.332
+        band 1: dead
+   near  123 s' nodes over u = -0.1..208.6 mm; live columns per raw branch [81, 74]
+        band 0: dE +0.0704  live   81  cancellation C     17.6  width median 20.3 / min 20.11 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.007..0.332
+        band 1: dE +0.0015  live   74  cancellation C     15.3  width median 6.2 / min 0.21 sigma_xi, max col-to-col jump 0.97 sigma_xi;  live over u/L_f = 0.007..0.239
+
+(x row 6, z = +0.1 sigma_z): total +0.0864 MeV/m; near length d = 189.4 mm = 199 sigma_x; patch -0.0110
+   far  3253 s' nodes over u = 189.4..818.4 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0004  live 3253  cancellation C    167.0  width median 23.3 / min 21.31 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.301..1.301
+        band 1: dead
+   near  121 s' nodes over u = -0.1..189.4 mm; live columns per raw branch [73, 64]
+        band 0: dE +0.0993  live   73  cancellation C      7.1  width median 20.3 / min 20.12 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.009..0.301
+        band 1: dE -0.0015  live   64  cancellation C     37.0  width median 6.2 / min 0.16 sigma_xi, max col-to-col jump 0.95 sigma_xi;  live over u/L_f = 0.009..0.196
+
+(x row 6, z = +1.1 sigma_z): total -0.0222 MeV/m; near length d = 170.1 mm = 179 sigma_x; patch -0.0028
+   far  3253 s' nodes over u = 170.1..799.2 mm; live columns per raw branch [3253, 0]
+        band 0: dE +0.0065  live 3253  cancellation C     15.6  width median 23.2 / min 21.19 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.270..1.270
+        band 1: dead
+   near  119 s' nodes over u = -0.1..170.1 mm; live columns per raw branch [65, 54]
+        band 0: dE -0.0404  live   65  cancellation C      8.5  width median 20.3 / min 20.13 sigma_xi, max col-to-col jump 0.05 sigma_xi;  live over u/L_f = 0.012..0.270
+        band 1: dE +0.0144  live   54  cancellation C      5.2  width median 6.2 / min 0.43 sigma_xi, max col-to-col jump 0.97 sigma_xi;  live over u/L_f = 0.012..0.162
+
+(x row 9, z = -0.9 sigma_z): total -0.1641 MeV/m; near length d = 215.3 mm = 226 sigma_x; patch -0.0000
+   far  3253 s' nodes over u = 215.3..844.4 mm; live columns per raw branch [3253, 0]
+        band 0: dE -0.0058  live 3253  cancellation C     85.2  width median 23.5 / min 21.48 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.342..1.342
+        band 1: dead
+   near  124 s' nodes over u = -0.1..215.3 mm; live columns per raw branch [38, 33]
+        band 0: dE -0.1550  live   38  cancellation C      5.1  width median 20.7 / min 20.32 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.058..0.342
+        band 1: dE -0.0033  live   33  cancellation C    149.5  width median 15.3 / min 0.32 sigma_xi, max col-to-col jump 1.91 sigma_xi;  live over u/L_f = 0.058..0.276
+
+(x row 9, z = +0.1 sigma_z): total +0.2821 MeV/m; near length d = 196.0 mm = 206 sigma_x; patch -0.0000
+   far  3253 s' nodes over u = 196.0..825.1 mm; live columns per raw branch [3253, 0]
+        band 0: dE +0.0069  live 3253  cancellation C     16.4  width median 23.4 / min 21.36 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.312..1.312
+        band 1: dead
+   near  122 s' nodes over u = -0.1..196.0 mm; live columns per raw branch [34, 27]
+        band 0: dE +0.2548  live   34  cancellation C      2.3  width median 20.7 / min 20.34 sigma_xi, max col-to-col jump 0.06 sigma_xi;  live over u/L_f = 0.064..0.312
+        band 1: dE +0.0204  live   27  cancellation C      5.4  width median 13.5 / min 1.65 sigma_xi, max col-to-col jump 1.27 sigma_xi;  live over u/L_f = 0.064..0.227
+
+(x row 9, z = +1.1 sigma_z): total -0.1610 MeV/m; near length d = 176.8 mm = 186 sigma_x; patch +0.0000
+   far  3253 s' nodes over u = 176.8..805.9 mm; live columns per raw branch [3253, 0]
+        band 0: dE +0.0260  live 3253  cancellation C     24.8  width median 23.3 / min 21.23 sigma_xi, max col-to-col jump 0.00 sigma_xi;  live over u/L_f = 0.281..1.281
+        band 1: dead
+   near  120 s' nodes over u = -0.1..176.8 mm; live columns per raw branch [31, 23]
+        band 0: dE -0.2311  live   31  cancellation C      2.3  width median 20.7 / min 20.35 sigma_xi, max col-to-col jump 0.05 sigma_xi;  live over u/L_f = 0.067..0.281
+        band 1: dE +0.0441  live   23  cancellation C      9.8  width median 11.7 / min 0.23 sigma_xi, max col-to-col jump 2.24 sigma_xi;  live over u/L_f = 0.067..0.196

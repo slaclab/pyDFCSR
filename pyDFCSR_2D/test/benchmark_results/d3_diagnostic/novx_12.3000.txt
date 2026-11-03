@@ -1,0 +1,4 @@
+drift wake at s = 12.3457, n_fl 12 (reach s' >= 4.789 m), transverse-velocity terms on vs off
+vx terms ON                x-avg at z = -2,-1,0,+1,+2 sigma: +0.0412 +0.2220 +0.0868 -0.1490 -0.0365 | x-spread rms 0.2237 | row range z=0 -0.312..+0.973 | 88 s
+vx terms OFF (ignore_vx)   x-avg at z = -2,-1,0,+1,+2 sigma: -0.0037 -0.0280 -0.0585 -0.0294 +0.0314 | x-spread rms 0.0000 | row range z=0 -0.059..-0.058 | 84 s
+1D line charge             x-avg at z = -2,-1,0,+1,+2 sigma: -0.0123 -0.0417 -0.0769 -0.0498 -0.0013   | beam convergence <x x'>/<x^2> = -2.590 /m, sigma_x 0.136 mm, tau -6.9

@@ -1,0 +1,4 @@
+D3 wake vs n_formation_length at s = 10.058 (frozen CSR-off history; B3 = 7.1062..7.6064)
+n_fl  1.0: reach s' >= 9.239 m (covers B3 exit: False), history 9.262..10.058 m (17 snapshots) | x-avg at z = -2,-1,0,+1,+2 sigma: +0.0385 +0.0258 +0.0377 -0.0532 -0.0206 | x-spread rms 0.0628 | row range z=0 -0.092..+0.284 | 124 s
+n_fl  6.0: reach s' >= 6.093 m (covers B3 exit: True), history 5.290..10.058 m (266 snapshots) | x-avg at z = -2,-1,0,+1,+2 sigma: +0.0312 -0.0306 -0.0759 -0.1091 +0.0181 | x-spread rms 0.0631 | row range z=0 -0.206..+0.172 | 184 s
+1D line charge (x_R = 0.237)          x-avg at z = -2,-1,0,+1,+2 sigma: -0.0233 -0.0802 -0.1453 -0.0910 -0.0018
