@@ -13,7 +13,7 @@ particles in z (which particles share a slice), so
 K is also split by where the kick was taken: before B3, B3, D3, B4, Df.
 
 Usage (pydfcsr env):
-  python slice_decomposition_chicane.py run <1d|2d|2d_noT>   -> chicane_2d_vs_1d/slice_decomp_<name>.npz
+  python slice_decomposition_chicane.py run <1d|2d|2d_noT|2d_new|2d_new_noT>   -> chicane_2d_vs_1d/slice_decomp_<name>.npz
   python slice_decomposition_chicane.py plot                 -> slice_decomp.png, slice_decomp.txt
 """
 import contextlib
@@ -139,9 +139,10 @@ def terms(name):
 
 def plot():
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
-    names = [n for n in ('2d', '2d_noT', '1d') if os.path.isfile(os.path.join(OUT, f'slice_decomp_{n}.npz'))]
+    names = [n for n in ('2d', '2d_noT', '2d_new', '2d_new_noT', '1d') if os.path.isfile(os.path.join(OUT, f'slice_decomp_{n}.npz'))]
     T = {n: terms(n) for n in names}
-    lab = {'2d': '2D', '2d_noT': '2D, no transverse force', '1d': '1D'}
+    lab = {'2d': '2D (old default)', '2d_noT': '2D, no transverse force (old default)', '2d_new': '2D, both fixes',
+           '2d_new_noT': '2D, both fixes, no transverse force', '1d': '1D'}
     L = [__doc__.split('Usage')[0].strip(), '']
     # consistency: v_on from the decomposition vs the slice_var recorded independently in the main runs
     for n in names:

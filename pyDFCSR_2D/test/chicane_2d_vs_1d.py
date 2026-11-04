@@ -69,17 +69,26 @@ RUNS = {
     '2d_vx': dict(cls='2d', vx='affine'),
     '2d_new': dict(cls='2d', tangent=True, vx='affine'),
     '2d_new_noT': dict(cls='2d', tangent=True, vx='affine', transverse=0),
+    # B4 slice-sigma_E diagnosis: the 2D longitudinal wake replaced by its x-average (Gaussian-weighted over the
+    # 12 rows, the same average as the 1D comparisons) before it is applied, everywhere or only from B4 on.
+    # The transverse kick is left as computed. Separates the wake's x-dependence from its z-profile.
+    '2d_new_xavg': dict(cls='2d', tangent=True, vx='affine', xavg=0.0),
+    '2d_new_xavgB4': dict(cls='2d', tangent=True, vx='affine', xavg=12.6122),
     # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
     '2d_time_old': dict(cls='2d'),
     '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),
     '1d': dict(cls='1d', cutoff=1.0),
     '1d_full': dict(cls='1d', cutoff=0.0),
+    # drift-cutoff calibration in 1D (units of the last bend's |R*phi|; D3 is 10.0 R*phi long)
+    '1d_c0.25': dict(cls='1d', cutoff=0.25), '1d_c0.5': dict(cls='1d', cutoff=0.5), '1d_c2': dict(cls='1d', cutoff=2.0),
+    '1d_c4': dict(cls='1d', cutoff=4.0), '1d_c6': dict(cls='1d', cutoff=6.0),
     '1d_fine': dict(cls='1d', cutoff=1.0, fine=True),
     '1d_fine_full': dict(cls='1d', cutoff=0.0, fine=True),
 }
 LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force',
          '2d_tb': '2D + tangent_bands', '2d_vx': '2D + vx_model affine', '2d_new': '2D, both fixes',
-         '2d_new_noT': '2D, both fixes, no transverse force', '1d': '1D, same schedule (cutoff 1 Rφ)',
+         '2d_new_noT': '2D, both fixes, no transverse force',
+         '2d_new_xavg': '2D, both fixes, x-averaged wake', '2d_new_xavgB4': '2D, both fixes, x-averaged wake in B4+', '1d': '1D, same schedule (cutoff 1 Rφ)',
          '1d_full': '1D, same schedule, full drift', '1d_fine': '1D, fine steps (cutoff 1 Rφ)',
          '1d_fine_full': '1D, fine steps, full drift'}
 
@@ -167,6 +176,15 @@ def run(name):
             rec_s.append(sim.beam.position)
             rec_v.append(slice_variance(sim.beam.z, sim.beam.particle.pz, E0))
     sim.update_statistics = update_statistics
+    if RUNS[name].get('xavg') is not None:
+        s_from = RUNS[name]['xavg']; u = np.linspace(-4, 4, sim.CSR_params.xbins); wx = np.exp(-u ** 2 / 2); wx /= wx.sum()
+        aw = sim.beam.apply_wakes
+
+        def apply_wakes(dE_dct, x_kick, *a, **kw):
+            if sim.beam.position >= s_from - 1e-9:
+                dE_dct = np.broadcast_to((wx[:, None] * dE_dct).sum(0), dE_dct.shape).copy()
+            return aw(dE_dct, x_kick, *a, **kw)
+        sim.beam.apply_wakes = apply_wakes
     sim.run()
     p = sim.beam.particle
     st = {k: v for k, v in sim.statistics.items() if not isinstance(v, dict)}
@@ -297,7 +315,7 @@ def analyze():
 
     # ---- plots
     cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4',
-            '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8'}
+            '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8', '2d_new_xavg': 'C9', '2d_new_xavgB4': 'C4'}
     have_slice = all('slice_var' in R[n] for n in ['off'] + names)
     if have_slice:
         fig = plt.figure(figsize=(14, 16.5), layout='constrained')

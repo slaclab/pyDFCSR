@@ -13,9 +13,11 @@ K is also split by where the kick was taken: before B3, B3, D3, B4, Df.
 
 2d: decomposition sigma_on vs independent run slice_var: max rel diff 6.2e-12 (same particles if CSR on deterministic)
 2d_noT: decomposition sigma_on vs independent run slice_var: max rel diff 6.2e-12 (same particles if CSR on deterministic)
+2d_new: decomposition sigma_on vs independent run slice_var: max rel diff 3.0e-12 (same particles if CSR on deterministic)
+2d_new_noT: decomposition sigma_on vs independent run slice_var: max rel diff 3.0e-12 (same particles if CSR on deterministic)
 1d: decomposition sigma_on vs independent run slice_var: max rel diff 9.4e-14 (same particles if CSR on deterministic)
 
-== 2D ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
+== 2D (old default) ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
                    s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df
 B3 middle      7.354   456.7k    -1.20% |    +0.30%   +0.28%   -2.95% |  -0.28    0.052 |    -0.43%    -2.53%    +0.00%    +0.00%    +0.00%
 B3 exit        7.606  2071.3k    -1.55% |    +2.74%   +0.15%   -5.98% |  -0.75    0.039 |    -1.08%    -4.90%    +0.00%    +0.00%    +0.00%
@@ -28,7 +30,7 @@ B4 9/10       13.065   293.9k    -9.99% |   -28.75%   +4.62%   +5.15% |  +0.14  
 B4 exit       13.112   152.6k   +13.45% |   +29.86%  +18.80%  -19.95% |  -0.20    0.380 |    +3.78%   +25.05%   +16.15%   -64.93%    +0.00%
 end           13.312   152.6k   +13.46% |   +29.87%  +19.70%  -20.84% |  -0.21    0.390 |    +3.78%   +25.05%   +16.15%   -64.93%    -0.90%
 
-== 2D, no transverse force ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
+== 2D, no transverse force (old default) ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
                    s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df
 B3 middle      7.354   456.7k    -1.43% |    +0.03%   +0.31%   -3.18% |  -0.29    0.055 |    -0.48%    -2.70%    +0.00%    +0.00%    +0.00%
 B3 exit        7.606  2071.3k    -2.77% |    +0.67%   +0.17%   -6.31% |  -0.76    0.041 |    -1.09%    -5.22%    +0.00%    +0.00%    +0.00%
@@ -40,6 +42,32 @@ B4 3/4        12.992   583.7k   -13.65% |   -26.86%   +1.08%   +0.34% |  +0.02  
 B4 9/10       13.065   293.9k   -18.15% |   -45.08%   +4.88%   +7.21% |  +0.22    0.298 |    -1.37%    -5.87%    -6.42%   +20.86%    +0.00%
 B4 exit       13.112   152.6k   +15.27% |   +14.54%  +19.14%   -0.82% |  -0.01    0.409 |    +6.79%   +57.62%   +22.90%   -88.13%    +0.00%
 end           13.312   152.6k   +14.69% |   +14.54%  +19.86%   -2.86% |  -0.03    0.416 |    +6.79%   +57.62%   +22.90%   -88.12%    -2.04%
+
+== 2D, both fixes ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
+                   s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df
+B3 middle      7.354   456.7k    +0.49% |    +0.30%   +0.13%   +0.56% |  +0.08    0.036 |    +0.10%    +0.46%    +0.00%    +0.00%    +0.00%
+B3 exit        7.606  2071.3k    +2.47% |    +2.40%   +0.15%   +2.45% |  +0.32    0.038 |    -0.50%    +2.96%    +0.00%    +0.00%    +0.00%
+D3 middle     10.008  2097.7k    +0.40% |    +2.59%   +0.16%   -1.95% |  -0.24    0.039 |    -0.51%    +2.86%    -4.31%    +0.00%    +0.00%
+B4 entrance   12.612  2132.3k    +0.50% |    +2.81%   +0.15%   -1.97% |  -0.25    0.038 |    -0.50%    +2.75%    -4.22%    +0.00%    +0.00%
+B4 1/4        12.732  1615.0k    +2.62% |    +2.87%   +0.32%   +2.13% |  +0.19    0.056 |    -0.52%    +3.87%    -5.26%    +4.03%    +0.00%
+B4 1/2        12.854  1129.7k    +5.16% |    +3.62%   +0.74%   +6.24% |  +0.36    0.084 |    -0.57%    +5.71%    -7.10%    +8.20%    +0.00%
+B4 3/4        12.992   583.7k   +14.41% |    +7.96%   +3.84%  +19.10% |  +0.47    0.189 |    -0.84%   +10.35%   -12.89%   +22.48%    +0.00%
+B4 9/10       13.065   293.9k   +30.67% |   +21.03%  +17.10%  +32.63% |  +0.36    0.376 |    -1.85%   +13.73%   -24.30%   +45.04%    +0.00%
+B4 exit       13.112   152.6k   +43.43% |   +51.66%  +67.80%  -13.74% |  -0.07    0.669 |    -5.33%   -20.13%   -29.85%   +41.58%    +0.00%
+end           13.312   152.6k   +43.38% |   +51.66%  +67.84%  -13.93% |  -0.07    0.669 |    -5.33%   -20.13%   -29.85%   +41.57%    -0.19%
+
+== 2D, both fixes, no transverse force ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
+                   s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df
+B3 middle      7.354   456.7k    +0.28% |    +0.01%   +0.14%   +0.42% |  +0.06    0.037 |    +0.06%    +0.36%    +0.00%    +0.00%    +0.00%
+B3 exit        7.606  2071.3k    +1.42% |    +0.22%   +0.16%   +2.48% |  +0.31    0.040 |    -0.48%    +2.96%    +0.00%    +0.00%    +0.00%
+D3 middle     10.008  2097.7k    -0.76% |    +0.23%   +0.16%   -1.92% |  -0.24    0.040 |    -0.48%    +2.87%    -4.30%    +0.00%    +0.00%
+B4 entrance   12.612  2132.3k    -0.76% |    +0.26%   +0.16%   -1.93% |  -0.24    0.040 |    -0.48%    +2.75%    -4.20%    +0.00%    +0.00%
+B4 1/4        12.732  1615.0k    +1.23% |    -0.34%   +0.33%   +2.48% |  +0.22    0.058 |    -0.47%    +4.09%    -5.23%    +4.10%    +0.00%
+B4 1/2        12.854  1129.7k    +3.88% |    -0.21%   +0.75%   +7.36% |  +0.42    0.087 |    -0.46%    +6.64%    -7.06%    +8.24%    +0.00%
+B4 3/4        12.992   583.7k   +15.03% |    +3.98%   +3.65%  +24.70% |  +0.63    0.187 |    -0.34%   +16.16%   -12.65%   +21.53%    +0.00%
+B4 9/10       13.065   293.9k   +40.87% |   +19.93%  +15.95%  +62.56% |  +0.72    0.365 |    +0.45%   +42.43%   -22.79%   +42.47%    +0.00%
+B4 exit       13.112   152.6k   +85.79% |   +62.19%  +62.79% +120.19% |  +0.60    0.622 |    +4.28%  +101.52%   -22.12%   +36.51%    +0.00%
+end           13.312   152.6k   +86.42% |   +62.17%  +64.09% +121.27% |  +0.59    0.629 |    +4.28%  +101.51%   -22.12%   +36.51%    +1.09%
 
 == 1D ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
                    s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df

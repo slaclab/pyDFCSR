@@ -1,5 +1,6 @@
 Benchmark chicane, chirp scan: 1D vs 2D vs 2D without transverse force, all on identical bmad-x tracking,
-beam, lattice and auto schedule (both CSR models with drift_cutoff = 1 R*phi). Every quantity is at the
+beam, lattice and auto schedule (both CSR models with drift_cutoff = 1 R*phi). 2D is the current default
+(tangent_bands + vx_model affine, 2026-11-04); '2D, old default' is the superseded run without them. Every quantity is at the
 chicane exit; changes are against the CSR-off run at the same chirp.
 
 Definitions (core average = population-weighted over the slices whose centre is within +-2 sigma_z, of 80
@@ -22,79 +23,79 @@ Those values are flagged FOLDED in the table and drawn hollow in the plot; slice
 is likewise inflated by mixing the two branches (flagged the same way).
 
 === h = -20 /m (shear -100 GeV/c/m), compression 2.0 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                            -160                -208                -208            
-emittance growth, eta-corrected [um]                +0.017              +0.017              +0.028            
-core slice emittance [um]                            0.998               1.007               1.007       0.998
-core slice sigma_E [keV]                              21.7                20.8                21.4        21.9
-  change vs CSR off [%]                               -1.0                -5.1                -2.4            
-beam size sigma_x [um]                               33.92               34.12               34.17       36.73
-bunch length sigma_z [um]                            99.16               99.13               99.15       98.99
-peak current [kA]                                     1.21                1.20                1.20        1.21
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                            -160                -206                -206                -208            
+emittance growth, eta-corrected [um]                +0.017              +0.012              +0.020              +0.017            
+core slice emittance [um]                            0.998               1.001               0.999               1.007       0.998
+core slice sigma_E [keV]                              21.7                21.7                24.9                20.8        21.9
+  change vs CSR off [%]                               -1.0                -0.8               +13.5                -5.1            
+beam size sigma_x [um]                               33.92               34.10               34.06               34.12       36.73
+bunch length sigma_z [um]                            99.16               99.13               99.15               99.13       98.99
+peak current [kA]                                     1.21                1.20                1.20                1.20        1.21
 
 === h = -28 /m (shear -140 GeV/c/m), compression 3.4 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                            -294                -462                -462            
-emittance growth, eta-corrected [um]                +0.026              +0.048              +0.081            
-core slice emittance [um]                            0.998               1.027               1.028       0.998
-core slice sigma_E [keV]                              39.2                38.9                41.7        39.7
-  change vs CSR off [%]                               -1.2                -2.0                +5.1            
-beam size sigma_x [um]                               43.59               44.16               44.23       47.01
-bunch length sigma_z [um]                            58.78               58.75               58.76       58.59
-peak current [kA]                                     2.03                2.03                2.03        2.05
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                            -294                -454                -453                -462            
+emittance growth, eta-corrected [um]                +0.026              +0.027              +0.051              +0.048            
+core slice emittance [um]                            0.998               1.003               0.999               1.027       0.998
+core slice sigma_E [keV]                              39.2                40.0                53.7                38.9        39.7
+  change vs CSR off [%]                               -1.2                +0.7               +35.2                -2.0            
+beam size sigma_x [um]                               43.59               44.01               43.99               44.16       47.01
+bunch length sigma_z [um]                            58.78               58.75               58.76               58.75       58.59
+peak current [kA]                                     2.03                2.03                2.03                2.03        2.05
 
 === h = -32 /m (shear -160 GeV/c/m), compression 5.2 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                            -471                -789                -790            
-emittance growth, eta-corrected [um]                +0.050              +0.087              +0.162            
-core slice emittance [um]                            0.997               1.047               1.048       0.997
-core slice sigma_E [keV]                              62.9                71.7                78.3        63.5
-  change vs CSR off [%]                               -0.9               +13.0               +23.3            
-beam size sigma_x [um]                               48.75               49.23               49.23       52.42
-bunch length sigma_z [um]                            38.61               38.60               38.60       38.42
-peak current [kA]                                     3.09                3.10                3.09        3.13
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                            -471                -768                -767                -789            
+emittance growth, eta-corrected [um]                +0.050              +0.047              +0.106              +0.087            
+core slice emittance [um]                            0.997               1.004               0.997               1.047       0.997
+core slice sigma_E [keV]                              62.9                64.8                97.4                71.7        63.5
+  change vs CSR off [%]                               -0.9                +2.1               +53.5               +13.0            
+beam size sigma_x [um]                               48.75               49.12               49.01               49.23       52.42
+bunch length sigma_z [um]                            38.61               38.60               38.60               38.60       38.42
+peak current [kA]                                     3.09                3.10                3.09                3.10        3.13
 
 === h = -36 /m (shear -180 GeV/c/m), compression 10.9 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                           -1204               -1844               -1835            
-emittance growth, eta-corrected [um]                +0.266              +0.203              +0.532            
-core slice emittance [um]                            0.992               1.080               1.076       0.993
-core slice sigma_E [keV]                             155.6               173.1               175.0       152.6
-  change vs CSR off [%]                               +2.0               +13.5               +14.7            
-beam size sigma_x [um]                               54.13               55.02               54.96       57.95
-bunch length sigma_z [um]                            18.54               18.55               18.51       18.35
-peak current [kA]                                     6.54                6.57                6.49        6.75
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                           -1204               -1789               -1762               -1844            
+emittance growth, eta-corrected [um]                +0.266              +0.142              +0.444              +0.203            
+core slice emittance [um]                            0.992               0.988               0.989               1.080       0.993
+core slice sigma_E [keV]                             155.6               218.8               284.5               173.1       152.6
+  change vs CSR off [%]                               +2.0               +43.4               +86.4               +13.5            
+beam size sigma_x [um]                               54.13               54.84               54.62               55.02       57.95
+bunch length sigma_z [um]                            18.54               18.55               18.50               18.55       18.35
+peak current [kA]                                     6.54                6.65                6.51                6.57        6.75
 
 === h = -38 /m (shear -190 GeV/c/m), compression 23.2 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                           -3957               -4791               -4588            
-emittance growth, eta-corrected [um]                +1.058              +1.022              +1.652            
-core slice emittance [um]                     1.068 FOLDED        1.183 FOLDED        1.149 FOLDED0.995 FOLDED
-core slice sigma_E [keV]                     7407.0 FOLDED       8335.5 FOLDED       6802.7 FOLDED7962.1 FOLDED
-  change vs CSR off [%]                        -7.0 FOLDED         +4.7 FOLDED        -14.6 FOLDED            
-beam size sigma_x [um]                               56.08               59.85               57.86       60.74
-bunch length sigma_z [um]                             8.76                8.78                8.67        8.61
-peak current [kA]                                    50.57               57.25               40.65       54.70
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                           -3957               -4808               -4445               -4791            
+emittance growth, eta-corrected [um]                +1.058              +0.692              +1.392              +1.022            
+core slice emittance [um]                     1.068 FOLDED        1.056 FOLDED        1.081 FOLDED        1.183 FOLDED0.995 FOLDED
+core slice sigma_E [keV]                     7407.0 FOLDED       8484.4 FOLDED       6878.8 FOLDED       8335.5 FOLDED7962.1 FOLDED
+  change vs CSR off [%]                        -7.0 FOLDED         +6.6 FOLDED        -13.6 FOLDED         +4.7 FOLDED            
+beam size sigma_x [um]                               56.08               59.62               57.39               59.85       60.74
+bunch length sigma_z [um]                             8.76                8.82                8.67                8.78        8.61
+peak current [kA]                                    50.57               63.19               36.19               57.25       54.70
 
 === h = -39 /m (shear -195 GeV/c/m), compression 45.0 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                          -18742              -16047              -15362            
-emittance growth, eta-corrected [um]                +7.855              +3.481              +6.343            
-core slice emittance [um]                     4.080 FOLDED        2.143 FOLDED        2.727 FOLDED0.987 FOLDED
-core slice sigma_E [keV]                    27063.4 FOLDED      26358.5 FOLDED      23221.9 FOLDED27803.0 FOLDED
-  change vs CSR off [%]                        -2.7 FOLDED         -5.2 FOLDED        -16.5 FOLDED            
-beam size sigma_x [um]                               54.05               63.30               56.72       62.15
-bunch length sigma_z [um]                             4.50                4.49                4.31        4.44
-peak current [kA]                                   168.33              148.24              151.42      188.03
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                          -18742              -15459              -14678              -16047            
+emittance growth, eta-corrected [um]                +7.855              +3.013              +6.150              +3.481            
+core slice emittance [um]                     4.080 FOLDED        1.717 FOLDED        2.573 FOLDED        2.143 FOLDED0.987 FOLDED
+core slice sigma_E [keV]                    27063.4 FOLDED      27212.6 FOLDED      23660.6 FOLDED      26358.5 FOLDED27803.0 FOLDED
+  change vs CSR off [%]                        -2.7 FOLDED         -2.1 FOLDED        -14.9 FOLDED         -5.2 FOLDED            
+beam size sigma_x [um]                               54.05               63.14               57.19               63.30       62.15
+bunch length sigma_z [um]                             4.50                4.62                4.32                4.49        4.44
+peak current [kA]                                   168.33              195.48              172.10              148.24      188.03
 
 === h = -42 /m (shear -210 GeV/c/m), compression 15.6 (CSR off) ===
-                                                        1D                  2D  2D, transverse off     CSR off
-mean CSR energy loss [keV]                           -4102               -4343               -4385            
-emittance growth, eta-corrected [um]                +1.504              +1.275              +2.056            
-core slice emittance [um]                     1.205 FOLDED        1.088 FOLDED        1.001 FOLDED0.991 FOLDED
-core slice sigma_E [keV]                     3590.4 FOLDED       3934.1 FOLDED       3336.4 FOLDED3867.2 FOLDED
-  change vs CSR off [%]                        -7.2 FOLDED         +1.7 FOLDED        -13.7 FOLDED            
-beam size sigma_x [um]                               62.74               61.99               62.12       66.39
-bunch length sigma_z [um]                            12.52               12.55               12.45       12.79
-peak current [kA]                                    10.90               11.76               11.13       12.41
+                                                        1D                  2D  2D, transverse off     2D, old default     CSR off
+mean CSR energy loss [keV]                           -4102               -4001               -3936               -4343            
+emittance growth, eta-corrected [um]                +1.504              +1.003              +2.023              +1.275            
+core slice emittance [um]                     1.205 FOLDED        1.020 FOLDED        1.111 FOLDED        1.088 FOLDED0.991 FOLDED
+core slice sigma_E [keV]                     3590.4 FOLDED       3977.7 FOLDED       3365.5 FOLDED       3934.1 FOLDED3867.2 FOLDED
+  change vs CSR off [%]                        -7.2 FOLDED         +2.9 FOLDED        -13.0 FOLDED         +1.7 FOLDED            
+beam size sigma_x [um]                               62.74               60.40               61.16               61.99       66.39
+bunch length sigma_z [um]                            12.52               12.63               12.46               12.55       12.79
+peak current [kA]                                    10.90               12.00               10.89               11.76       12.41
 

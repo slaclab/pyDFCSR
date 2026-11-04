@@ -1,6 +1,7 @@
 """
 Benchmark chicane, chirp scan: 1D vs 2D vs 2D without transverse force, all on identical bmad-x tracking,
-beam, lattice and auto schedule (both CSR models with drift_cutoff = 1 R*phi). Every quantity is at the
+beam, lattice and auto schedule (both CSR models with drift_cutoff = 1 R*phi). 2D is the current default
+(tangent_bands + vx_model affine, 2026-11-04); '2D, old default' is the superseded run without them. Every quantity is at the
 chicane exit; changes are against the CSR-off run at the same chirp.
 
 Definitions (core average = population-weighted over the slices whose centre is within +-2 sigma_z, of 80
@@ -37,8 +38,9 @@ import chicane_2d_vs_1d as C   # noqa: E402
 
 BASE = os.path.join(HERE, 'benchmark_results', 'chicane_2d_vs_1d')
 SHEARS = [-100, -140, -160, -180, -190, -195, -210]
-MODELS = [('1d', '1D'), ('2d', '2D'), ('2d_noT', '2D, transverse off')]
-COLS = {'off': 'k', '1d': 'C0', '2d': 'C3', '2d_noT': 'C1'}
+MODELS = [('1d', '1D'), ('2d_new', '2D'), ('2d_new_noT', '2D, transverse off'), ('2d', '2D, old default')]
+COLS = {'off': 'k', '1d': '#2a78d6', '2d_new': '#e34948', '2d_new_noT': '#eb6834', '2d': '#898781'}
+STYLE = {'2d': dict(ls='--', lw=1.2, ms=4)}
 
 
 def folder(sh):
@@ -95,7 +97,7 @@ for n, lab in MODELS:
     for j, k in ((0, 'semit'), (1, 'demit'), (2, 'sEs')):
         y = np.array([r[n][k] if r[n] else np.nan for r in rows])
         good = ok & ~fold if k != 'demit' else ok
-        ax[j].plot(h[good], y[good], 'o-', c=COLS[n], label=lab)
+        ax[j].plot(h[good], y[good], marker='o', c=COLS[n], label=lab, **STYLE.get(n, dict(ls='-')))
         if k != 'demit':
             bad = ok & fold
             ax[j].plot(h[bad], y[bad], 'o', mfc='none', c=COLS[n])
@@ -115,5 +117,5 @@ for a, yl, t in zip(ax, ['core slice εn [µm]', 'Δεn, η-corrected [µm]', 'c
     sec.set_xlabel('compression factor (CSR off)')
     sec.set_ticks([2, 3.4, 5.2, 10.9, 23, 45])
 ax[1].set_yscale('symlog', linthresh=0.01)
-fig.suptitle('Benchmark chicane, exit, vs initial chirp: 1D vs 2D vs 2D without transverse force (core averages, |z| < 2σz; shaded: phase space folded, slice quantities hollow)')
+fig.suptitle('Benchmark chicane, exit, vs initial chirp: 1D vs 2D (current defaults) vs 2D without transverse force; dashed grey: 2D old default\n(core averages, |z| < 2σz; shaded: phase space folded, slice quantities hollow; drift_cutoff 1 R·φ in every run)')
 plt.savefig(os.path.join(BASE, 'chirp_scan_models.png'), dpi=110)
