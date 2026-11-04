@@ -1,0 +1,7 @@
+drift wake at s = 12.3457, n_fl 12: v_x pieces zeroed one at a time
+all on       x-avg at z = -2,-1,0,+1,+2 sigma: +0.0412 +0.2220 +0.0868 -0.1490 -0.0365 | x-spread rms 0.2237 | row range z=0 -0.312..+0.973 | 84 s
+obs vx = 0   x-avg at z = -2,-1,0,+1,+2 sigma: +0.0342 -0.8408 +0.2071 +0.2472 -0.1462 | x-spread rms 0.4895 | row range z=0 -0.130..+0.857 | 84 s
+ret vx = 0   x-avg at z = -2,-1,0,+1,+2 sigma: -0.2701 +0.3390 -1.5412 -1.6269 +0.1145 | x-spread rms 0.4892 | row range z=0 -1.778..-0.978 | 85 s
+div v = 0    x-avg at z = -2,-1,0,+1,+2 sigma: +0.3044 +0.9117 +1.4490 +1.0601 -0.0018 | x-spread rms 0.1817 | row range z=0 +0.897..+2.017 | 84 s
+obs+ret = 0  x-avg at z = -2,-1,0,+1,+2 sigma: -0.2668 -0.7177 -1.4208 -1.2386 -0.0032 | x-spread rms 0.0734 | row range z=0 -1.596..-1.032 | 84 s
+all off      x-avg at z = -2,-1,0,+1,+2 sigma: -0.0037 -0.0280 -0.0585 -0.0294 +0.0314 | x-spread rms 0.0000 | row range z=0 -0.059..-0.058 | 85 s

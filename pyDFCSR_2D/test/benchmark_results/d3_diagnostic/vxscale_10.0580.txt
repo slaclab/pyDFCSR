@@ -1,0 +1,6 @@
+drift wake at s = 10.0581, n_fl 6: all v_x fields scaled by lam
+lam 0.0  x-avg at z = -2,-1,0,+1,+2 sigma: -0.0075 -0.0562 -0.1153 -0.0614 +0.0463 | x-spread rms 0.0003 | row range z=0 -0.117..-0.114 | 84 s
+lam 0.5  x-avg at z = -2,-1,0,+1,+2 sigma: +0.0112 -0.0451 -0.0957 -0.0857 +0.0324 | x-spread rms 0.0317 | row range z=0 -0.161..+0.028 | 85 s
+lam 1.0  x-avg at z = -2,-1,0,+1,+2 sigma: +0.0312 -0.0306 -0.0759 -0.1091 +0.0181 | x-spread rms 0.0631 | row range z=0 -0.206..+0.172 | 85 s
+lam 2.0  x-avg at z = -2,-1,0,+1,+2 sigma: +0.0754 +0.0090 -0.0357 -0.1534 -0.0120 | x-spread rms 0.1251 | row range z=0 -0.295..+0.458 | 84 s
+nonlinearity: |dW(0.5) - dW(1)/2| / |dW(1)| = 0.015;  |dW(2) - 2 dW(1)| / |dW(1)| = 0.123

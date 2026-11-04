@@ -1,0 +1,4 @@
+wake at s = 7.6021 (B3), n_fl 1, tau -91.22: tangent_bands off vs on
+tangent False x-avg at z = -2,-1,0,+1,+2 sigma: -0.9177 -3.7776 -4.5295 -1.5357 +0.5345 | x-spread rms 0.6018 | row range z=0 -6.185..-1.304 | 15 s
+tangent True  x-avg at z = -2,-1,0,+1,+2 sigma: -0.9130 -2.9607 -3.9132 -0.9801 +0.5345 | x-spread rms 0.7513 | row range z=0 -5.833..+0.221 | 14 s
+rel L2 change of the map: 0.7404; max |change| 6.4130 MeV/m (peak |W| 6.4047)

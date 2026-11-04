@@ -1,0 +1,4 @@
+drift wake at s = 8.566, n_fl 6: deposited v_x as is vs with the affine control variate
+vx_model none    x-avg at z = -2,-1,0,+1,+2 sigma: +0.0074 -0.1365 -0.2621 -0.1853 +0.0501 | x-spread rms 0.0434 | row range z=0 -0.352..-0.100 | 192 s
+vx_model affine  x-avg at z = -2,-1,0,+1,+2 sigma: -0.0368 -0.1198 -0.2674 -0.1738 +0.0612 | x-spread rms 0.0441 | row range z=0 -0.352..-0.027 | 205 s
+1D line charge   x-avg at z = -2,-1,0,+1,+2 sigma: -0.0564 -0.1942 -0.3452 -0.2018 +0.0070

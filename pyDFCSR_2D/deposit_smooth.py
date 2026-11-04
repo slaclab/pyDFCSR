@@ -420,7 +420,7 @@ class DF_tracker_comoving:
                          xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
-                         clip_warn=1e-3, frame_blend='orient'):
+                         clip_warn=1e-3, frame_blend='orient', vx_model='none'):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -474,6 +474,23 @@ class DF_tracker_comoving:
         self.frame_blend = frame_blend
         self.frame_blend_code = self.BLEND_CODES[frame_blend]
 
+        # Control variate for the velocity field.
+        # 'none'   deposit px itself: v_x = smooth(rho px) / (smooth(rho) + eps).
+        # 'affine' fit px ~ b x + g(z) (g cubic in w) over the core, deposit only the
+        #          residual, and add b x + g(z) back analytically (b to vx_u exactly).
+        # Why: smoothing a ratio is biased by ~ sigma_k^2 grad(ln rho) . grad(px). On a
+        # strongly tilted beam px varies fastest ALONG the beam (x ~ tau z, so even
+        # px = b x has d px/dw = b tau sigma_z), and when the beam is also curved in
+        # (u, w) -- the straight tilt fit leaves a banana -- d^2 ln rho / du dw changes
+        # along the bunch, so the bias in d vx/du acquires a z-trend. Measured in the
+        # chicane D3 (tau = -49): the code's d vx/dx ran -0.03 .. -0.42 /m tail to head
+        # against a true -0.26 .. -0.30, and that trend drove the spurious x-structure of
+        # the far-drift wake. With 'affine' the error is <= 0.02 /m in every slice.
+        # Default 'none' keeps every recorded baseline byte-identical.
+        if vx_model not in ('none', 'affine'):
+            raise ValueError(f"vx_model must be 'none' or 'affine', got {vx_model!r}")
+        self.vx_model = vx_model
+
     def get_DF(self, x, z, px, t):
         zmean = np.mean(z)
         zstd = np.std(z)
@@ -499,8 +516,22 @@ class DF_tracker_comoving:
             q1=u, q2=w, w=np.ones(npart),
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        if self.vx_model == 'affine':
+            # px ~ c0 + b_u u + g(w), g = g1 w + g2 w^2 + g3 w^3, fitted on the core.
+            # In (u, w), b x = b sigma_xi u + (a function of w), so the u-coefficient
+            # carries the slope and the w-polynomial absorbs the rest of b x.
+            wc = w[core]
+            A = np.column_stack([np.ones(wc.size), u[core], wc, wc ** 2, wc ** 3])
+            vx_coef = np.linalg.lstsq(A, px[core], rcond=None)[0]
+        else:
+            vx_coef = np.zeros(5)
+        # the cubic is held flat beyond the fit window, so it is not extrapolated
+        # into the empty tails of the +-zlim grid
+        wq = np.clip(w, -self.fit_zlim, self.fit_zlim)
+        vx_fit = (vx_coef[0] + vx_coef[1] * u + vx_coef[2] * wq
+                  + vx_coef[3] * wq ** 2 + vx_coef[4] * wq ** 3)
         vx_weighted = histogram_bspline_2d(
-            q1=u, q2=w, w=px,
+            q1=u, q2=w, w=px - vx_fit if self.vx_model == 'affine' else px,
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
 
@@ -536,6 +567,16 @@ class DF_tracker_comoving:
         _, vx_du, _ = smooth_and_differentiate(
             vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma)
         vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+
+        if self.vx_model == 'affine':
+            # the fitted part is exact and noise-free, so it is added without the
+            # floor taper; only the deposited residual is suppressed in the tails
+            wg = np.clip(self.w_grids, -self.fit_zlim, self.fit_zlim)[None, :]
+            vx_smooth = vx_smooth + (vx_coef[0] + vx_coef[1] * self.u_grids[:, None]
+                                     + vx_coef[2] * wg + vx_coef[3] * wg ** 2
+                                     + vx_coef[4] * wg ** 3)
+            vx_du = vx_du + vx_coef[1]
+        self.vx_coef = vx_coef
 
         self.density = density_smooth
         self.density_u = density_du

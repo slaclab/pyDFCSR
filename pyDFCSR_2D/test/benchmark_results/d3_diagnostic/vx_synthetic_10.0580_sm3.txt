@@ -1,0 +1,6 @@
+s = 10.0581, smoothing 3.0, sigma_xi 153.6 um, sigma_z 19.34 um, g(z) spans -2.21e-03..+1.30e-03 rad, b_hat -0.2789 /m
+per-slice d v_x/dx at fixed z [1/m]: truth | code;  trend = slope along the bunch per sigma_z (core |z|<2)
+true         z-2.4: -0.260|-0.027  z-1.2: -0.267|-0.105  z-0.0: -0.277|-0.240  z+1.2: -0.291|-0.393  z+1.8: -0.302|-0.418   trend truth -0.0108 code -0.1026   wtd-mean err +0.0217
+linear_only  z-2.4: -0.280|-0.089  z-1.2: -0.280|-0.154  z-0.0: -0.280|-0.254  z+1.2: -0.280|-0.354  z+1.8: -0.280|-0.357   trend truth +0.0000 code -0.0688   wtd-mean err +0.0176
+lin+g(z)     z-2.4: -0.304|+0.064  z-1.2: -0.304|-0.040  z-0.0: -0.307|-0.241  z+1.2: -0.310|-0.504  z+1.8: -0.310|-0.554   trend truth -0.0023 code -0.1646   wtd-mean err +0.0307
+control      z-2.4: -0.260|-0.260  z-1.2: -0.267|-0.261  z-0.0: -0.277|-0.270  z+1.2: -0.291|-0.283  z+1.8: -0.302|-0.294   trend truth -0.0108 code -0.0095   wtd-mean err +0.0070

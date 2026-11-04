@@ -273,7 +273,23 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
      becomes x-independent: the x-spread falls 0.043 → 0.010, 0.063 → 0.0003 and 0.224 → 0.0000 MeV/m at
      s = 8.57, 10.06, 12.30 m. The core then sits 15–25% below 1D at every position. The v_x term grows
      with the beam's convergence, ⟨xx′⟩/⟨x²⟩ = −0.24 → −2.6 /m toward B4, which is 10–50× what the FODO
-     W2 test validated (±0.05 /m). **Physics or deposition noise in v_x and ∂v_x/∂x: not yet decided.**
+     W2 test validated (±0.05 /m).
+     **Resolved 2026-11-03: mostly physics plus a band-locator defect, not deposition noise.**
+     - **The physics:** the v_x terms carry the self-field work on a converging beam, e·v_x·E_x. A
+       direct Coulomb estimate reproduces them (corr 0.99, scale 0.98).
+     - **The defect, which made the x-structure:** `_eq424` returned nan wherever the retarded light
+       cone misses the beam *axis* (rad < 0), so `_retarded_xi_bands` dropped that column. For an
+       observer with τ·ξ_obs < 0, the near columns with s − s′ ≲ 2|τ ξ_obs| miss the axis but still
+       pass through the beam, and all of them were lost.
+     - **The fix, opt-in:** `CSR_integration.tangent_bands: true` puts the band at the column's
+       closest approach, x′ = nq + sign(τ)√((q² − nq²)/(τ² − 1)). The near region then matches a
+       brute-force x′ sum to < 0.1% at five test points and to 5% at the sixth.
+     - **Also in B3:** outer-row wakes change by up to 6.4 MeV/m.
+     - **Separate, small effect:** a ∂v_x/∂x smoothing bias on banana-shaped beams. It has an opt-in
+       fix, `particle_deposition.vx_model: affine`, which changes the D3 maps by only a few percent.
+- **Dropped columns where Eq 4.24 has no root (`tangent_bands`, default off):** see item 2 above. The
+  defect reaches into bends, so recorded 2D chicane results that pass through B3/B4 need rerunning
+  with `tangent_bands: true`.
   - **The integration itself is converged there:** at s = 10.058 m, `near_grade`, `near_cell`, `xbins`,
     `xi_band_margin`, `branch_sin_min`, `near_patch`, `far_cell` and `far_window` move the map by
     ≤ 18% and the x-average by ≤ 4%, and none changes the sign or the x-pattern.

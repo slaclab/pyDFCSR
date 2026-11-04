@@ -23,7 +23,7 @@ class Integration_params:
                          near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
                          branch_sin_min = 0.05, near_floor = 20.0,
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
-                         drift_cutoff = 1.0):
+                         drift_cutoff = 1.0, tangent_bands = False):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -218,6 +218,22 @@ class Integration_params:
         # phi << 1 -- so R*phi is conservative for a strong bend and much less so for a
         # weak one. Skipped kicks are COUNTED and reported once when this is enabled.
         self.drift_cutoff = drift_cutoff
+        # What to do with an s' column where the retarded light cone does not cross
+        # the beam AXIS (Eq 4.24 discriminant < 0).
+        #   False  the branch is treated as absent and the column dropped.
+        #   True   the band is placed at the column's closest approach to the axis
+        #          (CSR2D._eq424) and kept if it lands inside the ribbon.
+        # The axis is a zero-width line; the beam is not. Near the observer the
+        # column traces xi_ret(y) = xi + y - tau y^2 / (2 (s - s')), y = x' - x, whose
+        # extremum is xi + (s - s')/(2 tau): for tau * xi_obs < 0 there is no root
+        # while s - s' < 2 |tau xi_obs|, although the observer sits inside the beam.
+        # Measured in the chicane D3 (tau = -6.9, s = 12.30 m): observers at
+        # xi = +0.37 and +1.1 sigma_xi lost every near column with s - s' < 140 and
+        # 440 um (2|tau xi| = 177, 527 um), the ones at xi < 0 none, and the lost
+        # columns carried the self-field (v_x) work, so the wake jumped by up to
+        # +1 MeV/m across xi = 0.
+        # Default False keeps every recorded baseline byte-identical.
+        self.tangent_bands = tangent_bands
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
         # Only meaningful for the bspline_fft deposition, whose grid is sized by

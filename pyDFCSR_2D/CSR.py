@@ -918,7 +918,7 @@ class CSR2D:
                        + a * np.log(tr.sigma_z_arr[k1])))
 
     @staticmethod
-    def _eq424(T, nq, q2, tau, b, sign):
+    def _eq424(T, nq, q2, tau, b, sign, tangent=False):
         """
         Vectorized thesis Eq 4.24, in the form corrected in Step 4f.
 
@@ -938,6 +938,15 @@ class CSR2D:
                       branch switch; the quadratic collapses to a linear equation.
           rad < 0     the light cone and the beam axis do not meet at this s', so
                       the branch is genuinely absent.
+          tangent     with tangent=True, rad < 0 returns the column's closest
+                      approach to the axis instead of nan. The retarded offset from
+                      the axis is xi_ret(x') = -tau (l(x') - Tb - x'/tau), extremal
+                      where dl/dx' = 1/tau, i.e. at
+                          x' = nq + sign(tau) sqrt((q2 - nq^2) / (tau^2 - 1)),
+                      which exists for |tau| > 1. (The vertex of the squared quadratic
+                      agrees only to leading order in 1/tau.) See
+                      Integration_params.tangent_bands for why the beam is still
+                      there although its axis is not.
           l <= 0      SPURIOUS ROOT. The derivation squares l = Tb + x'/tau, which
                       admits l < 0, i.e. t_ret > t -- a source point in the future.
                       Omitting this guard puts quadrature nodes where the integrand
@@ -955,6 +964,12 @@ class CSR2D:
                                + sign * np.sqrt(np.maximum(rad, 0.0)))
                       / np.where(gen, tau_s ** 2 - 1.0, 1.0),
                       np.nan)
+
+        if tangent:
+            tan = (~flat) & (~deg) & (rad < 0.0) & (np.abs(tau_s) > 1.0)
+            p2 = np.maximum(q2 - nq * nq, 0.0)
+            xp = np.where(tan, nq + np.sign(tau_s) * np.sqrt(
+                p2 / np.where(tan, tau_s ** 2 - 1.0, 1.0)), xp)
 
         Bc = -2.0 * T / tau_s - 2.0 * nq
         lin = deg & (Bc != 0.0)
@@ -1019,7 +1034,8 @@ class CSR2D:
                 poly, xi_bar, _, _, _ = self._comoving_frame_at(
                     t - np.sqrt(dx * dx + dy * dy))
                 new, rad = self._eq424(T, nq, q2, poly[:, 0],
-                                       poly[:, -1] + xi_bar, sign)
+                                       poly[:, -1] + xi_bar, sign,
+                                       tangent=self.integration_params.tangent_bands)
                 ok = np.isfinite(new)
                 xp = np.where(ok, new, xp)
                 live &= ok
