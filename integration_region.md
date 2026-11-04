@@ -10,12 +10,12 @@ Reference for the 2D CSR wake integral in `pyDFCSR_2D/CSR.py`, and how the beam 
 
 ## 0. Which code path runs
 
-`get_CSR_wake(s, x)` (CSR.py:1506) computes the wake at one observation point `(x, s)`. It has two
+`get_CSR_wake(s, x)` (CSR.py:1522) computes the wake at one observation point `(x, s)`. It has two
 paths:
 
 | Path | Runs when | Status |
 |---|---|---|
-| **xi_bands** (CSR.py:1593–1627) | `use_smooth_deposit and integration_params.xi_bands` | **Live.** `xi_bands = True` by default (params.py:21). `use_smooth_deposit` is True for `bspline_comoving` and `bspline_fft`. |
+| **xi_bands** (CSR.py:1609–1643) | `use_smooth_deposit and integration_params.xi_bands` | **Live.** `xi_bands = True` by default (params.py:21). `use_smooth_deposit` is True for `bspline_comoving` and `bspline_fft`. |
 | legacy (CSR.py:1532–1590, 1629–1690) | `xi_bands = False`, or the `legacy` deposition | Dead in every current config. Kept byte-identical for `test_xi_bands_equiv.py`. |
 
 **The legacy path:**
@@ -50,9 +50,9 @@ Inner and outer integrals both use the trapezoid rule; `np.trapz(x=sp)` handles 
 
 ---
 
-## 2. Longitudinal extent: `_layout_bounds` (CSR.py:1260)
+## 2. Longitudinal extent: `_layout_bounds` (CSR.py:1276)
 
-`τ` here is the **density frame's** tilt (`_frame_tilt`, CSR.py:1352): the core-fit slope `poly_coeffs[0]`
+`τ` here is the **density frame's** tilt (`_frame_tilt`, CSR.py:1368): the core-fit slope `poly_coeffs[0]`
 of the comoving tracker. It is not `beam.slope`, which fits all particles; the two differ most where
 the x–z correlation vanishes. Define `α = arctan τ`, the beam's angle in x–z.
 
@@ -93,7 +93,7 @@ branch that is still inside the beam lies in the far region** (see §8).
 
 ---
 
-## 3. Far-region s′ nodes: `_far_region_nodes` (CSR.py:1175)
+## 3. Far-region s′ nodes: `_far_region_nodes` (CSR.py:1191)
 
 Two layouts, chosen by `_exit_transient()` (CSR.py:1249) = `afterbend and not inbend`.
 
@@ -104,7 +104,7 @@ Two layouts, chosen by `_exit_transient()` (CSR.py:1249) = `afterbend and not in
   already provides.
 
 **(b) In a drift after a bend (exit transient), with `causal_clip = True`:**
-1. **Causal edge** (`_causal_edge`, CSR.py:1137): a 64-point scan over `(s1, s3)`, using
+1. **Causal edge** (`_causal_edge`, CSR.py:1153): a 64-point scan over `(s1, s3)`, using
    `_band_alive` = any band with nonzero width (§5). The far region starts at the last dead node
    below the first live one. A scan, not a root-find, because the alive mask is not monotone. If the
    edge falls at or below `s1`, the history reach is the binding limit, counted in
@@ -119,7 +119,7 @@ Two layouts, chosen by `_exit_transient()` (CSR.py:1249) = `afterbend and not in
 
 ## 4. Near-region s′ nodes and the polar patch
 
-**Near nodes** (`_near_region_nodes`, CSR.py:1410). Graded on each side of `s′ = s`, with `u = |s − s′|`:
+**Near nodes** (`_near_region_nodes`, CSR.py:1426). Graded on each side of `s′ = s`, with `u = |s − s′|`:
 
 ```
 du = max(near_cell · σξ, near_grade · u)          # near_cell = 0.5, near_grade = 0.05
@@ -134,7 +134,7 @@ du = max(near_cell · σξ, near_grade · u)          # near_cell = 0.5, near_gr
 - **Defaults:** `near_cell = 0` or `near_grade = 0` give `np.linspace` with `_region_node_counts`
   nodes, capped at `100·zbins`, with a one-time warning if the cap binds.
 
-**Polar patch** (`_near_patch_radii`, CSR.py:1455; `_integrate_near_patch`, CSR.py:1472):
+**Polar patch** (`_near_patch_radii`, CSR.py:1471; `_integrate_near_patch`, CSR.py:1488):
 - **Radii:** `R2 = min(near_patch · σξ, 0.4(s4 − s), 0.4(s − s3))` and `R1 = R2/2`, with
   `near_patch = 5`. None if `near_patch = 0` or `R2 ≤ 0`.
 - **Mesh:** polar, centred on `(x′ = x, s′ = s)`, `near_patch_nr = 100` radial midpoints by
@@ -145,7 +145,7 @@ du = max(near_cell · σξ, near_grade · u)          # near_cell = 0.5, near_gr
 
 ---
 
-## 5. Transverse extent: the x′ bands, `_retarded_xi_bands` (CSR.py:968)
+## 5. Transverse extent: the x′ bands, `_retarded_xi_bands` (CSR.py:983)
 
 Applies only with the comoving tracker and `poly_degree = 1`, since Eq 4.24 assumes a straight beam
 axis. Otherwise it falls back to the single-band locator `_retarded_xi_band` (CSR.py:742), which iterates
@@ -165,7 +165,9 @@ x′  = τ_ret [ Tb + nq τ_ret ± sqrt(rad) ] / (τ_ret² − 1)
 2. **Guards in `_eq424`** (each was needed, per the code comments):
    - **\|τ\| < 1e-9:** the axis is horizontal; single root `x′ = b`.
    - **\|\|τ\| − 1\| < 1e-9:** `τ² − 1 → 0`; the quadratic becomes linear, `x′ = −(q2 − T²)/(−2T/τ − 2nq)`.
-   - **`rad < 0`:** the light cone misses the beam axis at this s′; the branch is absent.
+   - **`rad < 0`:** the light cone misses the beam *axis* at this s′. By default the branch is treated
+     as absent and the column is dropped. **This is wrong near the observer; see §5a.** With
+     `tangent_bands: true` the band goes to the column's closest approach to the axis instead.
    - **`l = Tb + x′/τ ≤ 0`:** spurious root from squaring (source in the future); rejected.
 3. **Band:** centred on the retarded beam axis at the converged root. The half-width is
    `0.5·(u_end − u_start)·σξ_ret·xi_band_margin = xlim·σξ_ret·margin = 5 × 2 × σξ_ret = 10σξ_ret`.
@@ -173,12 +175,12 @@ x′  = τ_ret [ Tb + nq τ_ret ± sqrt(rad) ] / (τ_ret² − 1)
 4. **Dead branch:** any guard failed, or the retarded z falls outside the deposition grid
    (`w = (z_ret − z̄)/σz_ret ∉ [−zlim, zlim)`). It gets zero width, parked at `x + 4·half` so it can
    never hit the pole.
-5. **Overlap** (`_disjoint_bands`, CSR.py:1056): when the two bands overlap, subtract rather than
+5. **Overlap** (`_disjoint_bands`, CSR.py:1072): when the two bands overlap, subtract rather than
    union, so the width and node density never change. One band becomes `[hi1, hi2]`, and a band fully
    inside the other collapses to zero width. **The returned bands are reordered by position per
    column**, so band j is not branch j.
 
-**Integration** (`_integrate_xi_region`, CSR.py:1088):
+**Integration** (`_integrate_xi_region`, CSR.py:1104):
 - each live band gets `xbins` uniform nodes;
 - the inner trapezoid is scaled by that column's spacing `width/(xbins − 1)`;
 - zero-width columns are selected out, not multiplied by zero, so a node on the pole cannot produce
@@ -187,6 +189,119 @@ x′  = τ_ret [ Tb + nq τ_ret ± sqrt(rad) ] / (τ_ret² − 1)
 **Why both roots are always taken:** whether a column has one or two branches depends on the tilt at
 that column's **retarded** time. The retarded tilt can sweep +19.4 → −0.22 → −19.8 across one near region.
 Deciding from the observation-point tilt discarded 28–31% of the wake (Step 6).
+
+---
+
+## 5a. Dropped columns: the light cone misses the beam centre line but still passes through the beam (`tangent_bands`)
+
+Found 2026-11-03 while diagnosing the chicane's D3 wake. Option `CSR_integration.tangent_bands`,
+default `False`. Figure: [tangent_bands_explained.png](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
+(script `test/plot_tangent_bands.py`).
+
+![tangent bands](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
+
+### What the band locator assumes
+
+The source integral is done column by column. For a fixed s′, the code sweeps x′. It needs to know
+where on that column the source point lies inside the beam *at its retarded time*, because the
+integrand is zero everywhere else. It puts a ±10σξ band there and integrates over the band only
+(§5).
+
+To find "where", Eq 4.24 replaces the beam by its **centre line** ξ = 0, a zero-width line, and solves
+for where the retarded light cone crosses that line. One root gives one band, two roots give two. **If
+there is no root (`rad < 0`), the column is marked "branch absent" and skipped entirely.** The ±10σξ
+band width does not help, because no band is ever created.
+
+### What a column actually sees
+
+Take a drift, an observer at offset ξ_obs from the beam axis, and a column a distance D = s − s′
+behind it. Parametrise the column by y = x′ − x. Moving along the column changes |r − r′|, which
+changes the retarded time, which changes the bunch coordinate z′ at which the source is sampled. On
+a tilted beam the axis moves by τ·Δz′ in x for a shift Δz′. For |y| ≪ D the retarded offset of the
+source point from the axis is
+
+```
+ξ_ret(y) = ξ_obs + y − τ·y²/(2D)
+```
+
+This is a parabola in y (panel a). At y = 0 (x′ = x) it gives ξ_ret = ξ_obs: the column passes
+through the observer's own position in the beam, which is always inside the beam.
+
+The centre-line crossings are the roots of ξ_ret = 0. They exist only when 1 + 2τ·ξ_obs/D ≥ 0. So
+**when τ·ξ_obs < 0 and the column is close, D < 2|τ·ξ_obs|**, the parabola's extremum stays on the
+observer's side and never reaches ξ = 0. Eq 4.24 has no root and the column is dropped. But the
+extremum is at ξ_ret = ξ_obs + D/(2τ), between the axis and the observer, i.e. **in the beam core**.
+The column crosses dense charge; it just never touches the zero-width line exactly.
+
+### A concrete case: D3, s = 12.30 m
+
+Here τ = −6.9 and σξ = 34.7 µm. Take the row 6 observer at ξ_obs = +0.37σξ = 12.8 µm and a column at
+D = 100 µm:
+
+| position on the column y [µm] | −30 | −14.5 (extremum) | 0 (observer) | +30 |
+|---|---|---|---|---|
+| ξ_ret [µm] | 13.9 | **5.6** | 12.8 | 73.9 |
+| ξ_ret / σξ | 0.40 | **0.16** | 0.37 | 2.1 |
+
+The column comes within 0.16σξ of the centre line, about the densest place in the beam, but never
+reaches 0, so the default code drops it. The dropped range is predicted to be D < 2|τ|·ξ_obs (panel b):
+
+| observer | predicted dropped range | measured (band diagnostics) |
+|---|---|---|
+| row 6, ξ_obs = +0.37σξ | D < 177 µm | dead at 139 µm, alive at 243 µm |
+| row 7, ξ_obs = +1.1σξ | D < 527 µm | dead at 442 µm, alive at 593 µm |
+| row 5, ξ_obs = −0.36σξ | none | every column alive |
+
+The measured cut-offs fall between the near-region grid's columns, consistent with the prediction.
+
+### Why the wake jumped across the axis
+
+- **Only one side is hit.** It happens only for τ·ξ_obs < 0. On the other side the parabola always
+  crosses the axis twice and the column always gets its bands. Rows 5 and 6 straddle ξ = 0, so the
+  error switches on between them (panel c).
+- **The closest columns are the ones lost.** At small D, the self-field (v_x) part of the integrand,
+  which goes as 1/|r − r′|, is largest. In a drift the v_x-free part of the near integrand is
+  identically zero (parallel motion, τ(s) = τ(s′)), which is why switching v_x off hid the defect.
+- **The lost range grows with |τ·ξ_obs|.** It is worst for outer rows and at high tilt: in B3 at
+  τ = −91 it reaches tens of mm. In a bend τ(s) ≠ τ(s′), so the near integrand is nonzero even
+  without v_x, and the defect shows there too.
+
+### The fix (`tangent_bands: true`)
+
+A column with no root gets its band at the **closest approach to the axis**, the extremum of ξ_ret
+over x′, and the usual ±10σξ band then covers the beam. The extremum is where d|r − r′|/dx′ = 1/τ,
+which gives exactly (not to parabola accuracy)
+
+```
+x′ = nq + sign(τ)·sqrt((q2 − nq²)/(τ² − 1)),      |τ| > 1
+```
+
+(`_eq424(..., tangent=True)`). The vertex of the squared quadratic agrees with this only to leading
+order in 1/τ; `test_tangent_bands.py` checks that the returned point is a true extremum. If the light
+cone really does miss the beam, the column is still discarded by the existing z_ret-off-grid check.
+Columns that already had a root are untouched, so the result is byte-identical to the default
+wherever no column was dropped.
+
+### Verification against a band-free brute force (`d3_wake_diagnostic.py coltruth`)
+
+Each column is also integrated over a fine x′ grid with 40,001 nodes spanning the whole lab-frame
+ribbon (±6σx + 6σξ), with no bands, the same integrand and the same taper. Near region only, in MeV/m:
+
+| point | default | `tangent_bands` | brute force |
+|---|---|---|---|
+| B3 7.40 m, row 11 | −2.369 | −0.511 | −0.511 |
+| B3 7.60 m, row 11 | −5.607 | +0.806 | +0.805 |
+| B3 7.60 m, row 6 | −5.155 | −5.475 | −5.475 |
+| D1 3.02 m, row 11 | −0.043 | +0.051 | +0.051 |
+| D3 8.57 m, row 9 | +0.186 | −0.135 | −0.135 |
+| D3 12.35 m, row 7 | +0.830 | −0.185 | −0.175 |
+
+With the fix, the D3 v_x contribution matches an independent Coulomb-work estimate
+2K∫ρ(v_x − px′)/(x − x′)dx′ computed from the particles: correlation 0.99, scale 0.98, at 10.06 and
+12.30 m. The x-spread of the D3 map falls from 0.224 to 0.035 MeV/m at 12.30 m.
+
+**Status:** opt-in, default off. Results recorded so far are computed with it off, including the 2D
+chicane results through B3/B4. Those should be rerun with `tangent_bands: true`.
 
 ---
 
@@ -281,15 +396,12 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
        cone misses the beam *axis* (rad < 0), so `_retarded_xi_bands` dropped that column. For an
        observer with τ·ξ_obs < 0, the near columns with s − s′ ≲ 2|τ ξ_obs| miss the axis but still
        pass through the beam, and all of them were lost.
-     - **The fix, opt-in:** `CSR_integration.tangent_bands: true` puts the band at the column's
+     - **The fix, opt-in (§5a):** `CSR_integration.tangent_bands: true` puts the band at the column's
        closest approach, x′ = nq + sign(τ)√((q² − nq²)/(τ² − 1)). The near region then matches a
-       brute-force x′ sum to < 0.1% at five test points and to 5% at the sixth.
+       brute-force x′ sum to < 0.1% at five test points and to 6% at the sixth.
      - **Also in B3:** outer-row wakes change by up to 6.4 MeV/m.
      - **Separate, small effect:** a ∂v_x/∂x smoothing bias on banana-shaped beams. It has an opt-in
        fix, `particle_deposition.vx_model: affine`, which changes the D3 maps by only a few percent.
-- **Dropped columns where Eq 4.24 has no root (`tangent_bands`, default off):** see item 2 above. The
-  defect reaches into bends, so recorded 2D chicane results that pass through B3/B4 need rerunning
-  with `tangent_bands: true`.
   - **The integration itself is converged there:** at s = 10.058 m, `near_grade`, `near_cell`, `xbins`,
     `xi_band_margin`, `branch_sin_min`, `near_patch`, `far_cell` and `far_window` move the map by
     ≤ 18% and the x-average by ≤ 4%, and none changes the sign or the x-pattern.
@@ -300,6 +412,9 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
     - **Not caused by:** a noise floor; the bunch core; `tau_frac`; snapshot density.
     - **Possibly** a roughness-metric artefact (it correlates with amplitude).
   - **s = 8.317 m:** a separate defect, located in the bunch core.
+- **Dropped columns where Eq 4.24 has no root (`tangent_bands`, default off):** full explanation in
+  §5a. The defect reaches into bends, so recorded 2D chicane results that pass through B3/B4 need
+  rerunning with `tangent_bands: true`.
 - **Never tested in the drift:** deposition resolution (the deposition sweep was started and stopped
   when the reach finding came up).
 
@@ -308,10 +423,10 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
 ## 9. Source references
 
 - **Code:**
-  - `pyDFCSR_2D/CSR.py`: `get_CSR_wake` 1506, `_layout_bounds` 1260, `_frame_tilt` 1352,
-    `_far_region_nodes` 1175, `_causal_edge` 1137, `_near_region_nodes` 1410, `_near_patch_radii` 1455,
-    `_integrate_near_patch` 1472, `_retarded_xi_bands` 968, `_eq424` 921, `_disjoint_bands` 1056,
-    `_integrate_xi_region` 1088, `_comoving_frame_at` 870, taper 1965.
+  - `pyDFCSR_2D/CSR.py`: `get_CSR_wake` 1522, `_layout_bounds` 1276, `_frame_tilt` 1368,
+    `_far_region_nodes` 1191, `_causal_edge` 1153, `_near_region_nodes` 1426, `_near_patch_radii` 1471,
+    `_integrate_near_patch` 1488, `_retarded_xi_bands` 983, `_eq424` 921, `_disjoint_bands` 1072,
+    `_integrate_xi_region` 1104, `_comoving_frame_at` 870, taper 1981.
   - `pyDFCSR_2D/params.py`: `Integration_params` 15, with the measurement-backed comments for each
     parameter.
   - `pyDFCSR_2D/schedule.py`: `h_τ` 516.
