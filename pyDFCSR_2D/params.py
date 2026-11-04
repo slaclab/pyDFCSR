@@ -23,7 +23,7 @@ class Integration_params:
                          near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
                          branch_sin_min = 0.05, near_floor = 20.0,
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
-                         drift_cutoff = 1.0, tangent_bands = False):
+                         drift_cutoff = 1.0, tangent_bands = True):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -232,7 +232,9 @@ class Integration_params:
         # 440 um (2|tau xi| = 177, 527 um), the ones at xi < 0 none, and the lost
         # columns carried the self-field (v_x) work, so the wake jumped by up to
         # +1 MeV/m across xi = 0.
-        # Default False keeps every recorded baseline byte-identical.
+        # Default True since 2026-11-04, after validation on the chicane, the single
+        # dipole and the FODO W2 test (progress.md). Results recorded before that
+        # date were computed with False; set it explicitly to reproduce them.
         self.tangent_bands = tangent_bands
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.

@@ -165,9 +165,10 @@ x′  = τ_ret [ Tb + nq τ_ret ± sqrt(rad) ] / (τ_ret² − 1)
 2. **Guards in `_eq424`** (each was needed, per the code comments):
    - **\|τ\| < 1e-9:** the axis is horizontal; single root `x′ = b`.
    - **\|\|τ\| − 1\| < 1e-9:** `τ² − 1 → 0`; the quadratic becomes linear, `x′ = −(q2 − T²)/(−2T/τ − 2nq)`.
-   - **`rad < 0`:** the light cone misses the beam *axis* at this s′. By default the branch is treated
-     as absent and the column is dropped. **This is wrong near the observer; see §5a.** With
-     `tangent_bands: true` the band goes to the column's closest approach to the axis instead.
+   - **`rad < 0`:** the light cone misses the beam *axis* at this s′. With `tangent_bands: true`
+     (the default since 2026-11-04) the band goes to the column's closest approach to the axis. With
+     `false`, the old behaviour, the branch is treated as absent and the column dropped, which is
+     wrong near the observer (§5a).
    - **`l = Tb + x′/τ ≤ 0`:** spurious root from squaring (source in the future); rejected.
 3. **Band:** centred on the retarded beam axis at the converged root. The half-width is
    `0.5·(u_end − u_start)·σξ_ret·xi_band_margin = xlim·σξ_ret·margin = 5 × 2 × σξ_ret = 10σξ_ret`.
@@ -195,7 +196,7 @@ Deciding from the observation-point tilt discarded 28–31% of the wake (Step 6)
 ## 5a. Dropped columns: the light cone misses the beam centre line but still passes through the beam (`tangent_bands`)
 
 Found 2026-11-03 while diagnosing the chicane's D3 wake. Option `CSR_integration.tangent_bands`,
-default `False`. Figure: [tangent_bands_explained.png](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
+default `True` since 2026-11-04. Figure: [tangent_bands_explained.png](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
 (script `test/plot_tangent_bands.py`).
 
 ![tangent bands](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
@@ -300,8 +301,9 @@ With the fix, the D3 v_x contribution matches an independent Coulomb-work estima
 2K∫ρ(v_x − px′)/(x − x′)dx′ computed from the particles: correlation 0.99, scale 0.98, at 10.06 and
 12.30 m. The x-spread of the D3 map falls from 0.224 to 0.035 MeV/m at 12.30 m.
 
-**Status:** opt-in, default off. Results recorded so far are computed with it off, including the 2D
-chicane results through B3/B4. Those should be rerun with `tangent_bands: true`.
+**Status:** **default on since 2026-11-04**, after the chicane, single-dipole and FODO W2 validation
+(`progress.md`, "Validation of `tangent_bands` and `vx_model: affine`"). Results recorded before
+that date were computed with it off; set `tangent_bands: false` to reproduce them.
 
 ---
 
@@ -402,6 +404,10 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
      - **Also in B3:** outer-row wakes change by up to 6.4 MeV/m.
      - **Separate, small effect:** a ∂v_x/∂x smoothing bias on banana-shaped beams. It has an opt-in
        fix, `particle_deposition.vx_model: affine`, which changes the D3 maps by only a few percent.
+       It is a deposition change, not an integration-region change: it fits
+       px ≈ c₀ + b_u·u + cubic(w) on the core, deposits only the residual, and adds the fit back
+       analytically (∂v_x/∂u += b_u exactly). Full explanation and numbers in `progress.md`,
+       "How the v_x fix works".
   - **The integration itself is converged there:** at s = 10.058 m, `near_grade`, `near_cell`, `xbins`,
     `xi_band_margin`, `branch_sin_min`, `near_patch`, `far_cell` and `far_window` move the map by
     ≤ 18% and the x-average by ≤ 4%, and none changes the sign or the x-pattern.
@@ -412,9 +418,9 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
     - **Not caused by:** a noise floor; the bunch core; `tau_frac`; snapshot density.
     - **Possibly** a roughness-metric artefact (it correlates with amplitude).
   - **s = 8.317 m:** a separate defect, located in the bunch core.
-- **Dropped columns where Eq 4.24 has no root (`tangent_bands`, default off):** full explanation in
-  §5a. The defect reaches into bends, so recorded 2D chicane results that pass through B3/B4 need
-  rerunning with `tangent_bands: true`.
+- **Dropped columns where Eq 4.24 has no root:** fixed by `tangent_bands`, **default on since
+  2026-11-04** (full explanation in §5a). The defect reached into bends: 2D chicane results recorded
+  before that date, including the chirp-scan tables, are superseded.
 - **Never tested in the drift:** deposition resolution (the deposition sweep was started and stopped
   when the reach finding came up).
 

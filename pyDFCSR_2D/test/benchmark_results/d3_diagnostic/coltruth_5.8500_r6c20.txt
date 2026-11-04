@@ -1,0 +1,14 @@
+column check at s = 5.8539 (B2), row 6 col 20: x = -195.3 um, z = +0.10 sigma_z, tau -12.08, sigma_x 1894 um, sigma_xi 34.7 um; brute grid 40001 nodes over +-11574 um
+  far   400 cols over s - s' = 112561.6..1376.17 mm: off -0.0287  on -0.0287  brute -0.0287 MeV/m; columns off by > 5% of peak: off 0, on 0
+  near  167 cols over s - s' = -470.3..112.56 mm: off -0.2530  on -0.2571  brute -0.2572 MeV/m; columns off by > 5% of peak: off 10, on 0
+       s - s'     295.4 um: band off +0.000e+00  on +4.297e+06  brute +4.296e+06
+       s - s'     278.0 um: band off +0.000e+00  on +3.929e+06  brute +3.930e+06
+       s - s'     260.6 um: band off +0.000e+00  on +3.559e+06  brute +3.559e+06
+       s - s'     243.2 um: band off +0.000e+00  on +3.187e+06  brute +3.188e+06
+       s - s'     225.9 um: band off +0.000e+00  on +2.820e+06  brute +2.820e+06
+       s - s'     208.5 um: band off +0.000e+00  on +2.467e+06  brute +2.465e+06
+       s - s'     191.1 um: band off +0.000e+00  on +2.122e+06  brute +2.122e+06
+       s - s'     173.7 um: band off +0.000e+00  on +1.797e+06  brute +1.795e+06
+       s - s'     156.4 um: band off +0.000e+00  on +1.288e+06  brute +1.290e+06
+       s - s'     139.0 um: band off +0.000e+00  on +4.940e+05  brute +4.964e+05
+  patch -0.0018;  TOTAL off -0.2836  on -0.2876  brute -0.2877 MeV/m

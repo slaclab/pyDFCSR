@@ -7,6 +7,10 @@ Runs (name: class, schedule, CSR settings):
   off        CSR1D  auto (= the 2D schedule: 489 nodes, 105 midpoint kicks)   CSR off   (shared reference)
   2d         CSR2D  auto                                                      drift_cutoff 1.0 (default)
   2d_noT     CSR2D  auto                                                      drift_cutoff 1.0, transverse off
+  2d_tb      CSR2D  auto   as 2d, + CSR_integration.tangent_bands             (integration_region.md 5a)
+  2d_vx      CSR2D  auto   as 2d, + particle_deposition.vx_model affine
+  2d_new     CSR2D  auto   as 2d, both fixes
+  2d_new_noT CSR2D  auto   both fixes, transverse off
   1d         CSR1D  auto                                                      drift_cutoff 1.0  (like-for-like)
   1d_full    CSR1D  auto                                                      no drift cutoff
   1d_fine    CSR1D  manual: 1 mm in bends, 5 mm in drifts, kick every step    drift_cutoff 1.0
@@ -60,12 +64,22 @@ RUNS = {
     'off_fine': dict(cls='1d', csr=False, fine=True),
     '2d': dict(cls='2d'),
     '2d_noT': dict(cls='2d', transverse=0),
+    # 2026-11-03 fixes (integration_region.md 5a; progress.md "How the v_x fix works"), cutoff 1.0 as '2d'
+    '2d_tb': dict(cls='2d', tangent=True),
+    '2d_vx': dict(cls='2d', vx='affine'),
+    '2d_new': dict(cls='2d', tangent=True, vx='affine'),
+    '2d_new_noT': dict(cls='2d', tangent=True, vx='affine', transverse=0),
+    # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
+    '2d_time_old': dict(cls='2d'),
+    '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),
     '1d': dict(cls='1d', cutoff=1.0),
     '1d_full': dict(cls='1d', cutoff=0.0),
     '1d_fine': dict(cls='1d', cutoff=1.0, fine=True),
     '1d_fine_full': dict(cls='1d', cutoff=0.0, fine=True),
 }
-LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force', '1d': '1D, same schedule (cutoff 1 Rφ)',
+LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force',
+         '2d_tb': '2D + tangent_bands', '2d_vx': '2D + vx_model affine', '2d_new': '2D, both fixes',
+         '2d_new_noT': '2D, both fixes, no transverse force', '1d': '1D, same schedule (cutoff 1 Rφ)',
          '1d_full': '1D, same schedule, full drift', '1d_fine': '1D, fine steps (cutoff 1 Rφ)',
          '1d_fine_full': '1D, fine steps, full drift'}
 
@@ -81,6 +95,10 @@ def config(name):
     cfg['CSR_computation'].update(workdir=os.path.join(OUT, 'runs'), write_name=name)
     if r.get('csr') is False:
         cfg['CSR_computation'].update(compute_CSR=0, apply_CSR=0, write_wakes=False)
+    # explicit either way, so these runs do not change meaning if the defaults change
+    if r['cls'] == '2d':
+        cfg['CSR_integration']['tangent_bands'] = bool(r.get('tangent', False))
+        cfg['particle_deposition']['vx_model'] = r.get('vx', 'none')
     if 'transverse' in r:
         cfg['CSR_computation']['transverse_on'] = r['transverse']
     if r['cls'] == '1d':
@@ -278,7 +296,8 @@ def analyze():
     open(os.path.join(OUT, 'summary.txt'), 'w').write('\n'.join(L) + '\n'); print('\n'.join(L))
 
     # ---- plots
-    cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4'}
+    cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4',
+            '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8'}
     have_slice = all('slice_var' in R[n] for n in ['off'] + names)
     if have_slice:
         fig = plt.figure(figsize=(14, 16.5), layout='constrained')

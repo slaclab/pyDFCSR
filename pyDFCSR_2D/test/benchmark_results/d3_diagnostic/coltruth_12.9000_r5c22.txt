@@ -1,0 +1,7 @@
+column check at s = 12.9068 (B4), row 5 col 22: x = +11.1 um, z = +0.51 sigma_z, tau +1.88, sigma_x 41 um, sigma_xi 21.2 um; brute grid 40001 nodes over +-375 um
+  far   400 cols over s - s' = 385.2..628.56 mm: off -1.2712  on -1.2712  brute -1.2712 MeV/m; columns off by > 5% of peak: off 0, on 0
+  near   40 cols over s - s' = -57.8..0.39 mm: off -0.4218  on -0.3122  brute -0.2944 MeV/m; columns off by > 5% of peak: off 3, on 1
+       s - s'      21.2 um: band off +0.000e+00  on -4.994e+08  brute -4.992e+08
+       s - s'      10.6 um: band off +0.000e+00  on -6.514e+08  brute -6.512e+08
+       s - s'       0.0 um: band off +0.000e+00  on +0.000e+00  brute -1.868e+08
+  patch +0.2252;  TOTAL off -1.4678  on -1.3582  brute -1.3404 MeV/m

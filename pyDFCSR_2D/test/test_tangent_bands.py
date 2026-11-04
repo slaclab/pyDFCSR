@@ -1,7 +1,7 @@
 """
 Integration_params.tangent_bands: what _eq424 returns where the light cone misses the beam AXIS (rad < 0).
 
-  - default: nan (the column is dropped), unchanged
+  - tangent=False: nan (the column is dropped), the pre-2026-11-04 behaviour
   - tangent=True: identical roots where rad >= 0; where rad < 0, the extremum over x' of the retarded
     offset from the axis, i.e. the column's closest approach to the beam axis
 """
@@ -52,6 +52,6 @@ def test_double_root_is_closest_approach():
         assert abs(d) < 1e-5
 
 
-def test_param_default_false():
-    assert Integration_params().tangent_bands is False
-    assert Integration_params({'tangent_bands': True}).tangent_bands is True
+def test_param_default_true():
+    assert Integration_params().tangent_bands is True
+    assert Integration_params({'tangent_bands': False}).tangent_bands is False

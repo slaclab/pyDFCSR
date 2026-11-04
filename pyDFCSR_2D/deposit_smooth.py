@@ -420,7 +420,7 @@ class DF_tracker_comoving:
                          xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
-                         clip_warn=1e-3, frame_blend='orient', vx_model='none'):
+                         clip_warn=1e-3, frame_blend='orient', vx_model='affine'):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -486,7 +486,10 @@ class DF_tracker_comoving:
         # chicane D3 (tau = -49): the code's d vx/dx ran -0.03 .. -0.42 /m tail to head
         # against a true -0.26 .. -0.30, and that trend drove the spurious x-structure of
         # the far-drift wake. With 'affine' the error is <= 0.02 /m in every slice.
-        # Default 'none' keeps every recorded baseline byte-identical.
+        # Default 'affine' since 2026-11-04 (progress.md). It also removes the 6% low
+        # bias of the FODO W2 test, which was the smoothing shrinking d vx/dx, so
+        # the W2 ratio there moved 0.1327..0.1356 -> 0.1415..0.1418. Results recorded
+        # before that date were computed with 'none'; set it explicitly to reproduce.
         if vx_model not in ('none', 'affine'):
             raise ValueError(f"vx_model must be 'none' or 'affine', got {vx_model!r}")
         self.vx_model = vx_model

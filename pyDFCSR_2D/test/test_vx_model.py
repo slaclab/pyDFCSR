@@ -1,7 +1,7 @@
 """
 particle_deposition.vx_model: the affine control variate for the deposited v_x (DF_tracker_comoving).
 
-  - default 'none' is the old path, unchanged
+  - default is 'affine' (since 2026-11-04); 'none' is the old path
   - 'affine' recovers d vx/dx exactly when px = b x + g(z), on a tilted and curved ("banana") beam,
     which is the case where depositing px itself gives a z-trend in d vx/dx (chicane D3, tau = -49)
   - an unknown value is rejected
@@ -33,13 +33,34 @@ def slope_at_particles(tr, x, z):
     return f(np.c_[(xi - tr.xi_bar) / tr.sigma_xi, (z - tr.z_bar) / tr.sigma_z])
 
 
-def test_default_is_none_and_unchanged():
+def test_default_is_affine():
     x, z, px, _ = banana_beam(100_000)
     a = DF_tracker_comoving(CFG); a.get_DF(x, z, px, 0.0)
-    b = DF_tracker_comoving({**CFG, 'vx_model': 'none'}); b.get_DF(x, z, px, 0.0)
-    assert a.vx_model == 'none'
+    b = DF_tracker_comoving({**CFG, 'vx_model': 'affine'}); b.get_DF(x, z, px, 0.0)
+    assert a.vx_model == 'affine'
     for k in ('density', 'density_u', 'density_w', 'vx', 'vx_u'):
         assert np.array_equal(getattr(a, k), getattr(b, k))
+
+
+def test_density_does_not_depend_on_vx_model():
+    x, z, px, _ = banana_beam(100_000)
+    a = DF_tracker_comoving({**CFG, 'vx_model': 'none'}); a.get_DF(x, z, px, 0.0)
+    b = DF_tracker_comoving({**CFG, 'vx_model': 'affine'}); b.get_DF(x, z, px, 0.0)
+    for k in ('density', 'density_u', 'density_w'):
+        assert np.array_equal(getattr(a, k), getattr(b, k))
+
+
+def test_untilted_slope_unbiased():
+    # FODO-like: no tilt, px = b x. Depositing px itself shrinks d vx/dx by the smoothing (6% here,
+    # the low bias of the FODO W2 ratio); the control variate recovers b.
+    rng = np.random.default_rng(0); n = 400_000; bs = -0.05
+    x = rng.normal(0, 100e-6, n); z = rng.normal(0, 20e-6, n); px = bs * x + rng.normal(0, 2e-6, n)
+    r = {}
+    for model in ('none', 'affine'):
+        tr = DF_tracker_comoving({**CFG, 'vx_model': model}); tr.get_DF(x, z, px, 0.0)
+        r[model] = np.sum(tr.density * tr.vx_u / tr.sigma_xi) / np.sum(tr.density) / bs
+    assert r['none'] < 0.96
+    assert abs(r['affine'] - 1) < 0.01
 
 
 def _slope_err(g, model):
