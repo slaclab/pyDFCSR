@@ -180,6 +180,26 @@ def bilinear_single(data2d, xi_idx, z_idx, n_xi, n_z):
 
 
 @jit(nopython=True, cache=True)
+def curv_g(c2, c3, w, wl):
+    """
+    Curvature shear of the normalized frame, u' = u - g(w):
+        g(w) = c2 (w^2 - 1) + c3 w^3                    for |w| <= wl
+    continued LINEARLY beyond |w| = wl (value and slope matched), so g' has no jump
+    and the fit is not extrapolated as a cubic into the empty tails.
+    Returns (g, dg/dw).
+    """
+    if w > wl:
+        g0 = c2 * (wl * wl - 1.0) + c3 * wl * wl * wl
+        d0 = 2.0 * c2 * wl + 3.0 * c3 * wl * wl
+        return g0 + d0 * (w - wl), d0
+    if w < -wl:
+        g0 = c2 * (wl * wl - 1.0) - c3 * wl * wl * wl
+        d0 = -2.0 * c2 * wl + 3.0 * c3 * wl * wl
+        return g0 + d0 * (w + wl), d0
+    return c2 * (w * w - 1.0) + c3 * w * w * w, 2.0 * c2 * w + 3.0 * c3 * w * w
+
+
+@jit(nopython=True, cache=True)
 def eval_poly_deriv(coeffs, z):
     """Evaluate derivative of polynomial. coeffs in numpy polyfit order (highest degree first)."""
     n = len(coeffs)
@@ -455,9 +475,11 @@ def interpolate3D_comoving_fields(xval, zval, tval,
                                   blend_code, var_z_arr, cov_arr, var_x_arr,
                                   x_bar_arr,
                                   t_arr, bucket, bucket_inv_h, bucket_t0, bucket_M,
-                                  is_uniform):
+                                  is_uniform, curv_c2, curv_c3, curv_wl):
     """
-    Interpolate the density history in a co-moving affine frame.
+    Interpolate the density history in a co-moving affine frame, plus an optional
+    curvature shear u' = u - g(w) (curv_c2/curv_c3 per snapshot, blended linearly;
+    all zero = the affine frame exactly).
 
     All five fields the CSR integrand needs are returned from ONE pass, because
     they share the frame construction and the stencil indices. get_CSR_integrand
@@ -564,6 +586,12 @@ def interpolate3D_comoving_fields(xval, zval, tval,
         xi = xval[i] - p_a
         u = (xi - xi_bar) / s_xi
         w = (z - z_bar) / s_z
+        # curvature shear: the coefficients are blended linearly like the centroids;
+        # unit Jacobian, so densities need no rescaling
+        c2 = b * curv_c2[k] + a * curv_c2[k + 1]
+        c3 = b * curv_c3[k] + a * curv_c3[k + 1]
+        g_w, dg_w = curv_g(c2, c3, w, curv_wl)
+        u = u - g_w
 
         u_cell = (u - u_start) / delta_u - 0.5
         w_cell = (w - w_start) / delta_w - 0.5
@@ -635,8 +663,9 @@ def interpolate3D_comoving_fields(xval, zval, tval,
         jac = s_xi * s_z
         rho[i] = rho_h / jac
         rho_x[i] = rho_hu / (s_xi * jac)
-        # d rho/dz|_x = d rho/dz|_xi - p'(z) d rho/dxi, with the BLENDED p'
-        rho_z[i] = (rho_hw / s_z - dp_a * rho_hu / s_xi) / jac
+        # d rho/dz|_x = d rho/dz|_xi - p'(z) d rho/dxi, with the BLENDED p', and the
+        # curvature shear adds d u'/dz = -g'(w)/s_z
+        rho_z[i] = (rho_hw / s_z - (dp_a / s_xi + dg_w / s_z) * rho_hu) / jac
         vx[i] = vx_h
         vx_x[i] = vx_hu / s_xi
 

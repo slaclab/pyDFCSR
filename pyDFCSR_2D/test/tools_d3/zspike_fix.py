@@ -8,13 +8,18 @@ s_stop = float(sys.argv[1]); names = sys.argv[2].split(';')
 V = {'default': {}, 'fit_zlim 5': dict(fit_zlim=5.0), 'vx_model none': dict(vx_model='none'),
      'xlim 7, xbins 420': dict(xlim=7, xbins=420), 'xlim 9, xbins 540': dict(xlim=9, xbins=540),
      'xlim 7, xbins 300': dict(xlim=7, xbins=300), 'xlim 8, xbins 480': dict(xlim=8, xbins=480),
-     'xlim 8, xbins 300': dict(xlim=8, xbins=300)}
+     'xlim 8, xbins 300': dict(xlim=8, xbins=300), 'curvature': dict(curvature=True),
+     'curvature, xlim 8': dict(curvature=True, xlim=8, xbins=480),
+     # with the far band converged (band_jacobian_min 0.2) and, for the wide grid, the band held at +-10 sxi
+     'J default': dict(_integ=dict(band_jacobian_min=0.2)), 'J curvature': dict(curvature=True, _integ=dict(band_jacobian_min=0.2)),
+     'J xlim 9, band 10': dict(xlim=9, xbins=540, _integ=dict(band_jacobian_min=0.2, xi_band_margin=10.0 / 9))}
 zc = np.linspace(-4, 4, 81); core = np.abs(zc) < 2; ref = None; out = {}
 for n in names:
-    sim = build(s_stop, {'particle_deposition': V[n]} if V[n] else None)
+    dep = {k: v for k, v in V[n].items() if k != '_integ'}; integ = V[n].get('_integ')
+    sim = build(s_stop, {'particle_deposition': dep} if dep else None)
     b = sim.beam; xm, zm = wake_mesh(sim); X, Z = xm.reshape(12, 40), zm.reshape(12, 40)
     zz = b._mean_z + zc * b._sigma_z; xx = np.interp(zz, Z[6], X[6])
-    t0 = time.time(); w = evaluate(sim, xx, zz); dt = time.time() - t0
+    t0 = time.time(); w = evaluate(sim, xx, zz, integ); dt = time.time() - t0
     d = w - median_filter(w, 9, mode='nearest'); sp = np.abs(d[np.abs(np.abs(zc) - 3) < 0.4]).max()
     out[n] = w
     if ref is None: ref = w

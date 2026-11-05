@@ -932,6 +932,28 @@ class CSR2D:
                 np.exp(b * np.log(tr.sigma_z_arr[k])
                        + a * np.log(tr.sigma_z_arr[k1])))
 
+    def _curv_shift_at(self, t_ret, z_ret):
+        """
+        sigma_xi * g(w) at the retarded frame: the lab-x' offset of the beam ridge from
+        the straight localization axis (DF_tracker_comoving.curvature). 0 when off.
+        Blends the curvature coefficients exactly as interpolate3D_comoving_fields does.
+        """
+        tr = self.DF_tracker
+        if not getattr(tr, 'curvature', False):
+            return 0.0
+        from .deposit_smooth import _curv_g_vec
+        n_t = tr.poly_coeffs_interp.shape[0]
+        k, a = lookup_vec(t_ret, tr.t_arr, tr.is_uniform, tr.min_x, tr.delta_x, n_t)
+        k1 = np.minimum(k + 1, n_t - 1)
+        b = 1.0 - a
+        c2 = b * tr.curv_c2_arr[k] + a * tr.curv_c2_arr[k1]
+        c3 = b * tr.curv_c3_arr[k] + a * tr.curv_c3_arr[k1]
+        _, _, z_bar, s_xi, s_z = self._comoving_frame_at(t_ret)
+        w = (z_ret - z_bar) / s_z
+        wc = np.clip(w, -tr.fit_zlim, tr.fit_zlim)
+        g = c2 * (wc * wc - 1.0) + c3 * wc ** 3 + (2.0 * c2 * wc + 3.0 * c3 * wc * wc) * (w - wc)
+        return s_xi * g
+
     @staticmethod
     def _eq424(T, nq, q2, tau, b, sign, tangent=False):
         """
@@ -995,7 +1017,7 @@ class CSR2D:
         l = np.where(flat, 1.0, Tb + xp / tau_s)
         return np.where(np.isfinite(xp) & (l > 0.0), xp, np.nan), rad
 
-    def _retarded_xi_bands(self, s, x, t, sp, n_iter=12):
+    def _retarded_xi_bands(self, s, x, t, sp, n_iter=12, scale_bands=True):
         """
         Locate EVERY branch of the retarded density support in lab x': one (lo, hi)
         interval per branch per s' column.
@@ -1065,7 +1087,28 @@ class CSR2D:
             live &= (w >= tr.w_start) & (w < tr.w_end)
 
             centre = self._eval_poly_rows(poly, z_ret) + xi_bar
+            # with the curvature shear the beam ridge sits sigma_xi*g(w) off the straight
+            # axis Eq 4.24 solved on; centre the band on the ridge (the root error from
+            # solving on the axis is inside the band, as for the frame blend)
+            # du/dx' along the column (see band_jacobian_min below); the ridge offset is
+            # sigma_xi*g in u, i.e. sigma_xi*g/J in x'
+            drdx = -(dx * n_sp_x + dy * n_sp_y) / np.maximum(r_phys, 1e-300)
+            J = 1.0 - poly[:, 0] * drdx
+            Jc = np.where(J < 0, -1.0, 1.0) * np.maximum(np.abs(J), 0.2)
+            centre = centre + self._curv_shift_at(t - r_phys, z_ret) / Jc
             half = 0.5 * (tr.u_end - tr.u_start) * s_xi * margin
+            jmin = self.integration_params.band_jacobian_min
+            if jmin and scale_bands:
+                # The band is sized in lab x', but the beam is sized in u at the
+                # retarded time, and z_ret moves with x' through |r - r'|:
+                #     du/dx' = (1 - tau * d|r-r'|/dx') / sigma_xi
+                # (the frame's own change across one band is second order). Where the
+                # line of sight is oblique to a tilted beam -- columns in a bend seen
+                # from the drift after it -- |J| falls to ~0.25, so +-10 sigma_xi of x'
+                # covers only +-2.5 sigma_xi of the beam (18% of the D3 far integral
+                # missed). Scale the band by 1/|J| so it covers the same +-xlim*margin
+                # in u everywhere, and so the same nodes per beam width.
+                half = half / np.maximum(np.abs(J), jmin)
             # A dead branch carries no density whatever band it is given, so it gets
             # zero width and _integrate_xi_region drops its contribution outright.
             # Its position still has to be finite and sane: on a dead column the
@@ -1116,7 +1159,7 @@ class CSR2D:
         hi2 = np.where(a_first, hiB, hiA)
         return [(lo1, hi1), (np.minimum(np.maximum(lo2, hi1), hi2), hi2)]
 
-    def _integrate_xi_region(self, s, x, t, sp, ignore_vx, taper=None):
+    def _integrate_xi_region(self, s, x, t, sp, ignore_vx, taper=None, scale_bands=True):
         """
         Integrate one s' region with the transverse nodes riding the density ribbon.
 
@@ -1125,7 +1168,7 @@ class CSR2D:
         trapz(y, dx=h) = h * trapz(y, dx=1), so the unit-spacing result is simply
         scaled by each column's dx.
         """
-        bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp))
+        bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp, scale_bands=scale_bands))
         nx = self.integration_params.xbins
         frac = np.linspace(0.0, 1.0, nx)
 
@@ -1686,8 +1729,13 @@ class CSR2D:
             radii = self._near_patch_radii(s, s3, s4)
             tapers = [None, None if radii is None else (*radii, False)]
 
-            parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp)
-                     for spk, tp in zip(sps, tapers)]
+            # band_jacobian_min scales the FAR region only. Its columns are the oblique
+            # ones (a bend seen from far downstream, |J| down to 0.25); the near region
+            # has |J| ~ 1 except within a few band widths of the observer, where the
+            # 1/|r-r'| pole and the polar patch already set the node layout, and
+            # widening there lost accuracy (D3: up to 16% at a 0.1 floor).
+            parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp, scale_bands=(k == 0))
+                     for k, (spk, tp) in enumerate(zip(sps, tapers))]
             if radii is not None:
                 parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
 
@@ -1783,7 +1831,7 @@ class CSR2D:
             tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr,
             tr.x_bar_arr,
             tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
-            tr.is_uniform)
+            tr.is_uniform, tr.curv_c2_arr, tr.curv_c3_arr, float(tr.fit_zlim))
 
     def _assert_history(self):
         """

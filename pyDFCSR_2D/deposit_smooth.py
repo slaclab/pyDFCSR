@@ -69,6 +69,15 @@ def histogram_bspline_2d(q1, q2, w, nbins_1, bins_start_1, bins_end_1,
     return hist_data
 
 
+def _curv_g_vec(c2, c3, w, wl):
+    """Vectorised interp3D.curv_g (value only)."""
+    w = np.asarray(w, dtype=np.float64)
+    wc = np.clip(w, -wl, wl)
+    g = c2 * (wc * wc - 1.0) + c3 * wc ** 3
+    d = 2.0 * c2 * wc + 3.0 * c3 * wc * wc
+    return g + d * (w - wc)
+
+
 def smooth_and_differentiate(field, dx, dz, sigma_smooth):
     """
     Apply FFT Gaussian smoothing and compute spectral derivatives.
@@ -420,7 +429,8 @@ class DF_tracker_comoving:
                          xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
-                         clip_warn=1e-3, frame_blend='orient', vx_model='affine'):
+                         clip_warn=1e-3, frame_blend='orient', vx_model='affine',
+                         curvature=False):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -493,6 +503,13 @@ class DF_tracker_comoving:
         if vx_model not in ('none', 'affine'):
             raise ValueError(f"vx_model must be 'none' or 'affine', got {vx_model!r}")
         self.vx_model = vx_model
+        # Curvature shear of the normalized frame: u' = u - g(w), g = c2 (w^2 - 1) +
+        # c3 w^3 fitted to the slice centroids of the core (|w| < fit_zlim) and continued
+        # linearly beyond (interp3D.curv_g). A straight tilt fit on a curved beam leaves a
+        # banana in (u, w) whose tails leave the +-xlim grid: 0.28% of the charge in the
+        # chicane's B2, a false edge in rho near |w| = 3, and +-3 sigma_z spikes in the
+        # wake. Off by default; the affine frame (and the localization axis) is unchanged.
+        self.curvature = bool(curvature)
 
     def get_DF(self, x, z, px, t):
         zmean = np.mean(z)
@@ -513,6 +530,19 @@ class DF_tracker_comoving:
         # --- normalized coordinates ---
         u = (xi - xi_bar) / sigma_xi
         w = (z - z_bar) / sigma_z
+
+        # --- optional curvature shear, fitted in (u, w) on the core ---
+        c2 = c3 = 0.0
+        if self.curvature:
+            wc, uc = w[core], u[core]
+            A = np.column_stack([wc * wc - 1.0, wc ** 3, np.ones(wc.size), wc])
+            coef = np.linalg.lstsq(A, uc, rcond=None)[0]
+            c2, c3 = float(coef[0]), float(coef[1])
+            g = _curv_g_vec(c2, c3, w, self.fit_zlim)
+            u = u - g
+            # sigma_xi stays the affine (all-particle) width: the grid and the bands are
+            # sized by it, and keeping it makes curvature=True a pure reshuffle of u
+        self.curv_c2, self.curv_c3 = c2, c3
 
         npart = len(u)
         density = histogram_bspline_2d(
@@ -652,7 +682,7 @@ class DF_tracker_comoving:
         # the small per-snapshot scalars stay in a deque: N * ~6 floats is free, and
         # keeping them here avoids duplicating the popleft bookkeeping
         self.DF_log.append((self.poly_coeffs, self.xi_bar, self.sigma_xi,
-                            self.z_bar, self.sigma_z))
+                            self.z_bar, self.sigma_z, self.curv_c2, self.curv_c3))
         self.time_log.append(self.t)
         self.sigma_xi_log.append(self.sigma_xi)
         self.sigma_z_log.append(self.sigma_z)
@@ -686,7 +716,7 @@ class DF_tracker_comoving:
             nrm = np.linalg.norm(Fp)
             if nrm > 0:
                 err = max(err, np.linalg.norm(Fp - ((1 - a) * Fq + a * Fn)) / nrm)
-        (pq, xq, sxq, zq, szq), (pp, xp, sxp, zp, szp), (pn, xn, sxn, zn, szn) = \
+        (pq, xq, sxq, zq, szq, c2q, c3q), (pp, xp, sxp, zp, szp, c2p, c3p), (pn, xn, sxn, zn, szn, c2n, c3n) = \
             self.DF_log[-3], self.DF_log[-2], self.DF_log[-1]
         lin = lambda q, nn: (1 - a) * q + a * nn
         err = max(err,
@@ -694,7 +724,8 @@ class DF_tracker_comoving:
                   abs(np.log(szp) - lin(np.log(szq), np.log(szn))),
                   abs(pp[0] - lin(pq[0], pn[0])) * szp / sxp,
                   abs(xp - lin(xq, xn)) / sxp,
-                  abs(zp - lin(zq, zn)) / szp)
+                  abs(zp - lin(zq, zn)) / szp,
+                  abs(c2p - lin(c2q, c2n)), abs(c3p - lin(c3q, c3n)))
         if err >= tol:
             return False, err
         self._ring[:, h - 2] = self._ring[:, h - 1]
@@ -770,6 +801,8 @@ class DF_tracker_comoving:
         self.sigma_xi_arr = np.array([e[2] for e in self.DF_log])
         self.z_bar_arr = np.array([e[3] for e in self.DF_log])
         self.sigma_z_arr = np.array([e[4] for e in self.DF_log])
+        self.curv_c2_arr = np.array([e[5] for e in self.DF_log], dtype=np.float64)
+        self.curv_c3_arr = np.array([e[6] for e in self.DF_log], dtype=np.float64)
         self._build_moment_arrays()
 
     def _build_moment_arrays(self):

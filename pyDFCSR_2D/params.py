@@ -25,7 +25,7 @@ class Integration_params:
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
                          drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
-                         far_fine_max = 500):
+                         far_fine_max = 500, band_jacobian_min = 0.0):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -156,6 +156,9 @@ class Integration_params:
         #     1 rad dipole exit drift  <= 4e-5 (387-419)       unchanged (cap not reached)
         # A uniformly coarser far_cell does NOT work: far_cell 100 gave 5e-2 in D1.
         self.far_fine_max = far_fine_max
+        # Scale each x' band by 1/|du/dx'| at its centre, floored at this value (0 = off,
+        # the old fixed +-xlim*margin*sigma_xi). See CSR2D._retarded_xi_bands.
+        self.band_jacobian_min = band_jacobian_min
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
         # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.
