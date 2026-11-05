@@ -433,6 +433,7 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
   - **Results:** with these, the chicane runs without `drift_cutoff` and D3 is a clean energy loss with the 1D z-profile (`progress.md`, "The D3 reach fix").
   - **Still open:** (i) on entering the NEXT bend the reach drops the previous bend's tail (first B4 kick); (ii) a drift only keeps its last bend, so older bends (B2 seen from D3) are excluded.
 - **±3σz spikes in B2/B3 (found 2026-11-04): a deposition-grid limit, not an integration-region one.** With a straight tilt fit on a curved beam, the bunch tails bend out of the ±xlim·σξ grid in u: 0.28% of the charge is clipped in B2, and ρ has a false edge near |w| = 3. No integration setting changes it; xlim 8 at the same cell removes it (24% → 0.2% of the peak) and moves the core by 0.8% (`progress.md`).
+- **The far-region band is too narrow in a drift after a bend (found 2026-11-04).** The band half-width is xlim·σξ·xi_band_margin = ±10σξ, coupled to the deposition xlim. At D3 10.06 m the far-region integral is −0.114 MeV/m at ±10σξ against a converged −0.139 at ±25σξ (18% low); the near region is converged at ±10σξ. Widening the deposition grid (xlim 8) widened the band with it, which is why D2/D3 moved 15% in that test. **To do:** a separate far-band margin, set by a convergence check over D1/D2/D3 and the dipole exit drift.
 - **Never tested in the drift:** deposition resolution (the deposition sweep was started and stopped
   when the reach finding came up).
 
