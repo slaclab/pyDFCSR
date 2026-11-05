@@ -1,7 +1,7 @@
 """
 Integration_params.drift_reach / drift_snap_thin and DF_tracker_comoving.thin_previous.
 
-  - both default off, so the 2D path is unchanged unless asked for
+  - defaults since 2026-11-04: drift_reach True, drift_snap_thin 0.01, far_fine_max 500
   - thin_previous drops a snapshot exactly when linear interpolation reproduces it, keeps the ring and every
     per-snapshot log in lockstep, and never drops the newest
 """
@@ -25,9 +25,9 @@ def push(tr, t, **kw):
     tr.get_DF(x, z, px, t); tr.append_DF()
 
 
-def test_defaults_off():
+def test_defaults():
     p = Integration_params()
-    assert p.drift_reach is False and p.drift_snap_thin == 0.0
+    assert p.drift_reach is True and p.drift_snap_thin == 0.01 and p.far_fine_max == 500
 
 
 def test_thin_drops_linear_middle_and_keeps_lockstep():

@@ -80,6 +80,9 @@ RUNS = {
     # same, with the far fine-window node cap (Integration_params.far_fine_max)
     '2d_reach_cap': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500),
     '2d_reach_cap_noT': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, transverse=0),
+    # the current 2D defaults (both fixes + drift_reach, thin 0.01, cap 500) with drift_cutoff kept at 1.0:
+    # what an existing config now gets, against 2d_new (same but the old reach)
+    '2d_def_cut1': dict(cls='2d', tangent=True, vx='affine', reach=True, thin=0.01, cap=500),
     # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
     '2d_time_old': dict(cls='2d'),
     '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),

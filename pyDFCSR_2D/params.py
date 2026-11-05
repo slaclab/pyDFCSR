@@ -24,8 +24,8 @@ class Integration_params:
                          branch_sin_min = 0.05, near_floor = 20.0,
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
                          drift_cutoff = 1.0, tangent_bands = True,
-                         drift_reach = False, drift_snap_thin = 0.0,
-                         far_fine_max = 0):
+                         drift_reach = True, drift_snap_thin = 0.01,
+                         far_fine_max = 500):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -145,8 +145,16 @@ class Integration_params:
         # fine nodes are, not how fine they are.
         self.causal_clip = causal_clip
         self.far_window = far_window
-        # Upper bound on the number of fine-window nodes (0 = no bound). See
-        # _far_region_nodes; calibrated in progress.md (2026-11-04, D3 reach fix).
+        # Upper bound on the number of fine-window nodes (0 = no bound). The cell is in
+        # sigma_z but the band it resolves scales with L_f, so a short bunch over-resolves
+        # it: 3300 nodes per kick in the chicane's D3 (sigma_z 19 um). Default 500 since
+        # 2026-11-04, calibrated against a 3-6x finer reference (rel L2):
+        #     case                     default (far_cell 10)   cap 500
+        #     D1 0.49 m past B1        1.07e-3 (539 nodes)     1.25e-3
+        #     D1 2.4 m / D2 6.34 m     7.6e-6 / 2.5e-6         1.5e-5 / 8.8e-6
+        #     D3, four positions       <= 3.0e-4 (~3300)       <= 3.0e-4 (~550), 4.5x faster
+        #     1 rad dipole exit drift  <= 4e-5 (387-419)       unchanged (cap not reached)
+        # A uniformly coarser far_cell does NOT work: far_cell 100 gave 5e-2 in D1.
         self.far_fine_max = far_fine_max
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
@@ -248,12 +256,15 @@ class Integration_params:
         #   True   the far edge goes back to the entrance of the last bend, the causal-
         #          edge scan trims it, and the history is kept back to the retarded time
         #          of that edge.
+        # Default True since 2026-11-04 (chicane D3, progress.md "The D3 reach fix").
         self.drift_reach = drift_reach
         # History thinning in a drift after a bend, to keep drift_reach cheap: a new
         # snapshot is pushed only if the beam frame (sigma_xi, sigma_z, tilt) has moved by
         # more than this fraction since the last one kept (or the step is a kick, or
         # inside a bend). 0 keeps every snapshot. The interpolant is non-uniform in t
         # already (lookup_hybrid), so dropped snapshots cost only interpolation accuracy.
+        # Default 0.01 since 2026-11-04: D3 history 1.4 GB -> 461 MB, wake change <= 0.13%;
+        # 0.01..0.1 give the same map to 0.2%.
         self.drift_snap_thin = drift_snap_thin
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.

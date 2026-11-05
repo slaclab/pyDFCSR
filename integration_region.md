@@ -421,7 +421,7 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
 - **Dropped columns where Eq 4.24 has no root:** fixed by `tangent_bands`, **default on since
   2026-11-04** (full explanation in §5a). The defect reached into bends: 2D chicane results recorded
   before that date, including the chirp-scan tables, are superseded.
-- **The drift reach (the other half of the D3 failure) — fix available, off by default (2026-11-04):**
+- **The drift reach (the other half of the D3 failure) — fixed, ON by default since 2026-11-04 (`drift_reach`, `drift_snap_thin` 0.01, `far_fine_max` 500); `drift_cutoff` still defaults to 1.0:**
   - **`drift_reach: true`:** in a drift after a bend, `_layout_bounds` puts s1 at the last bend's entrance, `_far_region_nodes`'s causal-edge scan trims it, and `_retention_floor` keeps the history back to it until the next bend.
   - **`drift_snap_thin`:** drops drift snapshots that linear interpolation reproduces (`DF_tracker_comoving.thin_previous`).
   - **`far_fine_max`:** caps the far fine-window node count, which was the actual cost, ~3,300 nodes per D3 kick. Cap 500 holds the default's accuracy everywhere tested.
