@@ -614,6 +614,61 @@ if __name__ == '__main__':
                 break
         open(os.path.join(OUT, f'dreach_{s_stop:.4f}.txt'), 'w').write('\n'.join(L) + '\n'); print('\n'.join(L[-1:]))
         np.savez(os.path.join(OUT, f'dreach_{s_stop:.4f}.npz'), thins=np.array(thins), maps=np.array([res[t] for t in thins]), xm=xm, zm=zm)
+    elif cmd == 'zspike':
+        # The +-3 sigma_z spikes in the B2/B3 wakes: fine z-cut on one mesh row, split by region (far / near /
+        # patch), then variants. python d3_wake_diagnostic.py zspike <s> [row]
+        row = int(sys.argv[3]) if len(sys.argv) > 3 else 6
+        sim = build(s_stop); t = sim.beam.position; b = sim.beam
+        xm, zm = wake_mesh(sim); nx, nz = sim.CSR_params.xbins, sim.CSR_params.zbins
+        X, Z = xm.reshape(nx, nz), zm.reshape(nx, nz)
+        zc = np.linspace(-4, 4, 161); sz = b._sigma_z
+        zz = b._mean_z + zc * sz
+        xx = np.interp(zz, Z[row], X[row])
+        L = [f'z-cut at s = {t:.4f} ({sim.lattice.current_element}), mesh row {row}, 161 points over +-4 sigma_z; '
+             f'sigma_z {sz*1e6:.1f} um, tau {sim._frame_tilt():+.2f}, L_f {sim.formation_length:.3f} m']
+
+        def parts_at(x, z):
+            s = t + z
+            (s1, s3), (_, s4) = sim._layout_bounds(s, x)
+            radii = sim._near_patch_radii(s, s3, s4)
+            far = sim._integrate_xi_region(s, x, t, sim._far_region_nodes(s, x, t, s1, s3), False, None)[0]
+            near = sim._integrate_xi_region(s, x, t, sim._near_region_nodes(s, s3, s4), False,
+                                            None if radii is None else (*radii, False))[0]
+            patch = sim._integrate_near_patch(s, x, t, *radii, False)[0] if radii else 0.0
+            return far, near, patch
+        P = np.array([parts_at(x, z) for x, z in zip(xx, zz)])
+        tot = P.sum(1)
+        from scipy.ndimage import median_filter
+        def spikes(w):
+            d = w - median_filter(w, 9, mode='nearest'); k = np.argsort(-np.abs(d))[:4]
+            return ', '.join(f'{zc[i]:+.2f}: {d[i]:+.4f}' for i in sorted(k))
+        for j, nm in enumerate(('far', 'near', 'patch')):
+            L.append(f'  {nm:6s} max |.| {np.abs(P[:, j]).max():.4f}; spikes (z/sz: excess over a 9-pt median) {spikes(P[:, j])}')
+        L.append(f'  total  max |.| {np.abs(tot).max():.4f}; spikes {spikes(tot)}')
+        L.append('  total at z/sz = -3.4..-2.6 and +2.6..+3.4: ' + ' '.join(f'{v:+.3f}' for v in tot[(np.abs(np.abs(zc) - 3) <= 0.4)]))
+        # variants
+        def run_variant(name, fn):
+            saved = {}
+            fn(saved)
+            w = evaluate(sim, xx, zz)
+            for k, v in saved.items(): setattr(sim, k, v)
+            sim.integration_params = ip0
+            L.append(f'  variant {name:34s} max |.| {np.abs(w).max():.4f}; spikes {spikes(w)}; rel L2 vs base {np.linalg.norm(w - tot)/np.linalg.norm(tot):.3f}')
+            print(L[-1], flush=True)
+        ip0 = sim.integration_params
+        def s4_wide(sv):
+            lb = sim._layout_bounds; sv['_layout_bounds'] = lb
+            sim._layout_bounds = lambda s, x: (lb(s, x)[0], (lb(s, x)[1][0], s + 8.0 * sim.beam._sigma_z))
+        run_variant('near region to s + 8 sigma_z (was 3)', s4_wide)
+        for nm, p in (('xbins 400', dict(xbins=400)), ('near_cell 0.25', dict(near_cell=0.25)), ('near_grade 0.01', dict(near_grade=0.01)),
+                      ('margin 3', dict(xi_band_margin=3.0)), ('near_patch 10', dict(near_patch=10.0)), ('near_patch 0', dict(near_patch=0.0))):
+            def f(sv, p=p):
+                sim.integration_params = copy.copy(ip0)
+                for k, v in p.items(): setattr(sim.integration_params, k, v)
+            run_variant(nm, f)
+        print('\n'.join(L[:6]))
+        open(os.path.join(OUT, f'zspike_{s_stop:.4f}_r{row}.txt'), 'w').write('\n'.join(L) + '\n')
+        np.savez(os.path.join(OUT, f'zspike_{s_stop:.4f}_r{row}.npz'), zc=zc, parts=P, xx=xx, zz=zz)
     elif cmd == 'vxfield':
         # Is the deposited velocity field right? Compare the history's v_x and d v_x/dx (the newest snapshot,
         # t = s, queried through the same kernel the integrand uses) against the particles themselves.

@@ -83,6 +83,10 @@ RUNS = {
     # the current 2D defaults (both fixes + drift_reach, thin 0.01, cap 500) with drift_cutoff kept at 1.0:
     # what an existing config now gets, against 2d_new (same but the old reach)
     '2d_def_cut1': dict(cls='2d', tangent=True, vx='affine', reach=True, thin=0.01, cap=500),
+    # the +-3 sigma_z spikes: current defaults, no drift cutoff, deposition grid xlim 8 in u (xbins 300 -> 480 keeps
+    # the cell; 300 halves the u resolution but measured the same on frozen B2)
+    '2d_x8': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, dep=dict(xlim=8, xbins=480)),
+    '2d_x8c': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, dep=dict(xlim=8, xbins=300)),
     # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
     '2d_time_old': dict(cls='2d'),
     '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),
@@ -97,6 +101,7 @@ RUNS = {
 LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force',
          '2d_tb': '2D + tangent_bands', '2d_vx': '2D + vx_model affine', '2d_new': '2D, both fixes',
          '2d_new_noT': '2D, both fixes, no transverse force',
+         '2d_x8': '2D, defaults, no cutoff, deposition xlim 8', '2d_x8c': '2D, defaults, no cutoff, xlim 8 xbins 300',
          '2d_reach_cap': '2D, reach fix + node cap, no cutoff', '2d_reach_cap_noT': '2D, reach fix + cap, no cutoff, no transverse',
          '2d_reach': '2D, reach fix, no drift cutoff', '2d_reach_noT': '2D, reach fix, no cutoff, no transverse force',
          '2d_new_xavg': '2D, both fixes, x-averaged wake', '2d_new_xavgB4': '2D, both fixes, x-averaged wake in B4+', '1d': '1D, same schedule (cutoff 1 Rφ)',
@@ -122,6 +127,7 @@ def config(name):
         cfg['CSR_integration']['drift_reach'] = bool(r.get('reach', False))
         cfg['CSR_integration']['drift_snap_thin'] = float(r.get('thin', 0.0))
         cfg['CSR_integration']['far_fine_max'] = int(r.get('cap', 0))
+        cfg['particle_deposition'].update(r.get('dep', {}))
         if 'cutoff2d' in r:
             cfg['CSR_integration']['drift_cutoff'] = float(r['cutoff2d'])
     if 'transverse' in r:
@@ -332,7 +338,7 @@ def analyze():
     # ---- plots
     cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4',
             '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8', '2d_new_xavg': 'C9', '2d_new_xavgB4': 'C4',
-            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8'}
+            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8', '2d_x8': 'C2', '2d_x8c': 'C0'}
     have_slice = all('slice_var' in R[n] for n in ['off'] + names)
     if have_slice:
         fig = plt.figure(figsize=(14, 16.5), layout='constrained')

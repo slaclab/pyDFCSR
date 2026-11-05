@@ -432,6 +432,7 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
   - **`far_fine_max`:** caps the far fine-window node count, which was the actual cost, ~3,300 nodes per D3 kick. Cap 500 holds the default's accuracy everywhere tested.
   - **Results:** with these, the chicane runs without `drift_cutoff` and D3 is a clean energy loss with the 1D z-profile (`progress.md`, "The D3 reach fix").
   - **Still open:** (i) on entering the NEXT bend the reach drops the previous bend's tail (first B4 kick); (ii) a drift only keeps its last bend, so older bends (B2 seen from D3) are excluded.
+- **±3σz spikes in B2/B3 (found 2026-11-04): a deposition-grid limit, not an integration-region one.** With a straight tilt fit on a curved beam, the bunch tails bend out of the ±xlim·σξ grid in u: 0.28% of the charge is clipped in B2, and ρ has a false edge near |w| = 3. No integration setting changes it; xlim 8 at the same cell removes it (24% → 0.2% of the peak) and moves the core by 0.8% (`progress.md`).
 - **Never tested in the drift:** deposition resolution (the deposition sweep was started and stopped
   when the reach finding came up).
 
