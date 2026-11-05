@@ -74,6 +74,12 @@ RUNS = {
     # The transverse kick is left as computed. Separates the wake's x-dependence from its z-profile.
     '2d_new_xavg': dict(cls='2d', tangent=True, vx='affine', xavg=0.0),
     '2d_new_xavgB4': dict(cls='2d', tangent=True, vx='affine', xavg=12.6122),
+    # D3 reach fix: no drift cutoff, the reach goes back to the last bend's entrance, drift history thinned
+    '2d_reach': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01),
+    '2d_reach_noT': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, transverse=0),
+    # same, with the far fine-window node cap (Integration_params.far_fine_max)
+    '2d_reach_cap': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500),
+    '2d_reach_cap_noT': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, transverse=0),
     # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
     '2d_time_old': dict(cls='2d'),
     '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),
@@ -88,6 +94,8 @@ RUNS = {
 LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force',
          '2d_tb': '2D + tangent_bands', '2d_vx': '2D + vx_model affine', '2d_new': '2D, both fixes',
          '2d_new_noT': '2D, both fixes, no transverse force',
+         '2d_reach_cap': '2D, reach fix + node cap, no cutoff', '2d_reach_cap_noT': '2D, reach fix + cap, no cutoff, no transverse',
+         '2d_reach': '2D, reach fix, no drift cutoff', '2d_reach_noT': '2D, reach fix, no cutoff, no transverse force',
          '2d_new_xavg': '2D, both fixes, x-averaged wake', '2d_new_xavgB4': '2D, both fixes, x-averaged wake in B4+', '1d': '1D, same schedule (cutoff 1 Rφ)',
          '1d_full': '1D, same schedule, full drift', '1d_fine': '1D, fine steps (cutoff 1 Rφ)',
          '1d_fine_full': '1D, fine steps, full drift'}
@@ -108,6 +116,11 @@ def config(name):
     if r['cls'] == '2d':
         cfg['CSR_integration']['tangent_bands'] = bool(r.get('tangent', False))
         cfg['particle_deposition']['vx_model'] = r.get('vx', 'none')
+        cfg['CSR_integration']['drift_reach'] = bool(r.get('reach', False))
+        cfg['CSR_integration']['drift_snap_thin'] = float(r.get('thin', 0.0))
+        cfg['CSR_integration']['far_fine_max'] = int(r.get('cap', 0))
+        if 'cutoff2d' in r:
+            cfg['CSR_integration']['drift_cutoff'] = float(r['cutoff2d'])
     if 'transverse' in r:
         cfg['CSR_computation']['transverse_on'] = r['transverse']
     if r['cls'] == '1d':
@@ -315,7 +328,8 @@ def analyze():
 
     # ---- plots
     cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4',
-            '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8', '2d_new_xavg': 'C9', '2d_new_xavgB4': 'C4'}
+            '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8', '2d_new_xavg': 'C9', '2d_new_xavgB4': 'C4',
+            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8'}
     have_slice = all('slice_var' in R[n] for n in ['off'] + names)
     if have_slice:
         fig = plt.figure(figsize=(14, 16.5), layout='constrained')

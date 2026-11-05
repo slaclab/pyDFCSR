@@ -660,6 +660,50 @@ class DF_tracker_comoving:
         self.clipped_log.append(self.clipped)
         self.end_time = self.t
 
+    def thin_previous(self, tol, max_gap=np.inf):
+        """
+        Drop the second-newest snapshot P if the newest N and the one before P (Q)
+        reproduce it by linear interpolation in t within `tol`, and N - Q <= max_gap.
+
+        Error measure, the max of
+          - relative L2 error of the density and of vx (normalized grid),
+          - the frame: |d ln sigma_xi|, |d ln sigma_z|, |d tau| sigma_z/sigma_xi,
+            |d xi_bar|/sigma_xi, |d z_bar|/sigma_z (each a shift in units of the width).
+        O(1): P sits at head-2 of the ring, so it is overwritten by N.
+        Returns (dropped, error).
+        """
+        n = len(self.time_log)
+        if n < 3:
+            return False, np.inf
+        tQ, tP, tN = self.time_log[-3], self.time_log[-2], self.time_log[-1]
+        if tN - tQ > max_gap:
+            return False, np.inf
+        a = (tP - tQ) / (tN - tQ)
+        h = self._ring_head
+        err = 0.0
+        for k in (0, 3):                                   # density, vx
+            Fq, Fp, Fn = self._ring[k, h - 3], self._ring[k, h - 2], self._ring[k, h - 1]
+            nrm = np.linalg.norm(Fp)
+            if nrm > 0:
+                err = max(err, np.linalg.norm(Fp - ((1 - a) * Fq + a * Fn)) / nrm)
+        (pq, xq, sxq, zq, szq), (pp, xp, sxp, zp, szp), (pn, xn, sxn, zn, szn) = \
+            self.DF_log[-3], self.DF_log[-2], self.DF_log[-1]
+        lin = lambda q, nn: (1 - a) * q + a * nn
+        err = max(err,
+                  abs(np.log(sxp) - lin(np.log(sxq), np.log(sxn))),
+                  abs(np.log(szp) - lin(np.log(szq), np.log(szn))),
+                  abs(pp[0] - lin(pq[0], pn[0])) * szp / sxp,
+                  abs(xp - lin(xq, xn)) / sxp,
+                  abs(zp - lin(zq, zn)) / szp)
+        if err >= tol:
+            return False, err
+        self._ring[:, h - 2] = self._ring[:, h - 1]
+        self._ring_head -= 1
+        for dq in (self.DF_log, self.time_log, self.sigma_xi_log, self.sigma_z_log,
+                   self.poly_coeffs_log, self.clipped_log):
+            last = dq.pop(); dq.pop(); dq.append(last)
+        return True, err
+
     def pop_left_DF(self, new_start_time):
         while self.start_time < new_start_time:
             self.DF_log.popleft()

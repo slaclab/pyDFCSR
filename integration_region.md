@@ -421,6 +421,12 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
 - **Dropped columns where Eq 4.24 has no root:** fixed by `tangent_bands`, **default on since
   2026-11-04** (full explanation in §5a). The defect reached into bends: 2D chicane results recorded
   before that date, including the chirp-scan tables, are superseded.
+- **The drift reach (the other half of the D3 failure) — fix available, off by default (2026-11-04):**
+  - **`drift_reach: true`:** in a drift after a bend, `_layout_bounds` puts s1 at the last bend's entrance, `_far_region_nodes`'s causal-edge scan trims it, and `_retention_floor` keeps the history back to it until the next bend.
+  - **`drift_snap_thin`:** drops drift snapshots that linear interpolation reproduces (`DF_tracker_comoving.thin_previous`).
+  - **`far_fine_max`:** caps the far fine-window node count, which was the actual cost, ~3,300 nodes per D3 kick. Cap 500 holds the default's accuracy everywhere tested.
+  - **Results:** with these, the chicane runs without `drift_cutoff` and D3 is a clean energy loss with the 1D z-profile (`progress.md`, "The D3 reach fix").
+  - **Still open:** (i) on entering the NEXT bend the reach drops the previous bend's tail (first B4 kick); (ii) a drift only keeps its last bend, so older bends (B2 seen from D3) are excluded.
 - **Never tested in the drift:** deposition resolution (the deposition sweep was started and stopped
   when the reach finding came up).
 

@@ -1,0 +1,6 @@
+drift_reach at s = 8.566: n_formation_length 1 (chicane default) with drift_reach, vs the same with the whole history (thin 0); x-avg = charge-weighted over x rows
+thin 0      reach s' >= 7.106; history 7.106..8.566 m, 113 snapshots (706 MB ring), dropped 0; x-avg z=-2..+2: -0.0378 -0.1899 -0.3540 -0.2262 +0.0662 | x-spread 0.0076 | rel L2 vs thin 0 0.0000 | map 88 s (183 ms/pt), build 118 s
+thin 0.01   reach s' >= 7.106; history 7.106..8.566 m, 84 snapshots (461 MB ring), dropped 174; x-avg z=-2..+2: -0.0378 -0.1899 -0.3540 -0.2262 +0.0662 | x-spread 0.0076 | rel L2 vs thin 0 0.0001 | map 90 s (188 ms/pt), build 113 s
+thin 0.03   reach s' >= 7.106; history 7.106..8.566 m, 84 snapshots (461 MB ring), dropped 174; x-avg z=-2..+2: -0.0378 -0.1899 -0.3540 -0.2262 +0.0662 | x-spread 0.0076 | rel L2 vs thin 0 0.0001 | map 90 s (187 ms/pt), build 113 s
+thin 0.1    reach s' >= 7.106; history 7.106..8.566 m, 84 snapshots (461 MB ring), dropped 174; x-avg z=-2..+2: -0.0378 -0.1899 -0.3540 -0.2262 +0.0662 | x-spread 0.0076 | rel L2 vs thin 0 0.0001 | map 90 s (188 ms/pt), build 114 s
+vs the full-history reach test n_fl 6 (reach_8.5660.npz): rel L2 thin 0: 0.6738, thin 0.01: 0.6738, thin 0.03: 0.6738, thin 0.1: 0.6738

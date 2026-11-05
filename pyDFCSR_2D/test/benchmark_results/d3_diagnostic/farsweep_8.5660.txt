@@ -1,0 +1,11 @@
+far-region layout sweep at s = 8.5662 (D3), drift_reach, thin 0.01
+base far_cell 10, window 1   far nodes  3285   188.2 ms/pt  x-avg z=0 -0.3540
+far_cell 30                  far nodes  1116    73.7 ms/pt  x-avg z=0 -0.3540
+far_cell 100                 far nodes   356    33.2 ms/pt  x-avg z=0 -0.3540
+far_cell 300                 far nodes   139    22.1 ms/pt  x-avg z=0 -0.3540
+window 0.5                   far nodes  1665   105.3 ms/pt  x-avg z=0 -0.3558
+window 0.5, cell 30          far nodes   580    45.2 ms/pt  x-avg z=0 -0.3558
+window 0.3, cell 100         far nodes   138    21.9 ms/pt  x-avg z=0 -0.3519
+far_zbins 100, cell 100      far nodes   356    32.4 ms/pt  x-avg z=0 -0.3540
+ref: cell 3, window 2        far nodes 20001  1062.4 ms/pt  x-avg z=0 -0.3540
+rel L2 vs reference (cell 3, window 2): base far_cell 10, window 1: 2.95e-04, far_cell 30: 2.95e-04, far_cell 100: 2.95e-04, far_cell 300: 3.75e-04, window 0.5: 9.10e-03, window 0.5, cell 30: 9.09e-03, window 0.3, cell 100: 4.28e-02, far_zbins 100, cell 100: 2.95e-04, ref: cell 3, window 2: 0.00e+00

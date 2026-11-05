@@ -23,6 +23,7 @@ Each command rebuilds the frozen state (~1.5 min of CSR-off tracking with the hi
 the CSR2D object holds numba closures and so is not pickled.
 """
 import contextlib
+import glob
 import copy
 import io
 import os
@@ -578,6 +579,41 @@ if __name__ == '__main__':
                  f'brute {sum(v["brute"] for v in tot.values()) + patch:+.4f} MeV/m')
         print('\n'.join(L))
         open(os.path.join(OUT, f'coltruth_{s_stop:.4f}_r{row}c{col}.txt'), 'w').write('\n'.join(L) + '\n')
+    elif cmd == 'dreach':
+        # drift_reach / drift_snap_thin on the frozen D3 state, against the n_fl reach test (reach_*.npz)
+        #   python d3_wake_diagnostic.py dreach <s> [thin1,thin2,...]
+        thins = [float(v) for v in (sys.argv[3].split(',') if len(sys.argv) > 3 else ['0'])]
+        u = np.linspace(-4, 4, 12); wx = np.exp(-u ** 2 / 2); wx /= wx.sum()
+        L = [f'drift_reach at s = {s_stop}: n_formation_length 1 (chicane default) with drift_reach, '
+             f'vs the same with the whole history (thin 0); x-avg = charge-weighted over x rows']
+        ref = None; res = {}
+        for th in thins:
+            t0 = time.time()
+            sim = build(s_stop, {'CSR_integration': dict(n_formation_length=1.0, drift_reach=True, drift_snap_thin=th)})
+            tb = time.time() - t0
+            xm, zm = wake_mesh(sim); tr = sim.DF_tracker
+            t1 = time.time(); W = evaluate(sim, xm, zm).reshape(sim.CSR_params.xbins, sim.CSR_params.zbins); tw = time.time() - t1
+            avg = (wx[:, None] * W).sum(0); xs = np.sqrt((wx[:, None] * (W - avg) ** 2).sum(0))
+            (s1, s3), _ = sim._layout_bounds(sim.beam.position, 0.0)
+            if ref is None: ref = W
+            res[th] = W
+            L.append(f'thin {th:<6g} reach s\' >= {s1:.3f}; history {tr.time_log[0]:.3f}..{tr.time_log[-1]:.3f} m, {len(tr.time_log)} snapshots '
+                     f'({tr._ring.nbytes/1e6:.0f} MB ring), dropped {getattr(sim, "_thin_dropped", 0)}; '
+                     f'x-avg z=-2..+2: ' + ' '.join(f'{v:+.4f}' for v in avg[[10, 15, 20, 25, 30]])
+                     + f' | x-spread {np.sqrt(np.mean(xs ** 2)):.4f} | rel L2 vs thin 0 {np.linalg.norm(W - ref)/np.linalg.norm(ref):.4f} '
+                     f'| map {tw:.0f} s ({tw/W.size*1e3:.0f} ms/pt), build {tb:.0f} s')
+            print(L[-1], flush=True)
+        f = os.path.join(OUT, f'reach_{s_stop:.4f}.npz')
+        for g in sorted(glob.glob(os.path.join(OUT, f'reach_{s_stop:.4f}*.npz'))):
+            d = np.load(g); nf = list(d['nfl'])
+            big = max(nf)
+            if big > 1:
+                Wr = d['maps'][nf.index(big)]
+                L.append(f'vs the full-history reach test n_fl {big:g} ({os.path.basename(g)}): rel L2 '
+                         + ', '.join(f'thin {th:g}: {np.linalg.norm(res[th] - Wr)/np.linalg.norm(Wr):.4f}' for th in thins))
+                break
+        open(os.path.join(OUT, f'dreach_{s_stop:.4f}.txt'), 'w').write('\n'.join(L) + '\n'); print('\n'.join(L[-1:]))
+        np.savez(os.path.join(OUT, f'dreach_{s_stop:.4f}.npz'), thins=np.array(thins), maps=np.array([res[t] for t in thins]), xm=xm, zm=zm)
     elif cmd == 'vxfield':
         # Is the deposited velocity field right? Compare the history's v_x and d v_x/dx (the newest snapshot,
         # t = s, queried through the same kernel the integrand uses) against the particles themselves.

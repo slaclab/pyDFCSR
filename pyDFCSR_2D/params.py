@@ -23,7 +23,9 @@ class Integration_params:
                          near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
                          branch_sin_min = 0.05, near_floor = 20.0,
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
-                         drift_cutoff = 1.0, tangent_bands = True):
+                         drift_cutoff = 1.0, tangent_bands = True,
+                         drift_reach = False, drift_snap_thin = 0.0,
+                         far_fine_max = 0):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -143,6 +145,9 @@ class Integration_params:
         # fine nodes are, not how fine they are.
         self.causal_clip = causal_clip
         self.far_window = far_window
+        # Upper bound on the number of fine-window nodes (0 = no bound). See
+        # _far_region_nodes; calibrated in progress.md (2026-11-04, D3 reach fix).
+        self.far_fine_max = far_fine_max
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
         # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.
@@ -236,6 +241,20 @@ class Integration_params:
         # dipole and the FODO W2 test (progress.md). Results recorded before that
         # date were computed with False; set it explicitly to reproduce them.
         self.tangent_bands = tangent_bands
+        # Integration reach in a drift after a bend.
+        #   False  s' >= s3 - n_formation_length * L_f, with L_f the in-bend value of the
+        #          last bend. The bend leaves the reach ~1.7 R*phi past the exit at
+        #          n_fl = 1, and the D3 wake then turns positive (progress.md 2026-11-03).
+        #   True   the far edge goes back to the entrance of the last bend, the causal-
+        #          edge scan trims it, and the history is kept back to the retarded time
+        #          of that edge.
+        self.drift_reach = drift_reach
+        # History thinning in a drift after a bend, to keep drift_reach cheap: a new
+        # snapshot is pushed only if the beam frame (sigma_xi, sigma_z, tilt) has moved by
+        # more than this fraction since the last one kept (or the step is a kick, or
+        # inside a bend). 0 keeps every snapshot. The interpolant is non-uniform in t
+        # already (lookup_hybrid), so dropped snapshots cost only interpolation accuracy.
+        self.drift_snap_thin = drift_snap_thin
         # Place the transverse integration nodes on the retarded density ribbon
         # (in the tilt-removed xi frame) instead of on a rectangle in lab x'.
         # Only meaningful for the bspline_fft deposition, whose grid is sized by

@@ -286,8 +286,15 @@ class CSR2D:
                   f'({type(exc).__name__}: {exc}); falling back to instantaneous L_f')
 
     def _retention_floor(self):
-        return (self._retention.floor_at(self.beam.position)
-                if self._retention is not None else None)
+        f = (self._retention.floor_at(self.beam.position)
+             if self._retention is not None else None)
+        # drift_reach: from a bend's entrance until the next bend, never discard the
+        # history of that bend -- it is the source of the exit wake downstream
+        if self.integration_params.drift_reach and self.afterbend:
+            sb = getattr(self, 'bend_start_rec', None)
+            if sb is not None:
+                f = sb if f is None else min(f, sb)
+        return f
 
     def _check_retention(self):
         """
@@ -303,6 +310,9 @@ class CSR2D:
             return
         need = max(0.0, self.beam.position
                    - self.integration_params.n_formation_length * self.formation_length)
+        sb = self._drift_reach_start()
+        if sb is not None:
+            need = min(need, sb)
         have = self.DF_tracker.time_log[0]
         if have > need + 1e-9:
             self._retention_short += 1
@@ -455,6 +465,10 @@ class CSR2D:
                 self.afterbend = True
                 self.R_rec = R
                 self.phi_rec = angle
+                # entrance of the bend just entered: in the drift that follows, the exit
+                # transient's source is this arc (Integration_params.drift_reach)
+                self.bend_start_rec = (float(self.lattice.distance[ele_count - 1])
+                                       if ele_count > 0 else 0.0)
 
                 self._refresh_formation_length(R)
 
@@ -506,6 +520,7 @@ class CSR2D:
                     self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
                     # append the density functions to the log
                     self.DF_tracker.append_DF()
+                    self._thin_drift_history()
                     # append 3D matrix for interpolation with the new DFs by interpolation
                     self.DF_tracker.append_interpolant(formation_length=self.formation_length,
                                                        n_formation_length=self.integration_params.n_formation_length,
@@ -1239,6 +1254,11 @@ class CSR2D:
         if ip.far_window and ip.far_cell:
             top = min(lo + ip.far_window * self.formation_length, sp_near)
             cell = ip.far_cell * self.beam._sigma_z
+            if ip.far_fine_max:
+                # cap the fine-window node count: far_cell*sigma_z is set by the bunch,
+                # but the band it resolves scales with L_f, so a short bunch (sigma_z
+                # 19 um in D3) put 3300 nodes in a window that ~300 resolve to 3e-4
+                cell = max(cell, (top - lo) / ip.far_fine_max)
             n_fine = int(np.clip(round((top - lo) / cell) + 1, 3, 100 * ip.far_zbins))
             parts.append(np.linspace(lo, top, n_fine))
         if top < sp_near:
@@ -1363,7 +1383,46 @@ class CSR2D:
         # than the retained history supports, and inverted (s1 > s2) whenever s2 went
         # negative while s1 clamped.
         s1 = max(0.0, s3 - ip.n_formation_length * self.formation_length)
+        # In a drift after a bend the source of the exit wake is the bend's own arc,
+        # which recedes behind the observer; a fixed n_fl*L_f reach loses it ~1.7 R*phi
+        # past the exit and the wake then changes sign (progress.md, 2026-11-03).
+        # drift_reach extends the far edge back to the bend's entrance; the causal-edge
+        # scan in _far_region_nodes then trims it to where the source still contributes.
+        s_bend = self._drift_reach_start()
+        if s_bend is not None:
+            s1 = min(s1, s_bend)
         return ((s1, s3), (s3, s4))
+
+    def _thin_drift_history(self):
+        """
+        drift_snap_thin: in a drift after a bend, drop the previous snapshot if linear
+        interpolation between its neighbours reproduces it within the tolerance (see
+        DF_tracker_comoving.thin_previous). Online, O(1) per step, newest always kept.
+        """
+        tol = self.integration_params.drift_snap_thin
+        if not (tol and self.use_comoving and self._exit_transient()):
+            return
+        # never thin the bend itself: P (the candidate) must lie past the bend exit
+        tr = self.DF_tracker
+        if len(tr.time_log) < 3 or tr.time_log[-2] <= self._bend_exit_rec():
+            return
+        gap = self.integration_params.n_formation_length * self.formation_length
+        dropped, err = tr.thin_previous(tol, max_gap=gap)
+        self._thin_dropped = getattr(self, '_thin_dropped', 0) + int(dropped)
+        self._thin_kept = getattr(self, '_thin_kept', 0) + int(not dropped)
+
+    def _bend_exit_rec(self):
+        sb = getattr(self, 'bend_start_rec', None)
+        if sb is None or self.R_rec is None:
+            return -np.inf
+        return sb + abs(self.R_rec * self.phi_rec)
+
+    def _drift_reach_start(self):
+        """Far edge for the exit transient (the last bend's entrance), or None."""
+        if not (self.integration_params.drift_reach and self._exit_transient()):
+            return None
+        sb = getattr(self, 'bend_start_rec', None)
+        return None if sb is None else max(0.0, float(sb))
 
     def _frame_tilt(self):
         """
