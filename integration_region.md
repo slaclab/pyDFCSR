@@ -353,10 +353,15 @@ that date were computed with it off; set `tangent_bands: false` to reproduce the
 | `causal_clip` | True | far start at the causal edge, exit transient only |
 | `far_window` | 1.0 L_f | fine far window |
 | `far_cell` | 10 σz | fine far cell |
-| `drift_cutoff` | 1.0 \|R·φ\| | no wake beyond this distance past an exit (not part of the region, but it decides whether the wake is computed at all) |
+| `far_fine_max` | 500 | cap on fine-window nodes; raises `far_cell` only where it is excessive (since 2026-11-04) |
+| `tangent_bands` | True | band at the closest approach where Eq 4.24 has no root (§5a; since 2026-11-04) |
+| `drift_reach` | True | in a drift after a bend, far edge back to that bend's entrance (since 2026-11-04) |
+| `drift_snap_thin` | 0.01 | drop drift snapshots that interpolation reproduces (since 2026-11-04) |
+| `drift_cutoff` | 0 (was 1.0 \|R·φ\| before 2026-11-04) | no wake beyond this distance past an exit; 0 = drifts integrated in full |
 
 Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and the band half-width;
-`frame_blend = 'orient'`; `poly_degree = 1` is required for `_retarded_xi_bands`.
+`frame_blend = 'orient'`; `poly_degree = 1` is required for `_retarded_xi_bands`; `vx_model = 'affine'`
+(since 2026-11-04).
 
 ---
 
@@ -421,7 +426,7 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
 - **Dropped columns where Eq 4.24 has no root:** fixed by `tangent_bands`, **default on since
   2026-11-04** (full explanation in §5a). The defect reached into bends: 2D chicane results recorded
   before that date, including the chirp-scan tables, are superseded.
-- **The drift reach (the other half of the D3 failure) — fixed, ON by default since 2026-11-04 (`drift_reach`, `drift_snap_thin` 0.01, `far_fine_max` 500); `drift_cutoff` still defaults to 1.0:**
+- **The drift reach (the other half of the D3 failure) — fixed, ON by default since 2026-11-04 (`drift_reach`, `drift_snap_thin` 0.01, `far_fine_max` 500), and `drift_cutoff` now defaults to 0:**
   - **`drift_reach: true`:** in a drift after a bend, `_layout_bounds` puts s1 at the last bend's entrance, `_far_region_nodes`'s causal-edge scan trims it, and `_retention_floor` keeps the history back to it until the next bend.
   - **`drift_snap_thin`:** drops drift snapshots that linear interpolation reproduces (`DF_tracker_comoving.thin_previous`).
   - **`far_fine_max`:** caps the far fine-window node count, which was the actual cost, ~3,300 nodes per D3 kick. Cap 500 holds the default's accuracy everywhere tested.

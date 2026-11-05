@@ -23,7 +23,7 @@ class Integration_params:
                          near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
                          branch_sin_min = 0.05, near_floor = 20.0,
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
-                         drift_cutoff = 1.0, tangent_bands = True,
+                         drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
                          far_fine_max = 500):
         self.n_formation_length = n_formation_length
@@ -160,9 +160,18 @@ class Integration_params:
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
         # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.
         #
-        # ON by default at 1.0, which is the author's decision and rests on the far-drift
-        # wake being untrustworthy there rather than on it being negligible. The numbers
-        # below are what that costs and what it removes; both matter.
+        # OFF by default (0) since 2026-11-04, the author's decision. It was ON at 1.0
+        # because the far-drift 2D wake was untrustworthy, not because it was negligible.
+        # That wake was two defects -- dropped near columns (tangent_bands) and a reach
+        # that lost the bend (drift_reach) -- both fixed and on by default, and with
+        # far_fine_max the far drift costs ~+20% run time on the chicane (26.4 vs 22.0
+        # min). The 1D calibration of what the cutoff removes on the chicane, as % of
+        # no cutoff:  cutoff [R phi]   0.25  0.5   1     2     4     6
+        #             energy loss      49    57    67    77    86    92
+        #             emittance growth 27    35    49    62    77    87
+        # so no fixed cutoff is safe there: past ~1 R*phi the exit wake is the head term
+        # ~A lam/(2d), which falls only as 1/d. Set it > 0 only as a deliberate speed-up.
+        # The rest of this note is the history from when it was on.
         #
         # What it discards. On the chicane, with each kick weighted by its arc length
         # L_kick (drift kicks span 0.25 m against 0.005 m in a bend, so weighting by kick
