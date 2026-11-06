@@ -25,7 +25,8 @@ class Integration_params:
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
                          drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
-                         far_fine_max = 500, band_jacobian_min = 0.0):
+                         far_fine_max = 500, band_jacobian_min = 0.0,
+                         prev_bend_reach = False):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -159,6 +160,10 @@ class Integration_params:
         # Scale each x' band by 1/|du/dx'| at its centre, floored at this value (0 = off,
         # the old fixed +-xlim*margin*sigma_xi). See CSR2D._retarded_xi_bands.
         self.band_jacobian_min = band_jacobian_min
+        # Inside a bend, also integrate the PREVIOUS bend's exit tail (needs drift_reach):
+        # an extra far region from the previous bend's entrance up to this bend's own
+        # reach, laid out like an exit transient. Off by default.
+        self.prev_bend_reach = prev_bend_reach
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
         # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.

@@ -294,6 +294,9 @@ class CSR2D:
             sb = getattr(self, 'bend_start_rec', None)
             if sb is not None:
                 f = sb if f is None else min(f, sb)
+        pb = self._prev_bend_reach_start()
+        if pb is not None:
+            f = pb if f is None else min(f, pb)
         return f
 
     def _check_retention(self):
@@ -313,6 +316,9 @@ class CSR2D:
         sb = self._drift_reach_start()
         if sb is not None:
             need = min(need, sb)
+        pb = self._prev_bend_reach_start()
+        if pb is not None:
+            need = min(need, pb)
         have = self.DF_tracker.time_log[0]
         if have > need + 1e-9:
             self._retention_short += 1
@@ -462,6 +468,10 @@ class CSR2D:
 
                 self.inbend = True
 
+                # the bend left behind is still radiating into this one: its exit tail
+                # arrives here (Integration_params.prev_bend_reach)
+                self.prev_bend_start = (getattr(self, 'bend_start_rec', None)
+                                        if self.afterbend else None)
                 self.afterbend = True
                 self.R_rec = R
                 self.phi_rec = angle
@@ -475,6 +485,7 @@ class CSR2D:
 
             else:  # If not in a bend
                 self.inbend = False
+                self.prev_bend_start = None
 
                 #Todo: Verify the formation length in the drift. The phi-dependent
                 # out-of-bend form in get_formation_length is not used; the in-bend
@@ -613,7 +624,8 @@ class CSR2D:
                                 L_kick = self.beam.position - self._s_last_kick
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, L_kick,
-                                                  self.CSR_params.transverse_on)
+                                                  self.CSR_params.transverse_on,
+                                                  x_shift=self._mesh_ridge(self.beam.z))
                             self._s_last_kick = self.beam.position
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
@@ -655,6 +667,19 @@ class CSR2D:
         self.write_statistics()
 
 
+    def _mesh_ridge(self, z):
+        """
+        Lab-x offset of the beam ridge from the straight tilt fit, sigma_xi * g(w), from
+        the newest snapshot's curvature shear (particle_deposition.curvature). Zero when
+        the shear is off, so the mesh and the kick lookup are then exactly as before.
+        """
+        tr = self.DF_tracker
+        if not (self.use_comoving and getattr(tr, 'curvature', False) and tr.sigma_z):
+            return np.zeros_like(np.asarray(z, dtype=float))
+        from .deposit_smooth import _curv_g_vec
+        w = (np.asarray(z, dtype=float) - tr.z_bar) / tr.sigma_z
+        return tr.sigma_xi * _curv_g_vec(tr.curv_c2, tr.curv_c3, w, tr.fit_zlim)
+
     def get_CSR_mesh(self):
         """
         calculating the mesh of observation points by taking linear transformation
@@ -664,6 +689,11 @@ class CSR2D:
 
         x_transform = self.beam.x_transform
         p = self.beam.slope
+        # With the curvature shear the beam is a banana around the straight fit; the
+        # mesh rows must follow the ridge or the edge rows land outside the sheared
+        # deposition grid (D1 5.01 m: row 11 at u' = 5.06, v_x = 0 there, wake 100x off).
+        ridge = self._mesh_ridge(self.beam.z)
+        x_transform = x_transform - ridge
 
         sig_x = np.std(x_transform)
         mean_x = np.mean(x_transform)
@@ -683,7 +713,7 @@ class CSR2D:
         xmesh_transform = xmesh_transform.flatten()
         zmesh = zmesh.flatten()
 
-        xmesh = xmesh_transform +  np.polyval(p, zmesh)
+        xmesh = xmesh_transform +  np.polyval(p, zmesh) + self._mesh_ridge(zmesh)
 
         self.CSR_xmesh = xmesh
         self.CSR_zmesh = zmesh
@@ -1246,7 +1276,7 @@ class CSR2D:
             return sp_far
         return grid[max(int(np.argmax(alive)) - 1, 0)]
 
-    def _far_region_nodes(self, s, x, t, sp_far, sp_near):
+    def _far_region_nodes(self, s, x, t, sp_far, sp_near, transient=None):
         """
         s' nodes for the merged far region, spanning sp_far (= s1, the causal reach
         s - n_formation_length*L_f) up to sp_near (= s3, where the near region starts).
@@ -1274,7 +1304,9 @@ class CSR2D:
         if sp_near <= sp_far:
             return np.array([sp_far, sp_near])
 
-        if not (ip.causal_clip and self._exit_transient()):
+        if transient is None:
+            transient = self._exit_transient()
+        if not (ip.causal_clip and transient):
             # Not an exit transient: uniform, and no band solve. The causal edge would
             # be redundant here anyway -- measured in a bend it sits at u ~ 1.0 L_f
             # (0.994 at shear 0, 0.783 at shear 20), which is what n_formation_length
@@ -1459,6 +1491,14 @@ class CSR2D:
         if sb is None or self.R_rec is None:
             return -np.inf
         return sb + abs(self.R_rec * self.phi_rec)
+
+    def _prev_bend_reach_start(self):
+        """Entrance of the previous bend while inside the next one, or None."""
+        ip = self.integration_params
+        if not (ip.drift_reach and ip.prev_bend_reach and self.inbend):
+            return None
+        pb = getattr(self, 'prev_bend_start', None)
+        return None if pb is None else max(0.0, float(pb))
 
     def _drift_reach_start(self):
         """Far edge for the exit transient (the last bend's entrance), or None."""
@@ -1736,6 +1776,15 @@ class CSR2D:
             # widening there lost accuracy (D3: up to 16% at a 0.1 floor).
             parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp, scale_bands=(k == 0))
                      for k, (spk, tp) in enumerate(zip(sps, tapers))]
+            # prev_bend_reach: inside a bend, the previous bend's exit tail still arrives
+            # (1D: -0.05 MeV/m at the chicane's B4 entrance). Its source lies below this
+            # bend's own reach s1, as a narrow band far upstream -- the exit-transient
+            # shape -- so it gets that layout (causal edge, fine window, grading).
+            pb = self._prev_bend_reach_start()
+            if pb is not None and pb < s1:
+                sp_prev = self._far_region_nodes(s, x, t, pb, s1, transient=True)
+                parts.append(self._integrate_xi_region(s, x, t, sp_prev, ignore_vx, None,
+                                                       scale_bands=True))
             if radii is not None:
                 parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
 
