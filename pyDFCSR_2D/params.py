@@ -17,7 +17,7 @@ class Integration_params:
     def __init__(self, input_dic = {}):
         self.configure_params(**input_dic)
 
-    def configure_params(self, n_formation_length = 4, zbins = 200, xbins = 200,
+    def configure_params(self, n_formation_length = 1, zbins = 200, xbins = 200,
                          xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
                          near_cell = 0.25, far_zbins = 200, near_grade = 0.05,
@@ -27,6 +27,10 @@ class Integration_params:
                          drift_reach = True, drift_snap_thin = 0.01,
                          far_fine_max = 500, band_jacobian_min = 0.2,
                          prev_bend_reach = True, prev_bend_grade = 0.02):
+        # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
+        # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
+        # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
+        # (progress.md, 2026-11-06).
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins

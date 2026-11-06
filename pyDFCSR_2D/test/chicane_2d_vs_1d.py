@@ -117,6 +117,11 @@ RUNS = {
                     dep=dict(curvature=True, curv_zlim=4.0), integ=dict(near_cell=0.25), transverse=0),
     '2dC_xavg': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2, prev=True,
                      dep=dict(curvature=True, curv_zlim=4.0), integ=dict(near_cell=0.25), xavg=0.0),
+    # n_formation_length: the code default is 4, the chicane runs use 1 (BASE). Same everything else as 2dC.
+    '2dC_nfl4': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2, prev=True,
+                     dep=dict(curvature=True, curv_zlim=4.0), integ=dict(near_cell=0.25, n_formation_length=4)),
+    '2dC_nfl2': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2, prev=True,
+                     dep=dict(curvature=True, curv_zlim=4.0), integ=dict(near_cell=0.25, n_formation_length=2)),
     # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
     '2d_time_old': dict(cls='2d'),
     '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),
