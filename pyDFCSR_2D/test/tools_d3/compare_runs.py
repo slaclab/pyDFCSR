@@ -1,9 +1,12 @@
 """Compare two chicane runs: exit metrics, energy per element, and per-element rel L2 of the wake maps at matched kicks."""
 import sys, os, glob, re, numpy as np, h5py
 sys.argv, ARGS = sys.argv[:1], sys.argv[1:]
+SUB = None
+if '--out' in ARGS:
+    i = ARGS.index('--out'); SUB = ARGS[i + 1]; ARGS = ARGS[:i] + ARGS[i + 2:]
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import chicane_2d_vs_1d as C
-O = C.OUT; A, B = ARGS[0], ARGS[1]
+O = C.OUT if SUB is None else os.path.join(C.OUT, SUB); A, B = ARGS[0], ARGS[1]
 off = dict(np.load(O + '/off.npz')); E0 = float(off['E0'])
 for n in (A, B):
     m = C.metrics(dict(np.load(f'{O}/{n}.npz')), off, E0)

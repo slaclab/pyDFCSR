@@ -1,0 +1,1304 @@
+Starting the DFCSR run
+  [schedule] mode=auto  nodes=489  steps=488  snapshots=488  kicks=105
+  step size: min 0.00414429 m, max 0.05 m, ratio 12.1
+  [schedule] history at most 488 snapshots x 3.60 MB = 1.76 GB at 300x300 deposition
+  [retention] precomputed floor from linear optics: max depth 1.7171 m -> 26 snapshots at step_size 0.1 m (safety 1.25)
+Drift(L=0.04999999999999945)
+Wakes written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/runs/2d_def-2026-11-05T22_13_33-08_00-wakes.h5
+Finish step 1, s = 0.04999999999999945,  in 9.195610046386719 seconds
+Drift(L=0.05000000000000056)
+Finish step 2, s = 0.1,  in 8.99622893333435 seconds
+SBend(L=0.04769268055555598, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 3, s = 0.14769268055555598,  in 0.35681629180908203 seconds
+SBend(L=0.04769268055555567, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 4, s = 0.19538536111111166,  in 0.34104228019714355 seconds
+SBend(L=0.047692680555555755, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 5, s = 0.2430780416666674,  in 0.3497910499572754 seconds
+SBend(L=0.0476926805555557, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 6, s = 0.2907707222222231,  in 0.34755682945251465 seconds
+SBend(L=0.0476926805555557, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 7, s = 0.3384634027777788,  in 9.28872799873352 seconds
+SBend(L=0.029977263888887384, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 8, s = 0.3684406666666662,  in 0.36020517349243164 seconds
+SBend(L=0.023846340277777878, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 9, s = 0.39228700694444407,  in 0.3558220863342285 seconds
+SBend(L=0.023846340277777822, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 10, s = 0.4161333472222219,  in 0.35436201095581055 seconds
+SBend(L=0.023846340277777878, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 11, s = 0.43997968749999977,  in 0.3554987907409668 seconds
+SBend(L=0.023846340277777822, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 12, s = 0.4638260277777776,  in 0.35438108444213867 seconds
+SBend(L=0.023846340277777933, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 13, s = 0.4876723680555555,  in 0.3592031002044678 seconds
+SBend(L=0.023846340277777933, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 14, s = 0.5115187083333335,  in 0.3498101234436035 seconds
+SBend(L=0.02384634027777799, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 15, s = 0.5353650486111114,  in 0.38854503631591797 seconds
+SBend(L=0.017142270833332418, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 16, s = 0.5525073194444439,  in 9.492220878601074 seconds
+SBend(L=0.011923170138888994, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 17, s = 0.5644304895833329,  in 0.36792492866516113 seconds
+SBend(L=0.011923170138888994, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 18, s = 0.5763536597222219,  in 0.3617589473724365 seconds
+SBend(L=0.011923170138889105, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 19, s = 0.588276829861111,  in 0.3658778667449951 seconds
+SBend(L=0.011923170138888994, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0483, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='exit_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 20, s = 0.6002,  in 9.345274925231934 seconds
+Drift(L=0.012411922131147834)
+Finish step 21, s = 0.6126119221311478,  in 0.3155820369720459 seconds
+Drift(L=0.012411922131147834)
+Finish step 22, s = 0.6250238442622956,  in 0.3203110694885254 seconds
+Drift(L=0.012411922131147723)
+Finish step 23, s = 0.6374357663934433,  in 0.3228311538696289 seconds
+Drift(L=0.018258860655739118)
+Finish step 24, s = 0.6556946270491825,  in 9.020004034042358 seconds
+Drift(L=0.02482384426229567)
+Finish step 25, s = 0.6805184713114781,  in 0.32117199897766113 seconds
+Drift(L=0.024823844262295558)
+Finish step 26, s = 0.7053423155737737,  in 0.3159952163696289 seconds
+Drift(L=0.024823844262295558)
+Finish step 27, s = 0.7301661598360693,  in 0.3200850486755371 seconds
+Drift(L=0.02482384426229567)
+Finish step 28, s = 0.7549900040983649,  in 0.32704997062683105 seconds
+Drift(L=0.024823844262295558)
+Finish step 29, s = 0.7798138483606605,  in 9.501091718673706 seconds
+Drift(L=0.02482384426229567)
+Finish step 30, s = 0.8046376926229561,  in 0.32173609733581543 seconds
+Drift(L=0.024823844262295558)
+Finish step 31, s = 0.8294615368852517,  in 0.32004785537719727 seconds
+Drift(L=0.02482384426229567)
+Finish step 32, s = 0.8542853811475474,  in 0.3151540756225586 seconds
+Drift(L=0.024823844262295558)
+Finish step 33, s = 0.8791092254098429,  in 0.32300305366516113 seconds
+Drift(L=0.024823844262295558)
+Finish step 34, s = 0.9039330696721385,  in 10.277108907699585 seconds
+Drift(L=0.03426100819673028)
+Finish step 35, s = 0.9381940778688688,  in 0.3140678405761719 seconds
+Drift(L=0.049647688524591116)
+Finish step 36, s = 0.9878417663934599,  in 0.3163890838623047 seconds
+Drift(L=0.04964768852459123)
+Finish step 37, s = 1.0374894549180511,  in 12.212725162506104 seconds
+Drift(L=0.04964768852459134)
+Finish step 38, s = 1.0871371434426425,  in 0.31946492195129395 seconds
+Drift(L=0.049647688524591116)
+Finish step 39, s = 1.1367848319672336,  in 0.3231620788574219 seconds
+Drift(L=0.04964768852459156)
+Finish step 40, s = 1.1864325204918251,  in 0.3230128288269043 seconds
+Drift(L=0.049647688524591116)
+Finish step 41, s = 1.2360802090164162,  in 0.3198211193084717 seconds
+Drift(L=0.049647688524591116)
+Finish step 42, s = 1.2857278975410074,  in 12.102781057357788 seconds
+Drift(L=0.049647688524591116)
+Finish step 43, s = 1.3353755860655985,  in 0.3231699466705322 seconds
+Drift(L=0.049647688524591116)
+Finish step 44, s = 1.3850232745901896,  in 0.3228781223297119 seconds
+Drift(L=0.04964768852459134)
+Finish step 45, s = 1.434670963114781,  in 0.32583093643188477 seconds
+Drift(L=0.049647688524591116)
+Finish step 46, s = 1.484318651639372,  in 0.32225799560546875 seconds
+Drift(L=0.04964768852459156)
+Finish step 47, s = 1.5339663401639636,  in 12.854542970657349 seconds
+Drift(L=0.049647688524591116)
+Finish step 48, s = 1.5836140286885547,  in 0.32088398933410645 seconds
+Drift(L=0.049647688524591116)
+Finish step 49, s = 1.6332617172131458,  in 0.3198509216308594 seconds
+Drift(L=0.04964768852459156)
+Finish step 50, s = 1.6829094057377374,  in 0.3183019161224365 seconds
+Drift(L=0.049647688524591116)
+Finish step 51, s = 1.7325570942623285,  in 0.3195536136627197 seconds
+Drift(L=0.049647688524591116)
+Finish step 52, s = 1.7822047827869196,  in 12.869637966156006 seconds
+Drift(L=0.049647688524591116)
+Finish step 53, s = 1.8318524713115107,  in 0.3249800205230713 seconds
+Drift(L=0.04964768852459134)
+Finish step 54, s = 1.881500159836102,  in 0.32102203369140625 seconds
+Drift(L=0.049647688524591116)
+Finish step 55, s = 1.9311478483606932,  in 0.3336060047149658 seconds
+Drift(L=0.049647688524591116)
+Finish step 56, s = 1.9807955368852843,  in 0.3177988529205322 seconds
+Drift(L=0.04964768852459134)
+Finish step 57, s = 2.0304432254098757,  in 13.466103076934814 seconds
+Drift(L=0.049647688524590894)
+Finish step 58, s = 2.0800909139344665,  in 0.3226921558380127 seconds
+Drift(L=0.04964768852459178)
+Finish step 59, s = 2.1297386024590583,  in 0.31847667694091797 seconds
+Drift(L=0.049647688524590894)
+Finish step 60, s = 2.179386290983649,  in 0.31487584114074707 seconds
+Drift(L=0.04964768852459178)
+Finish step 61, s = 2.229033979508241,  in 0.3234121799468994 seconds
+Drift(L=0.04964768852459045)
+Finish step 62, s = 2.2786816680328315,  in 13.007933855056763 seconds
+Drift(L=0.04964768852459178)
+Finish step 63, s = 2.3283293565574232,  in 0.32206010818481445 seconds
+Drift(L=0.049647688524590894)
+Finish step 64, s = 2.377977045082014,  in 0.3201608657836914 seconds
+Drift(L=0.04964768852459134)
+Finish step 65, s = 2.4276247336066055,  in 0.32731199264526367 seconds
+Drift(L=0.04964768852458956)
+Finish step 66, s = 2.477272422131195,  in 0.3197619915008545 seconds
+Drift(L=0.04964768852459045)
+Finish step 67, s = 2.5269201106557855,  in 13.860341548919678 seconds
+Drift(L=0.04964768852458912)
+Finish step 68, s = 2.5765677991803746,  in 0.32117199897766113 seconds
+Drift(L=0.04964768852459045)
+Finish step 69, s = 2.626215487704965,  in 0.3157069683074951 seconds
+Drift(L=0.049647688524590006)
+Finish step 70, s = 2.675863176229555,  in 0.3151531219482422 seconds
+Drift(L=0.04964768852458956)
+Finish step 71, s = 2.7255108647541446,  in 0.32288479804992676 seconds
+Drift(L=0.049647688524590006)
+Finish step 72, s = 2.7751585532787346,  in 14.193577766418457 seconds
+Drift(L=0.04964768852458956)
+Finish step 73, s = 2.824806241803324,  in 0.3205869197845459 seconds
+Drift(L=0.04964768852458956)
+Finish step 74, s = 2.8744539303279137,  in 0.3150970935821533 seconds
+Drift(L=0.049647688524590006)
+Finish step 75, s = 2.9241016188525037,  in 0.3201017379760742 seconds
+Drift(L=0.04964768852458956)
+Finish step 76, s = 2.9737493073770933,  in 0.321321964263916 seconds
+Drift(L=0.049647688524590006)
+Finish step 77, s = 3.0233969959016833,  in 14.397764205932617 seconds
+Drift(L=0.04964768852458956)
+Finish step 78, s = 3.073044684426273,  in 0.31499695777893066 seconds
+Drift(L=0.049647688524590006)
+Finish step 79, s = 3.122692372950863,  in 0.31650280952453613 seconds
+Drift(L=0.04964768852458956)
+Finish step 80, s = 3.1723400614754524,  in 0.31884002685546875 seconds
+Drift(L=0.04964768852458956)
+Finish step 81, s = 3.221987750000042,  in 0.32166194915771484 seconds
+Drift(L=0.049647688524590006)
+Finish step 82, s = 3.271635438524632,  in 14.831877946853638 seconds
+Drift(L=0.04964768852459045)
+Finish step 83, s = 3.3212831270492225,  in 0.3135688304901123 seconds
+Drift(L=0.04964768852458956)
+Finish step 84, s = 3.370930815573812,  in 0.3061692714691162 seconds
+Drift(L=0.049647688524590006)
+Finish step 85, s = 3.420578504098402,  in 0.30822086334228516 seconds
+Drift(L=0.04964768852458956)
+Finish step 86, s = 3.4702261926229916,  in 0.31294798851013184 seconds
+Drift(L=0.049647688524590006)
+Finish step 87, s = 3.5198738811475816,  in 14.812315702438354 seconds
+Drift(L=0.04964768852458956)
+Finish step 88, s = 3.569521569672171,  in 0.31907010078430176 seconds
+Drift(L=0.04964768852458956)
+Finish step 89, s = 3.6191692581967607,  in 0.3134431838989258 seconds
+Drift(L=0.049647688524590006)
+Finish step 90, s = 3.6688169467213507,  in 0.31690192222595215 seconds
+Drift(L=0.04964768852459045)
+Finish step 91, s = 3.718464635245941,  in 0.3157367706298828 seconds
+Drift(L=0.04964768852458912)
+Finish step 92, s = 3.7681123237705303,  in 15.3109130859375 seconds
+Drift(L=0.04964768852458956)
+Finish step 93, s = 3.81776001229512,  in 0.3143889904022217 seconds
+Drift(L=0.04964768852459045)
+Finish step 94, s = 3.8674077008197103,  in 0.3080868721008301 seconds
+Drift(L=0.049647688524590006)
+Finish step 95, s = 3.9170553893443003,  in 0.3158280849456787 seconds
+Drift(L=0.04964768852458867)
+Finish step 96, s = 3.966703077868889,  in 0.3141050338745117 seconds
+Drift(L=0.04964768852459045)
+Finish step 97, s = 4.016350766393479,  in 14.673613786697388 seconds
+Drift(L=0.04964768852458956)
+Finish step 98, s = 4.065998454918069,  in 0.31824779510498047 seconds
+Drift(L=0.04964768852459045)
+Finish step 99, s = 4.115646143442659,  in 0.31830811500549316 seconds
+Drift(L=0.04964768852458956)
+Finish step 100, s = 4.165293831967249,  in 0.31974315643310547 seconds
+Drift(L=0.04964768852458956)
+Finish step 101, s = 4.214941520491839,  in 0.31728196144104004 seconds
+Drift(L=0.04964768852459045)
+Finish step 102, s = 4.264589209016429,  in 15.477057933807373 seconds
+Drift(L=0.04964768852458956)
+Finish step 103, s = 4.314236897541019,  in 0.31806278228759766 seconds
+Drift(L=0.04964768852458956)
+Finish step 104, s = 4.363884586065608,  in 0.3141460418701172 seconds
+Drift(L=0.04964768852459045)
+Finish step 105, s = 4.413532274590199,  in 0.31958580017089844 seconds
+Drift(L=0.04964768852458956)
+Finish step 106, s = 4.463179963114788,  in 0.3159470558166504 seconds
+Drift(L=0.04964768852458956)
+Finish step 107, s = 4.512827651639378,  in 15.52450680732727 seconds
+Drift(L=0.04964768852458956)
+Finish step 108, s = 4.562475340163967,  in 0.32051682472229004 seconds
+Drift(L=0.04964768852459045)
+Finish step 109, s = 4.612123028688558,  in 0.3166189193725586 seconds
+Drift(L=0.04964768852458956)
+Finish step 110, s = 4.661770717213147,  in 0.31644606590270996 seconds
+Drift(L=0.04964768852459045)
+Finish step 111, s = 4.711418405737738,  in 0.31627988815307617 seconds
+Drift(L=0.04964768852458867)
+Finish step 112, s = 4.761066094262326,  in 15.108431100845337 seconds
+Drift(L=0.04964768852458956)
+Finish step 113, s = 4.810713782786916,  in 0.31770896911621094 seconds
+Drift(L=0.04964768852459045)
+Finish step 114, s = 4.860361471311506,  in 0.31801486015319824 seconds
+Drift(L=0.04964768852459045)
+Finish step 115, s = 4.910009159836097,  in 0.31569695472717285 seconds
+Drift(L=0.04964768852458867)
+  [DF_tracker_comoving] warning: 0.10% of the charge fell outside the +-5/5 sigma grid at t = 4.9597
+Finish step 116, s = 4.9596568483606855,  in 0.32009124755859375 seconds
+Drift(L=0.04964768852459045)
+  [DF_tracker_comoving] warning: 0.11% of the charge fell outside the +-5/5 sigma grid at t = 5.0093
+Finish step 117, s = 5.009304536885276,  in 15.647628784179688 seconds
+Drift(L=0.03220945081965443)
+  [DF_tracker_comoving] warning: 0.11% of the charge fell outside the +-5/5 sigma grid at t = 5.0415
+Finish step 118, s = 5.04151398770493,  in 0.3160710334777832 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.12% of the charge fell outside the +-5/5 sigma grid at t = 5.0663
+Finish step 119, s = 5.066337831967226,  in 0.31200504302978516 seconds
+Drift(L=0.024823844262296113)
+  [DF_tracker_comoving] warning: 0.12% of the charge fell outside the +-5/5 sigma grid at t = 5.0912
+Finish step 120, s = 5.091161676229522,  in 0.31650304794311523 seconds
+Drift(L=0.024823844262296113)
+  [DF_tracker_comoving] warning: 0.13% of the charge fell outside the +-5/5 sigma grid at t = 5.1160
+Finish step 121, s = 5.115985520491818,  in 0.31772613525390625 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.13% of the charge fell outside the +-5/5 sigma grid at t = 5.1408
+Finish step 122, s = 5.140809364754113,  in 0.31345701217651367 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.13% of the charge fell outside the +-5/5 sigma grid at t = 5.1656
+Finish step 123, s = 5.165633209016408,  in 0.3110482692718506 seconds
+Drift(L=0.024823844262296113)
+  [DF_tracker_comoving] warning: 0.14% of the charge fell outside the +-5/5 sigma grid at t = 5.1905
+Finish step 124, s = 5.190457053278704,  in 0.3147299289703369 seconds
+Drift(L=0.024823844262296113)
+  [DF_tracker_comoving] warning: 0.14% of the charge fell outside the +-5/5 sigma grid at t = 5.2153
+Finish step 125, s = 5.2152808975410005,  in 15.489840984344482 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.14% of the charge fell outside the +-5/5 sigma grid at t = 5.2401
+Finish step 126, s = 5.240104741803296,  in 0.31842994689941406 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.15% of the charge fell outside the +-5/5 sigma grid at t = 5.2649
+Finish step 127, s = 5.264928586065591,  in 0.31545019149780273 seconds
+Drift(L=0.024823844262296113)
+  [DF_tracker_comoving] warning: 0.15% of the charge fell outside the +-5/5 sigma grid at t = 5.2898
+Finish step 128, s = 5.289752430327887,  in 0.32123494148254395 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.16% of the charge fell outside the +-5/5 sigma grid at t = 5.3146
+Finish step 129, s = 5.314576274590182,  in 0.316972017288208 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.16% of the charge fell outside the +-5/5 sigma grid at t = 5.3394
+Finish step 130, s = 5.339400118852478,  in 15.174145936965942 seconds
+Drift(L=0.024823844262296113)
+  [DF_tracker_comoving] warning: 0.17% of the charge fell outside the +-5/5 sigma grid at t = 5.3642
+Finish step 131, s = 5.364223963114774,  in 0.31711792945861816 seconds
+Drift(L=0.024823844262294337)
+  [DF_tracker_comoving] warning: 0.17% of the charge fell outside the +-5/5 sigma grid at t = 5.3890
+Finish step 132, s = 5.389047807377068,  in 0.31832218170166016 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.17% of the charge fell outside the +-5/5 sigma grid at t = 5.4139
+Finish step 133, s = 5.413871651639363,  in 0.3200359344482422 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.18% of the charge fell outside the +-5/5 sigma grid at t = 5.4387
+Finish step 134, s = 5.4386954959016585,  in 0.3183581829071045 seconds
+Drift(L=0.024823844262294337)
+  [DF_tracker_comoving] warning: 0.18% of the charge fell outside the +-5/5 sigma grid at t = 5.4635
+Finish step 135, s = 5.463519340163953,  in 16.31354594230652 seconds
+Drift(L=0.024823844262294337)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 5.4883
+Finish step 136, s = 5.488343184426247,  in 0.31860899925231934 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 5.5132
+Finish step 137, s = 5.513167028688542,  in 0.3186771869659424 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 5.5380
+Finish step 138, s = 5.537990872950838,  in 0.3147001266479492 seconds
+Drift(L=0.024823844262295225)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 5.5628
+Finish step 139, s = 5.562814717213133,  in 0.3162727355957031 seconds
+Drift(L=0.022601323770483184)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 5.5854
+Finish step 140, s = 5.585416040983616,  in 16.34384322166443 seconds
+Drift(L=0.012309344262287247)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 5.5977
+Finish step 141, s = 5.597725385245903,  in 0.31136608123779297 seconds
+Drift(L=0.008274614754096632)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 5.6060
+Finish step 142, s = 5.606,  in 16.39779305458069 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=-0.0483, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 5.6122
+Finish step 143, s = 5.6121984660493816,  in 0.36406683921813965 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6184
+Finish step 144, s = 5.618396932098763,  in 0.35788583755493164 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6246
+Finish step 145, s = 5.624595398148144,  in 0.3582191467285156 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6308
+Finish step 146, s = 5.630793864197526,  in 0.359177827835083 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6370
+Finish step 147, s = 5.636992330246907,  in 11.69071888923645 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6432
+Finish step 148, s = 5.643190796296289,  in 0.3585021495819092 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6494
+Finish step 149, s = 5.64938926234567,  in 0.35627198219299316 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6556
+Finish step 150, s = 5.6555877283950515,  in 0.3612329959869385 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6618
+Finish step 151, s = 5.661786194444433,  in 0.35797905921936035 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6680
+Finish step 152, s = 5.667984660493815,  in 11.613545894622803 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6742
+Finish step 153, s = 5.674183126543196,  in 0.3579859733581543 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 5.6804
+Finish step 154, s = 5.680381592592577,  in 0.35658812522888184 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.6866
+Finish step 155, s = 5.686580058641959,  in 0.35569190979003906 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.6928
+Finish step 156, s = 5.692778524691341,  in 0.3588430881500244 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.6990
+Finish step 157, s = 5.698976990740722,  in 11.360621690750122 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7052
+Finish step 158, s = 5.705175456790103,  in 0.3636600971221924 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7114
+Finish step 159, s = 5.711373922839485,  in 0.35528111457824707 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7176
+Finish step 160, s = 5.7175723888888665,  in 0.36013007164001465 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7238
+Finish step 161, s = 5.723770854938248,  in 0.3617420196533203 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7300
+Finish step 162, s = 5.729969320987629,  in 12.020068168640137 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7362
+Finish step 163, s = 5.736167787037011,  in 0.3660459518432617 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7424
+Finish step 164, s = 5.742366253086392,  in 0.3690962791442871 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7486
+Finish step 165, s = 5.748564719135774,  in 0.3627359867095947 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7548
+Finish step 166, s = 5.754763185185156,  in 0.3647329807281494 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7610
+Finish step 167, s = 5.7609616512345365,  in 11.953485012054443 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 5.7672
+Finish step 168, s = 5.767160117283918,  in 0.35642385482788086 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.7734
+Finish step 169, s = 5.7733585833333,  in 0.3580617904663086 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.7796
+Finish step 170, s = 5.7795570493826816,  in 0.35900211334228516 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.7858
+Finish step 171, s = 5.785755515432062,  in 0.3575170040130615 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.7920
+Finish step 172, s = 5.791953981481444,  in 11.98875379562378 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.7982
+Finish step 173, s = 5.798152447530826,  in 0.36003899574279785 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8044
+Finish step 174, s = 5.804350913580207,  in 0.34737586975097656 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8105
+Finish step 175, s = 5.810549379629588,  in 0.3737680912017822 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8167
+Finish step 176, s = 5.81674784567897,  in 0.374744176864624 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8229
+Finish step 177, s = 5.8229463117283515,  in 12.038527011871338 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8291
+Finish step 178, s = 5.829144777777733,  in 0.36055803298950195 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8353
+Finish step 179, s = 5.835343243827114,  in 0.3535599708557129 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8415
+Finish step 180, s = 5.841541709876496,  in 0.3587980270385742 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8477
+Finish step 181, s = 5.847740175925877,  in 0.3594338893890381 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8539
+Finish step 182, s = 5.853938641975259,  in 12.259884119033813 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8601
+Finish step 183, s = 5.860137108024641,  in 0.35620689392089844 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8663
+Finish step 184, s = 5.8663355740740215,  in 0.358936071395874 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8725
+Finish step 185, s = 5.872534040123403,  in 0.35048604011535645 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8787
+Finish step 186, s = 5.878732506172785,  in 0.3550591468811035 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8849
+Finish step 187, s = 5.8849309722221665,  in 11.876002073287964 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8911
+Finish step 188, s = 5.891129438271547,  in 0.35767126083374023 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.8973
+Finish step 189, s = 5.897327904320929,  in 0.3471260070800781 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 5.9035
+Finish step 190, s = 5.903526370370311,  in 0.36122798919677734 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9097
+Finish step 191, s = 5.909724836419692,  in 0.3504960536956787 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9159
+Finish step 192, s = 5.915923302469074,  in 12.514167070388794 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9221
+Finish step 193, s = 5.922121768518455,  in 0.36309385299682617 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9283
+Finish step 194, s = 5.9283202345678365,  in 0.3579370975494385 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9345
+Finish step 195, s = 5.934518700617218,  in 0.35801005363464355 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9407
+Finish step 196, s = 5.9407171666666,  in 0.3556957244873047 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9469
+Finish step 197, s = 5.946915632715981,  in 12.312439680099487 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9531
+Finish step 198, s = 5.953114098765362,  in 0.3607499599456787 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9593
+Finish step 199, s = 5.959312564814744,  in 0.35608911514282227 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9655
+Finish step 200, s = 5.965511030864126,  in 0.3537557125091553 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9717
+Finish step 201, s = 5.971709496913507,  in 0.3580441474914551 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9779
+Finish step 202, s = 5.977907962962888,  in 12.882961988449097 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9841
+Finish step 203, s = 5.98410642901227,  in 0.3535280227661133 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9903
+Finish step 204, s = 5.9903048950616515,  in 0.35919690132141113 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 5.9965
+Finish step 205, s = 5.996503361111033,  in 0.35682201385498047 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0027
+Finish step 206, s = 6.002701827160414,  in 0.35378599166870117 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0089
+Finish step 207, s = 6.008900293209796,  in 12.693661212921143 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0151
+Finish step 208, s = 6.015098759259177,  in 0.35131001472473145 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0213
+Finish step 209, s = 6.021297225308559,  in 0.35874390602111816 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0275
+Finish step 210, s = 6.02749569135794,  in 0.3514120578765869 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0337
+Finish step 211, s = 6.0336941574073215,  in 0.3499746322631836 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0399
+Finish step 212, s = 6.039892623456703,  in 13.203192949295044 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0461
+Finish step 213, s = 6.046091089506085,  in 0.35979604721069336 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0523
+Finish step 214, s = 6.052289555555466,  in 0.35067009925842285 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0585
+Finish step 215, s = 6.058488021604847,  in 0.35509395599365234 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0647
+Finish step 216, s = 6.064686487654229,  in 0.35721492767333984 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0709
+Finish step 217, s = 6.070884953703611,  in 11.623311758041382 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0771
+Finish step 218, s = 6.077083419752992,  in 0.35656309127807617 seconds
+SBend(L=0.006198466049380791, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0833
+Finish step 219, s = 6.083281885802373,  in 0.3624119758605957 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0895
+Finish step 220, s = 6.089480351851755,  in 0.36145997047424316 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.0957
+Finish step 221, s = 6.0956788179011365,  in 0.36094188690185547 seconds
+SBend(L=0.006198466049381679, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1019
+Finish step 222, s = 6.101877283950518,  in 11.958694696426392 seconds
+SBend(L=0.004322716049481201, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='exit_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1062
+Finish step 223, s = 6.106199999999999,  in 13.068627119064331 seconds
+Drift(L=0.005848214285415487)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1120
+Finish step 224, s = 6.112048214285415,  in 0.3152320384979248 seconds
+Drift(L=0.012247023809393909)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1243
+Finish step 225, s = 6.124295238094809,  in 16.15746021270752 seconds
+Drift(L=0.02324404761878629)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1475
+Finish step 226, s = 6.147539285713595,  in 0.3185737133026123 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1717
+Finish step 227, s = 6.171735714285028,  in 0.3233189582824707 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.1959
+Finish step 228, s = 6.195932142856462,  in 19.057489156723022 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.2201
+Finish step 229, s = 6.220128571427895,  in 0.3162200450897217 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.2443
+Finish step 230, s = 6.244324999999328,  in 0.32288312911987305 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.2685
+Finish step 231, s = 6.268521428570762,  in 0.31986117362976074 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.2927
+Finish step 232, s = 6.292717857142195,  in 0.3194739818572998 seconds
+Drift(L=0.024196428571434225)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.3169
+Finish step 233, s = 6.316914285713629,  in 18.01757001876831 seconds
+Drift(L=0.02419642857143245)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.3411
+Finish step 234, s = 6.341110714285062,  in 0.32987117767333984 seconds
+Drift(L=0.024196428571433337)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.3653
+Finish step 235, s = 6.365307142856495,  in 0.3206160068511963 seconds
+Drift(L=0.03124999999922018)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 6.3966
+Finish step 236, s = 6.396557142855715,  in 0.31823205947875977 seconds
+Drift(L=0.048392857142865786)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.4449
+Finish step 237, s = 6.444949999998581,  in 17.779556035995483 seconds
+Drift(L=0.048392857142866674)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.4933
+Finish step 238, s = 6.493342857141448,  in 0.3216550350189209 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.5417
+Finish step 239, s = 6.541735714284315,  in 0.31618285179138184 seconds
+Drift(L=0.048392857142866674)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.5901
+Finish step 240, s = 6.590128571427182,  in 0.31868910789489746 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.6385
+Finish step 241, s = 6.63852142857005,  in 0.3162245750427246 seconds
+Drift(L=0.048392857142865786)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.6869
+Finish step 242, s = 6.686914285712915,  in 17.372618913650513 seconds
+Drift(L=0.048392857142866674)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.7353
+Finish step 243, s = 6.735307142855782,  in 0.31803297996520996 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.7837
+Finish step 244, s = 6.78369999999865,  in 0.31604886054992676 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.8321
+Finish step 245, s = 6.832092857141517,  in 0.32048988342285156 seconds
+Drift(L=0.0483928571428649)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.8805
+Finish step 246, s = 6.880485714284382,  in 0.31874608993530273 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.9289
+Finish step 247, s = 6.92887857142725,  in 14.889350891113281 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 6.9773
+Finish step 248, s = 6.977271428570117,  in 0.32363295555114746 seconds
+Drift(L=0.0483928571428649)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.0257
+Finish step 249, s = 7.025664285712982,  in 0.3193199634552002 seconds
+Drift(L=0.04839285714286756)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.0741
+Finish step 250, s = 7.07405714285585,  in 0.31481027603149414 seconds
+Drift(L=0.03214285714414977)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1062
+Finish step 251, s = 7.106199999999999,  in 15.230002164840698 seconds
+SBend(L=0.006198466049442075, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1124
+Finish step 252, s = 7.1123984660494415,  in 0.3621952533721924 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1186
+Finish step 253, s = 7.11859693209882,  in 0.349931001663208 seconds
+SBend(L=0.0061984660493790145, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1248
+Finish step 254, s = 7.124795398148199,  in 0.35895800590515137 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1310
+Finish step 255, s = 7.130993864197577,  in 0.3586258888244629 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1372
+Finish step 256, s = 7.137192330246955,  in 11.464126110076904 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1434
+Finish step 257, s = 7.143390796296333,  in 0.3650209903717041 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1496
+Finish step 258, s = 7.149589262345711,  in 0.35128283500671387 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1558
+Finish step 259, s = 7.155787728395089,  in 0.3609600067138672 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1620
+Finish step 260, s = 7.1619861944444665,  in 0.35994815826416016 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1682
+Finish step 261, s = 7.168184660493844,  in 11.543559074401855 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1744
+Finish step 262, s = 7.174383126543221,  in 0.35628700256347656 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1806
+Finish step 263, s = 7.180581592592599,  in 0.3495979309082031 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1868
+Finish step 264, s = 7.186780058641976,  in 0.360584020614624 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1930
+Finish step 265, s = 7.192978524691354,  in 0.35419487953186035 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.1992
+Finish step 266, s = 7.199176990740731,  in 10.903836965560913 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2054
+Finish step 267, s = 7.205375456790108,  in 0.355349063873291 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2116
+Finish step 268, s = 7.211573922839485,  in 0.3489961624145508 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2178
+Finish step 269, s = 7.2177723888888625,  in 0.3551790714263916 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2240
+Finish step 270, s = 7.223970854938241,  in 0.35694003105163574 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2302
+Finish step 271, s = 7.230169320987618,  in 11.295224666595459 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2364
+Finish step 272, s = 7.236367787036995,  in 0.35423898696899414 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2426
+Finish step 273, s = 7.242566253086372,  in 0.35281896591186523 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2488
+Finish step 274, s = 7.24876471913575,  in 0.36136412620544434 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2550
+Finish step 275, s = 7.254963185185127,  in 0.35872912406921387 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2612
+Finish step 276, s = 7.261161651234504,  in 11.707510948181152 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2674
+Finish step 277, s = 7.267360117283881,  in 0.36063385009765625 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2736
+Finish step 278, s = 7.273558583333259,  in 0.3627309799194336 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2798
+Finish step 279, s = 7.279757049382637,  in 0.3666510581970215 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2860
+Finish step 280, s = 7.285955515432014,  in 0.3566279411315918 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2922
+Finish step 281, s = 7.292153981481391,  in 11.662097930908203 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.2984
+Finish step 282, s = 7.298352447530768,  in 0.3593559265136719 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3046
+Finish step 283, s = 7.304550913580146,  in 0.35320591926574707 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3107
+Finish step 284, s = 7.310749379629523,  in 0.36107707023620605 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3169
+Finish step 285, s = 7.3169478456789,  in 0.36252689361572266 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3231
+Finish step 286, s = 7.323146311728278,  in 11.678684949874878 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3293
+Finish step 287, s = 7.3293447777776555,  in 0.36003613471984863 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3355
+Finish step 288, s = 7.335543243827033,  in 0.3510470390319824 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3417
+Finish step 289, s = 7.34174170987641,  in 0.3578298091888428 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3479
+Finish step 290, s = 7.347940175925787,  in 0.3506808280944824 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3541
+Finish step 291, s = 7.354138641975164,  in 11.044954776763916 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3603
+Finish step 292, s = 7.360337108024542,  in 0.3604452610015869 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3665
+Finish step 293, s = 7.366535574073919,  in 0.35599207878112793 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3727
+Finish step 294, s = 7.372734040123296,  in 0.3629770278930664 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3789
+Finish step 295, s = 7.378932506172673,  in 0.3584611415863037 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3851
+Finish step 296, s = 7.3851309722220515,  in 11.20851469039917 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3913
+Finish step 297, s = 7.391329438271429,  in 0.36136817932128906 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.3975
+Finish step 298, s = 7.397527904320806,  in 0.3617110252380371 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4037
+Finish step 299, s = 7.403726370370183,  in 0.3602268695831299 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4099
+Finish step 300, s = 7.4099248364195605,  in 0.35829901695251465 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4161
+Finish step 301, s = 7.416123302468938,  in 11.684353828430176 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4223
+Finish step 302, s = 7.422321768518315,  in 0.3623380661010742 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4285
+Finish step 303, s = 7.428520234567692,  in 0.34851717948913574 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4347
+Finish step 304, s = 7.43471870061707,  in 0.3545551300048828 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4409
+Finish step 305, s = 7.4409171666664475,  in 0.3501448631286621 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4471
+Finish step 306, s = 7.447115632715825,  in 11.47317910194397 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4533
+Finish step 307, s = 7.453314098765202,  in 0.35614681243896484 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4595
+Finish step 308, s = 7.459512564814579,  in 0.3553788661956787 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4657
+Finish step 309, s = 7.4657110308639565,  in 0.3559079170227051 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4719
+Finish step 310, s = 7.471909496913334,  in 0.35943603515625 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4781
+Finish step 311, s = 7.478107962962711,  in 11.664229154586792 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4843
+Finish step 312, s = 7.484306429012089,  in 0.3641090393066406 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4905
+Finish step 313, s = 7.490504895061466,  in 0.3548579216003418 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.4967
+Finish step 314, s = 7.496703361110844,  in 0.3572819232940674 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5029
+Finish step 315, s = 7.502901827160221,  in 0.35772180557250977 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5091
+Finish step 316, s = 7.509100293209598,  in 11.559462785720825 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5153
+Finish step 317, s = 7.515298759258975,  in 0.36137914657592773 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5215
+Finish step 318, s = 7.5214972253083525,  in 0.3505740165710449 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5277
+Finish step 319, s = 7.52769569135773,  in 0.3529479503631592 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5339
+Finish step 320, s = 7.533894157407107,  in 0.3510110378265381 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5401
+Finish step 321, s = 7.540092623456484,  in 11.020384550094604 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5463
+Finish step 322, s = 7.5462910895058615,  in 0.3514668941497803 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5525
+Finish step 323, s = 7.55248955555524,  in 0.3453059196472168 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5587
+Finish step 324, s = 7.558688021604617,  in 0.3475310802459717 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5649
+Finish step 325, s = 7.564886487653994,  in 0.3518970012664795 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5711
+Finish step 326, s = 7.571084953703371,  in 11.543166875839233 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5773
+Finish step 327, s = 7.5772834197527486,  in 0.3474440574645996 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5835
+Finish step 328, s = 7.583481885802126,  in 0.3505878448486328 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5897
+Finish step 329, s = 7.589680351851503,  in 0.35939598083496094 seconds
+SBend(L=0.006198466049377238, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.5959
+Finish step 330, s = 7.59587881790088,  in 0.35209083557128906 seconds
+SBend(L=0.006198466049378126, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6021
+Finish step 331, s = 7.602077283950258,  in 11.544778823852539 seconds
+SBend(L=0.004322716049740549, P0C=5000000026.315029, G=-0.09656137544982007, DG=0.0, E1=0.0, E2=-0.0483, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='exit_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6064
+Finish step 332, s = 7.606399999999999,  in 11.683396100997925 seconds
+Drift(L=0.004144294565099571)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6105
+Finish step 333, s = 7.6105442945650985,  in 0.3010897636413574 seconds
+Drift(L=0.0041442945652212515)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6147
+Finish step 334, s = 7.61468858913032,  in 0.3099079132080078 seconds
+Drift(L=0.0041442945652212515)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6188
+Finish step 335, s = 7.618832883695541,  in 0.30644822120666504 seconds
+Drift(L=0.00820697282562044)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6270
+Finish step 336, s = 7.6270398565211615,  in 13.692260980606079 seconds
+Drift(L=0.012188034781681623)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6392
+Finish step 337, s = 7.639227891302843,  in 0.3069119453430176 seconds
+Drift(L=0.02250796304256575)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6617
+Finish step 338, s = 7.661735854345409,  in 0.30290889739990234 seconds
+Drift(L=0.024865767391325733)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.6866
+Finish step 339, s = 7.686601621736735,  in 16.801491022109985 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.7115
+Finish step 340, s = 7.711467389128059,  in 0.3056821823120117 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.7363
+Finish step 341, s = 7.736333156519384,  in 0.30468297004699707 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.7612
+Finish step 342, s = 7.761198923910709,  in 0.30890798568725586 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.7861
+Finish step 343, s = 7.786064691302034,  in 0.3084900379180908 seconds
+Drift(L=0.024865767391325733)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.8109
+Finish step 344, s = 7.81093045869336,  in 17.375838041305542 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.8358
+Finish step 345, s = 7.8357962260846845,  in 0.3085031509399414 seconds
+Drift(L=0.024865767391323068)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.8607
+Finish step 346, s = 7.860661993476008,  in 0.31031298637390137 seconds
+Drift(L=0.024865767391325733)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.8855
+Finish step 347, s = 7.885527760867333,  in 0.3148341178894043 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.9104
+Finish step 348, s = 7.910393528258658,  in 0.3082911968231201 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.9353
+Finish step 349, s = 7.935259295649983,  in 17.24664878845215 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.9601
+Finish step 350, s = 7.960125063041308,  in 0.30359792709350586 seconds
+Drift(L=0.024865767391324844)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 7.9850
+Finish step 351, s = 7.984990830432633,  in 0.31025218963623047 seconds
+Drift(L=0.03411561521492068)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.0191
+Finish step 352, s = 8.019106445647553,  in 0.3069288730621338 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.0688
+Finish step 353, s = 8.068837980430205,  in 17.3134708404541 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.1186
+Finish step 354, s = 8.118569515212851,  in 0.3079710006713867 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.1683
+Finish step 355, s = 8.1683010499955,  in 0.30182695388793945 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.2180
+Finish step 356, s = 8.218032584778152,  in 0.30914926528930664 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.2678
+Finish step 357, s = 8.267764119560802,  in 0.301624059677124 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.3175
+Finish step 358, s = 8.317495654343452,  in 16.743581295013428 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.3672
+Finish step 359, s = 8.367227189126101,  in 0.305523157119751 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.4170
+Finish step 360, s = 8.41695872390875,  in 0.30826902389526367 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.4667
+Finish step 361, s = 8.466690258691402,  in 0.30617594718933105 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.5164
+Finish step 362, s = 8.516421793474052,  in 0.2968928813934326 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.5662
+Finish step 363, s = 8.566153328256698,  in 15.544564008712769 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.6159
+Finish step 364, s = 8.61588486303935,  in 0.30628299713134766 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.6656
+Finish step 365, s = 8.665616397822,  in 0.30347490310668945 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.7153
+Finish step 366, s = 8.715347932604649,  in 0.3052659034729004 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.7651
+Finish step 367, s = 8.765079467387299,  in 0.30245089530944824 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.8148
+Finish step 368, s = 8.814811002169948,  in 18.30366802215576 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.8645
+Finish step 369, s = 8.8645425369526,  in 0.2890150547027588 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.9143
+Finish step 370, s = 8.91427407173525,  in 0.2973020076751709 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 8.9640
+Finish step 371, s = 8.9640056065179,  in 0.30684494972229004 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 9.0137
+Finish step 372, s = 9.013737141300547,  in 0.30194687843322754 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 9.0635
+Finish step 373, s = 9.063468676083197,  in 16.921253204345703 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 9.1132
+Finish step 374, s = 9.113200210865847,  in 0.30284810066223145 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 9.1629
+Finish step 375, s = 9.162931745648496,  in 0.3065619468688965 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.25% of the charge fell outside the +-5/5 sigma grid at t = 9.2127
+Finish step 376, s = 9.212663280431148,  in 0.31088685989379883 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.2624
+Finish step 377, s = 9.262394815213797,  in 0.3009181022644043 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.3121
+Finish step 378, s = 9.312126349996447,  in 17.876657247543335 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.3619
+Finish step 379, s = 9.361857884779097,  in 0.30173301696777344 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.4116
+Finish step 380, s = 9.411589419561746,  in 0.2989950180053711 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.4613
+Finish step 381, s = 9.461320954344394,  in 0.29218196868896484 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.5111
+Finish step 382, s = 9.511052489127044,  in 0.30567502975463867 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.5608
+Finish step 383, s = 9.560784023909694,  in 16.329199075698853 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.6105
+Finish step 384, s = 9.610515558692345,  in 0.30275416374206543 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.6602
+Finish step 385, s = 9.660247093474995,  in 0.30194997787475586 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.7100
+Finish step 386, s = 9.709978628257645,  in 0.2970011234283447 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.7597
+Finish step 387, s = 9.759710163040294,  in 0.2972428798675537 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.8094
+Finish step 388, s = 9.809441697822944,  in 15.530321836471558 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.8592
+Finish step 389, s = 9.859173232605595,  in 0.2873671054840088 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.9089
+Finish step 390, s = 9.908904767388242,  in 0.28792881965637207 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.24% of the charge fell outside the +-5/5 sigma grid at t = 9.9586
+Finish step 391, s = 9.958636302170891,  in 0.2873117923736572 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.0084
+Finish step 392, s = 10.008367836953543,  in 0.287290096282959 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.0581
+Finish step 393, s = 10.058099371736192,  in 14.314752101898193 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.1078
+Finish step 394, s = 10.107830906518842,  in 0.289949893951416 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.1576
+Finish step 395, s = 10.157562441301492,  in 0.28832006454467773 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.2073
+Finish step 396, s = 10.207293976084141,  in 0.2893397808074951 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.2570
+Finish step 397, s = 10.25702551086679,  in 0.28568387031555176 seconds
+Drift(L=0.04973153478265324)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.3068
+Finish step 398, s = 10.306757045649443,  in 14.169042110443115 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.3565
+Finish step 399, s = 10.356488580432089,  in 0.29934120178222656 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.23% of the charge fell outside the +-5/5 sigma grid at t = 10.4062
+Finish step 400, s = 10.40622011521474,  in 0.30046629905700684 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 10.4560
+Finish step 401, s = 10.45595164999739,  in 0.29937100410461426 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 10.5057
+Finish step 402, s = 10.50568318478004,  in 0.29808616638183594 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 10.5554
+Finish step 403, s = 10.55541471956269,  in 15.125486135482788 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 10.6051
+Finish step 404, s = 10.605146254345339,  in 0.2997477054595947 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 10.6549
+Finish step 405, s = 10.65487778912799,  in 0.3023040294647217 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.22% of the charge fell outside the +-5/5 sigma grid at t = 10.7046
+Finish step 406, s = 10.704609323910637,  in 0.29635000228881836 seconds
+Drift(L=0.04973153478265324)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 10.7543
+Finish step 407, s = 10.75434085869329,  in 0.2989170551300049 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 10.8041
+Finish step 408, s = 10.804072393475938,  in 15.210332870483398 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 10.8538
+Finish step 409, s = 10.853803928258587,  in 0.3068201541900635 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 10.9035
+Finish step 410, s = 10.903535463041237,  in 0.3035309314727783 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.21% of the charge fell outside the +-5/5 sigma grid at t = 10.9533
+Finish step 411, s = 10.953266997823887,  in 0.31228208541870117 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 11.0030
+Finish step 412, s = 11.002998532606538,  in 0.30687689781188965 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 11.0527
+Finish step 413, s = 11.052730067389188,  in 14.91811728477478 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 11.1025
+Finish step 414, s = 11.102461602171838,  in 0.31237006187438965 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.20% of the charge fell outside the +-5/5 sigma grid at t = 11.1522
+Finish step 415, s = 11.152193136954487,  in 0.30696821212768555 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 11.2019
+Finish step 416, s = 11.201924671737137,  in 0.3100550174713135 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 11.2517
+Finish step 417, s = 11.251656206519785,  in 0.3084111213684082 seconds
+Drift(L=0.04973153478265324)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 11.3014
+Finish step 418, s = 11.301387741302438,  in 14.370347023010254 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.19% of the charge fell outside the +-5/5 sigma grid at t = 11.3511
+Finish step 419, s = 11.351119276085084,  in 0.3140537738800049 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.18% of the charge fell outside the +-5/5 sigma grid at t = 11.4009
+Finish step 420, s = 11.400850810867736,  in 0.3009800910949707 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.18% of the charge fell outside the +-5/5 sigma grid at t = 11.4506
+Finish step 421, s = 11.450582345650385,  in 0.3133261203765869 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.17% of the charge fell outside the +-5/5 sigma grid at t = 11.5003
+Finish step 422, s = 11.500313880433035,  in 0.3102450370788574 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.17% of the charge fell outside the +-5/5 sigma grid at t = 11.5500
+Finish step 423, s = 11.550045415215685,  in 13.947041034698486 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.17% of the charge fell outside the +-5/5 sigma grid at t = 11.5998
+Finish step 424, s = 11.599776949998333,  in 0.31298112869262695 seconds
+Drift(L=0.04973153478265324)
+  [DF_tracker_comoving] warning: 0.16% of the charge fell outside the +-5/5 sigma grid at t = 11.6495
+Finish step 425, s = 11.649508484780986,  in 0.31139397621154785 seconds
+Drift(L=0.049731534782646136)
+  [DF_tracker_comoving] warning: 0.16% of the charge fell outside the +-5/5 sigma grid at t = 11.6992
+Finish step 426, s = 11.699240019563632,  in 0.3062460422515869 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.15% of the charge fell outside the +-5/5 sigma grid at t = 11.7490
+Finish step 427, s = 11.748971554346282,  in 0.30687808990478516 seconds
+Drift(L=0.049731534782651465)
+  [DF_tracker_comoving] warning: 0.14% of the charge fell outside the +-5/5 sigma grid at t = 11.7987
+Finish step 428, s = 11.798703089128933,  in 14.39355993270874 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.14% of the charge fell outside the +-5/5 sigma grid at t = 11.8484
+Finish step 429, s = 11.848434623911583,  in 0.3089148998260498 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.13% of the charge fell outside the +-5/5 sigma grid at t = 11.8982
+Finish step 430, s = 11.898166158694233,  in 0.30874109268188477 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.13% of the charge fell outside the +-5/5 sigma grid at t = 11.9479
+Finish step 431, s = 11.947897693476882,  in 0.30712890625 seconds
+Drift(L=0.04973153478264969)
+  [DF_tracker_comoving] warning: 0.12% of the charge fell outside the +-5/5 sigma grid at t = 11.9976
+Finish step 432, s = 11.997629228259532,  in 0.30706024169921875 seconds
+Drift(L=0.04973153478264791)
+  [DF_tracker_comoving] warning: 0.11% of the charge fell outside the +-5/5 sigma grid at t = 12.0474
+Finish step 433, s = 12.04736076304218,  in 14.288727045059204 seconds
+Drift(L=0.04973153478265324)
+  [DF_tracker_comoving] warning: 0.10% of the charge fell outside the +-5/5 sigma grid at t = 12.0971
+Finish step 434, s = 12.097092297824833,  in 0.30628180503845215 seconds
+Drift(L=0.049731534782646136)
+Finish step 435, s = 12.14682383260748,  in 0.313122034072876 seconds
+Drift(L=0.049731534782651465)
+Finish step 436, s = 12.19655536739013,  in 0.3140857219696045 seconds
+Drift(L=0.04973153478264969)
+Finish step 437, s = 12.24628690217278,  in 0.3071329593658447 seconds
+Drift(L=0.04973153478264969)
+Finish step 438, s = 12.29601843695543,  in 14.181831121444702 seconds
+Drift(L=0.04973153478264969)
+Finish step 439, s = 12.34574997173808,  in 0.30933094024658203 seconds
+Drift(L=0.04973153478264969)
+Finish step 440, s = 12.39548150652073,  in 0.31416797637939453 seconds
+Drift(L=0.049731534782651465)
+Finish step 441, s = 12.445213041303381,  in 0.3095710277557373 seconds
+Drift(L=0.04710167608742566)
+Finish step 442, s = 12.492314717390807,  in 0.311722993850708 seconds
+Drift(L=0.02667946304371327)
+Finish step 443, s = 12.51899418043452,  in 14.098299980163574 seconds
+Drift(L=0.02486576739132218)
+Finish step 444, s = 12.543859947825842,  in 0.3084108829498291 seconds
+Drift(L=0.024865767391325733)
+Finish step 445, s = 12.568725715217168,  in 0.3067939281463623 seconds
+Drift(L=0.024865767391325733)
+Finish step 446, s = 12.593591482608494,  in 0.30466794967651367 seconds
+Drift(L=0.018608517391504265)
+Finish step 447, s = 12.612199999999998,  in 13.877279996871948 seconds
+SBend(L=0.022529169354651657, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0483, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='entrance_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 448, s = 12.63472916935465,  in 0.35031986236572266 seconds
+SBend(L=0.024404919354829246, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 449, s = 12.659134088709479,  in 0.3523249626159668 seconds
+SBend(L=0.024404919354829246, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 450, s = 12.683539008064308,  in 9.23213791847229 seconds
+SBend(L=0.024404919354829246, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 451, s = 12.707943927419137,  in 0.35421323776245117 seconds
+SBend(L=0.024404919354831023, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 452, s = 12.732348846773968,  in 0.3475780487060547 seconds
+SBend(L=0.024404919354829246, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 453, s = 12.756753766128798,  in 0.35343503952026367 seconds
+SBend(L=0.024404919354829246, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 454, s = 12.781158685483627,  in 0.35195493698120117 seconds
+SBend(L=0.024404919354831023, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 455, s = 12.805563604838458,  in 9.087310075759888 seconds
+SBend(L=0.024404919354829246, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 456, s = 12.829968524193287,  in 0.35315513610839844 seconds
+SBend(L=0.024404919354831023, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 457, s = 12.854373443548118,  in 0.36267900466918945 seconds
+SBend(L=0.01585311290346958, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 458, s = 12.870226556451588,  in 0.3573038578033447 seconds
+SBend(L=0.0122024596774164, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 459, s = 12.882429016129004,  in 0.3582940101623535 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 460, s = 12.894631475806419,  in 0.35643601417541504 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 461, s = 12.906833935483833,  in 8.951589107513428 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 462, s = 12.919036395161248,  in 0.3625450134277344 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 463, s = 12.931238854838663,  in 0.3657259941101074 seconds
+SBend(L=0.0122024596774164, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 464, s = 12.943441314516079,  in 0.3606593608856201 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 465, s = 12.955643774193494,  in 0.35482025146484375 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 466, s = 12.967846233870908,  in 8.591129779815674 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 467, s = 12.980048693548323,  in 0.36002588272094727 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 468, s = 12.992251153225737,  in 0.35294008255004883 seconds
+SBend(L=0.0122024596774164, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 469, s = 13.004453612903154,  in 0.35765671730041504 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 470, s = 13.016656072580568,  in 0.35793304443359375 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 471, s = 13.028858532257983,  in 8.938507080078125 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 472, s = 13.041060991935398,  in 0.35996127128601074 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 473, s = 13.053263451612812,  in 0.36222219467163086 seconds
+SBend(L=0.0122024596774164, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 474, s = 13.065465911290229,  in 0.36428093910217285 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 475, s = 13.077668370967643,  in 0.3588242530822754 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 476, s = 13.089870830645058,  in 9.175095081329346 seconds
+SBend(L=0.012202459677414623, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0.0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='no_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 477, s = 13.102073290322473,  in 0.36650896072387695 seconds
+SBend(L=0.010326709677524804, P0C=5000000026.315029, G=0.09656137544982007, DG=0.0, E1=0.0, E2=0, FINT=0.0, HGAP=0.0, FINTX=0.0, HGAPX=0.0, FRINGE_AT='exit_end', FRINGE_TYPE='linear_edge', TILT=0.0)
+Finish step 478, s = 13.112399999999997,  in 9.208252906799316 seconds
+Drift(L=0.011737499999910028)
+Finish step 479, s = 13.124137499999907,  in 0.3232278823852539 seconds
+Drift(L=0.01248750000002019)
+Finish step 480, s = 13.136624999999928,  in 0.32271814346313477 seconds
+Drift(L=0.012487500000018414)
+Finish step 481, s = 13.149112499999946,  in 10.838006019592285 seconds
+Drift(L=0.013437499999819025)
+Finish step 482, s = 13.162549999999765,  in 0.3238070011138916 seconds
+Drift(L=0.024975000000038605)
+Finish step 483, s = 13.187524999999804,  in 0.322782039642334 seconds
+Drift(L=0.024975000000038605)
+Finish step 484, s = 13.212499999999842,  in 11.42556381225586 seconds
+Drift(L=0.024975000000038605)
+Finish step 485, s = 13.23747499999988,  in 0.32226109504699707 seconds
+Drift(L=0.024975000000038605)
+Finish step 486, s = 13.26244999999992,  in 0.3111119270324707 seconds
+Drift(L=0.024975000000038605)
+Finish step 487, s = 13.287424999999958,  in 0.31667304039001465 seconds
+Drift(L=0.024975000000038605)
+Finish step 488, s = 13.312399999999997,  in 11.45926284790039 seconds
+Beam at position 13.312399999999997 is written to /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/runs/2d_def-2026-11-05T22_13_33-08_00-particles-end.h5
+Statistics written to  /Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR/pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/runs/2d_def-2026-11-05T22_13_33-08_00-statistics.h5
+2d_def: done in 25.2 min

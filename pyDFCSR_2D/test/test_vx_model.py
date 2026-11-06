@@ -11,7 +11,8 @@ import pytest
 
 from pyDFCSR_2D.deposit_smooth import DF_tracker_comoving
 
-CFG = dict(method='bspline_comoving', xbins=200, zbins=200, xlim=5, zlim=5, smoothing_sigma=3.0,
+# curvature=False: these tests read the stored fields in the affine (u, w) frame
+CFG = dict(method='bspline_comoving', xbins=200, zbins=200, xlim=5, zlim=5, smoothing_sigma=3.0, curvature=False,
            velocity_threhold=1000, frame_blend='orient')
 
 

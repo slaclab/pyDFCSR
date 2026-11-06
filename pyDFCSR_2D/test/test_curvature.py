@@ -1,7 +1,7 @@
 """
 particle_deposition.curvature: the normalized frame is sheared, u' = u - g(w), g = c2 (w^2 - 1) + c3 w^3 (linear
 beyond fit_zlim), so a curved ("banana") beam sits on the grid instead of falling off it.
-  - default off; then c2 = c3 = 0 and the fields are bit-identical to the affine frame
+  - default on since 2026-11-05 (curv_zlim 4); curvature=False gives c2 = c3 = 0 and the affine frame
   - on a banana beam whose tails leave the +-5 grid, the clipped charge drops and the line density follows the
     particles out to the tails
   - the kernel returns the density where the particles are (rho peak on the curved ridge), and d rho/dz|x
@@ -26,7 +26,7 @@ def banana(n=400_000, tau=-12.0, sxi=35e-6, sz=150e-6, bend=1.0, seed=2):
 
 def deposit(curv, **kw):
     x, z, px = banana(**kw)
-    tr = DF_tracker_comoving({**CFG, 'curvature': curv}); tr.get_DF(x, z, px, 0.0); tr.append_DF()
+    tr = DF_tracker_comoving({**CFG, 'curvature': curv, 'curv_zlim': 3.0}); tr.get_DF(x, z, px, 0.0); tr.append_DF()
     tr.append_DF(); tr.time_log[-1] = 1.0                       # two identical snapshots for the kernel
     tr.build_interpolant()
     return tr, x, z
@@ -43,13 +43,11 @@ def kernel(tr, xs, zs):
         tr.curv_c2_arr, tr.curv_c3_arr, float(tr.curv_zlim))
 
 
-def test_default_off_is_affine():
+def test_default_on_and_off_is_affine():
+    assert DF_tracker_comoving(CFG).curvature is True and DF_tracker_comoving(CFG).curv_zlim == 4.0
     x, z, px = banana(100_000)
-    a = DF_tracker_comoving(CFG); a.get_DF(x, z, px, 0.0)
     b = DF_tracker_comoving({**CFG, 'curvature': False}); b.get_DF(x, z, px, 0.0)
-    assert a.curvature is False and a.curv_c2 == 0.0 and a.curv_c3 == 0.0
-    for k in ('density', 'density_u', 'density_w', 'vx', 'vx_u'):
-        assert np.array_equal(getattr(a, k), getattr(b, k))
+    assert b.curv_c2 == 0.0 and b.curv_c3 == 0.0
 
 
 def test_curvature_keeps_the_tails_on_the_grid():

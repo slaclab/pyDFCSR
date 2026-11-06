@@ -16,6 +16,8 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CH = os.path.join(HERE, 'benchmark_results', 'chicane_2d_vs_1d')
+if '--out' in sys.argv:
+    _i = sys.argv.index('--out'); CH = os.path.join(CH, sys.argv[_i + 1]); del sys.argv[_i:_i + 2]
 RUN = sys.argv[1] if len(sys.argv) > 1 else '2d_reach'
 RUN1 = sys.argv[2] if len(sys.argv) > 2 else '1d_full'
 SURF, INK, INK2, MUTED, GRID = '#fcfcfb', '#0b0b0b', '#52514e', '#898781', '#e1e0d9'

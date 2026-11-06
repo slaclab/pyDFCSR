@@ -2,7 +2,12 @@
 x-avg wake (median-filter, % of peak), and the single worst point vs a smooth neighbourhood (median over 3x5)."""
 import sys, os, glob, numpy as np, h5py
 from scipy.ndimage import median_filter
-O = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'benchmark_results', 'chicane_2d_vs_1d', 'runs')
+_A = sys.argv[1:]
+_SUB = None
+if '--out' in _A:
+    _i = _A.index('--out'); _SUB = _A[_i + 1]; sys.argv = [sys.argv[0]] + _A[:_i] + _A[_i + 2:]
+O = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'benchmark_results', 'chicane_2d_vs_1d',
+                 *( [_SUB] if _SUB else [] ), 'runs')
 def load(run):
     f = sorted(glob.glob(f'{O}/{run}-2*-wakes.h5'), key=os.path.getmtime)[-1]; h = h5py.File(f, 'r')
     return {round(float(h[k].attrs['position']), 3): (str(h[k].attrs['element']), h[k]['longitudinal/dE_dct'][()]) for k in h}

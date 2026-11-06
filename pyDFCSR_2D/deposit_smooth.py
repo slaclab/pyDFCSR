@@ -430,7 +430,7 @@ class DF_tracker_comoving:
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
                          clip_warn=1e-3, frame_blend='orient', vx_model='affine',
-                         curvature=False, curv_zlim=None):
+                         curvature=True, curv_zlim=4.0):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -508,7 +508,8 @@ class DF_tracker_comoving:
         # linearly beyond (interp3D.curv_g). A straight tilt fit on a curved beam leaves a
         # banana in (u, w) whose tails leave the +-xlim grid: 0.28% of the charge in the
         # chicane's B2, a false edge in rho near |w| = 3, and +-3 sigma_z spikes in the
-        # wake. Off by default; the affine frame (and the localization axis) is unchanged.
+        # wake. Default on since 2026-11-05 (curv_zlim 4); the localization axis stays the
+        # straight affine one and the bands are shifted onto the ridge (CSR2D).
         self.curvature = bool(curvature)
         # fit window of the curvature shear in |w|, and where g turns linear; default
         # fit_zlim. Wider than the tilt fit because the tails it must follow are exactly

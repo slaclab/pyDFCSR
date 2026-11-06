@@ -20,13 +20,13 @@ class Integration_params:
     def configure_params(self, n_formation_length = 4, zbins = 200, xbins = 200,
                          xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
-                         near_cell = 0.5, far_zbins = 200, near_grade = 0.05,
+                         near_cell = 0.25, far_zbins = 200, near_grade = 0.05,
                          branch_sin_min = 0.05, near_floor = 20.0,
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
                          drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
                          far_fine_max = 500, band_jacobian_min = 0.2,
-                         prev_bend_reach = False, prev_bend_grade = 0.02):
+                         prev_bend_reach = True, prev_bend_grade = 0.02):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -166,6 +166,8 @@ class Integration_params:
         # Inside a bend, also integrate the PREVIOUS bend's exit tail (needs drift_reach):
         # an extra far region from the previous bend's entrance up to this bend's own
         # reach, laid out like an exit transient. Off by default.
+        # Default True since 2026-11-05 (closed chicane: B4 energy -172 -> -244 keV, emittance
+        # growth 0.455 -> 0.497 um vs 1D 0.549, +6% run time).
         self.prev_bend_reach = prev_bend_reach
         # log-grading ratio of that region's s' nodes (CSR2D._prev_region_nodes)
         self.prev_bend_grade = prev_bend_grade
