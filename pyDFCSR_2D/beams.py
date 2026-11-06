@@ -5,7 +5,7 @@ from scipy.interpolate import RegularGridInterpolator
 from bmadx import Particle, M_ELECTRON
 #from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
 from .interfaces import  openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
-from bmadx import track_element
+from .tracking import track as track_element
 from pmd_beamphysics import ParticleGroup
 #from line_profiler_pycharm import profile
 from .twiss import  twiss_from_bmadx_particles

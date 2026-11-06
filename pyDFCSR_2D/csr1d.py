@@ -278,6 +278,7 @@ class CSR1D:
     # reused from CSR2D unchanged: they only touch self.lattice / self.beam / self.CSR_params /
     # self.statistics / self.prefix / self.parallel, which this class provides
     get_bmadx_element = CSR2D.get_bmadx_element
+    _ends_element = CSR2D._ends_element
     init_statistics = CSR2D.init_statistics
     update_statistics = CSR2D.update_statistics
     write_statistics = CSR2D.write_statistics
@@ -414,12 +415,16 @@ class CSR1D:
                 time0 = time.time()
                 if (step == 0) and (ele_count > 0):
                     DL_2 = self.lattice._positions_record[step_count] - self.lattice.distance[ele_count - 1]
-                    element = self.get_bmadx_element(ele=ele, DL=DL_2, entrance=True)
+                    element = self.get_bmadx_element(
+                        ele=ele, DL=DL_2, entrance=True,
+                        exit=self._ends_element(self.beam.position + DL_2, ele_count))
                     self.beam.track(element, DL_2)
                     skip_ele = False
                 else:
                     DL_i = sched.dl[step_count]
-                    element = self.get_bmadx_element(ele=ele, DL=DL_i)
+                    element = self.get_bmadx_element(
+                        ele=ele, DL=DL_i, entrance=(step == 0),
+                        exit=self._ends_element(self.beam.position + DL_i, ele_count))
                     self.beam.track(element, DL_i)
 
                 if self.CSR_params.compute_CSR and sched.is_kick[step_count]:

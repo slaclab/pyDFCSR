@@ -1,6 +1,7 @@
 import os
 import time
-from bmadx import  Drift, SBend, Quadrupole, Sextupole
+from bmadx import  Drift, SBend, Quadrupole
+from .tracking import SextupoleKDK
 from .tools import dict2hdf5
 import h5py
 import numpy as np
@@ -199,9 +200,18 @@ class CSR2D:
             input_dic.pop(_k, None)
         L = input_dic.pop('L')
         type = input_dic.pop('type')
+        # NUM_STEPS in the YAML is for the WHOLE element (as in Bmad); the run loop tracks it
+        # in pieces of length DL, so each piece gets its share. Passing the full count to every
+        # piece made the integration step depend on the CSR step size.
+        if 'NUM_STEPS' in input_dic and L > 0:
+            input_dic['NUM_STEPS'] = max(1, int(round(input_dic['NUM_STEPS'] * DL / L)))
 
 
-        if type == 'dipole':
+        # 'vbend' is a dipole that bends out of the (x, z) plane (TILT = pi/2, e.g. the BC20
+        # vertical wiggler). It is tracked as an SBend but is a straight element everywhere
+        # else -- reference orbit, formation length, schedule and the CSR integral -- because
+        # the 2D code cannot represent a vertical bend.
+        if type in ('dipole', 'vbend'):
             if 'angle' in input_dic.keys():
                 angle = input_dic.pop('angle')
                 G = angle / L
@@ -219,8 +229,9 @@ class CSR2D:
             else:
                 E2 = 0
 
-            if 'FRINGE_AT' in input_dic.keys():
-                FRINGE_AT = input_dic.pop('FRINGE_AT')
+            # was undefined unless given in the YAML, so a bend tracked in one piece
+            # (entrance and exit) raised NameError
+            FRINGE_AT = input_dic.pop('FRINGE_AT', 'both_ends')
 
 
             if entrance and exit:
@@ -244,10 +255,23 @@ class CSR2D:
             element = Quadrupole(L=DL, K1=K1, **input_dic)
 
         elif type == 'sextupole':
+            # not bmadx.Sextupole: its drift and kick are wrong for canonical px (tracking.py)
             K2 = input_dic.pop('K2')
-            element = Sextupole(L=DL, K2=K2, **input_dic)
+            element = SextupoleKDK(L=DL, K2=K2, **input_dic)
         print(element)
         return element
+
+    def _ends_element(self, s_end, ele_count):
+        """
+        True if a step ending at s_end ends element ele_count, so its exit edge belongs to it.
+
+        The exit edge used to be applied only by the split step that crosses into the next
+        element, and that piece is skipped when it is shorter than 1e-6 m. When a node lies ON
+        the boundary -- always in modes 'manual' and 'auto', and whenever L is a multiple of
+        step_size in 'legacy' -- no step carried the exit edge and E2 was silently dropped.
+        The tolerance is that same 1e-6, so exactly one of the two paths applies it.
+        """
+        return abs(float(self.lattice.distance[ele_count]) - s_end) <= 1.0e-6
 
 #    @profile
     def build_retention_plan(self):
@@ -508,14 +532,20 @@ class CSR2D:
                     DL_2 = self.lattice._positions_record[step_count] - self.lattice.distance[ele_count - 1]
 
                     # calculate the part in the new element
-                    element = self.get_bmadx_element(ele = ele,  DL = DL_2, entrance = True)
+                    element = self.get_bmadx_element(
+                        ele = ele,  DL = DL_2, entrance = True,
+                        exit = self._ends_element(self.beam.position + DL_2, ele_count))
                     self.beam.track(element, DL_2)
                     distance_in_current_ele += DL_2
                     skip_ele = False    # Reset the flag
 
                 else:
                     DL_i = sched.dl[step_count]
-                    element = self.get_bmadx_element(ele = ele,  DL = DL_i)
+                    # step 0 lands here only in the first element, whose entrance edge was
+                    # never applied either
+                    element = self.get_bmadx_element(
+                        ele = ele,  DL = DL_i, entrance = (step == 0),
+                        exit = self._ends_element(self.beam.position + DL_i, ele_count))
                     # Propagate beam for one step
                     self.beam.track(element, DL_i)
                     distance_in_current_ele += DL_i
