@@ -31,6 +31,7 @@ import sys
 
 import numpy as np
 
+CLOSED = '--closed' in sys.argv          # the rerun after 85b40ca: shear<S>/closed/ and closed/ (nominal)
 sys.argv = sys.argv[:1]
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -39,11 +40,16 @@ import chicane_2d_vs_1d as C   # noqa: E402
 BASE = os.path.join(HERE, 'benchmark_results', 'chicane_2d_vs_1d')
 SHEARS = [-100, -140, -160, -180, -190, -195, -210]
 MODELS = [('1d', '1D'), ('2d_new', '2D'), ('2d_new_noT', '2D, transverse off'), ('2d', '2D, old default')]
-COLS = {'off': 'k', '1d': '#2a78d6', '2d_new': '#e34948', '2d_new_noT': '#eb6834', '2d': '#898781'}
+if CLOSED:
+    MODELS = [('1d', '1D (cutoff 1 Rφ)'), ('1d_full', '1D (no cutoff)'), ('2dC', '2D'), ('2dC_noT', '2D, transverse off')]
+COLS = {'off': 'k', '1d': '#2a78d6', '2d_new': '#e34948', '2d_new_noT': '#eb6834', '2d': '#898781',
+        '1d_full': '#1baf7a', '2dC': '#e34948', '2dC_noT': '#eb6834'}
 STYLE = {'2d': dict(ls='--', lw=1.2, ms=4)}
 
 
 def folder(sh):
+    if CLOSED:
+        return os.path.join(BASE, 'closed') if sh == -180 else os.path.join(BASE, f'shear{sh}', 'closed')
     return BASE if sh == -180 else os.path.join(BASE, f'shear{sh}')
 
 
@@ -83,7 +89,7 @@ for r in rows:
         offv = '' if k in ('dE', 'demit', 'rsEs') else fmt.format(r['off'][k]) + flag
         L.append(f'{lab:38s}{vals}{offv:>12s}')
     L.append('')
-open(os.path.join(BASE, 'chirp_scan_models.txt'), 'w').write('\n'.join(L) + '\n')
+open(os.path.join(BASE, 'chirp_scan_models' + ('_closed' if CLOSED else '') + '.txt'), 'w').write('\n'.join(L) + '\n')
 print('\n'.join(L))
 
 # ---------------------------------------------------------------------------------- plot
@@ -115,7 +121,9 @@ for a, yl, t in zip(ax, ['core slice εn [µm]', 'Δεn, η-corrected [µm]', 'c
     sec = a.secondary_xaxis('top', functions=(lambda x: np.interp(x, h[::-1], np.array([r['C'] for r in rows])[::-1]),
                                               lambda c: np.interp(c, np.array([r['C'] for r in rows]), h)))
     sec.set_xlabel('compression factor (CSR off)')
-    sec.set_ticks([2, 3.4, 5.2, 10.9, 23, 45])
+    sec.set_ticks([round(r['C'], 1) for r in rows if r['sh'] not in FOLDED])
 ax[1].set_yscale('symlog', linthresh=0.01)
-fig.suptitle('Benchmark chicane, exit, vs initial chirp: 1D vs 2D (current defaults) vs 2D without transverse force; dashed grey: 2D old default\n(core averages, |z| < 2σz; shaded: phase space folded, slice quantities hollow; drift_cutoff 1 R·φ in every run)')
-plt.savefig(os.path.join(BASE, 'chirp_scan_models.png'), dpi=110)
+fig.suptitle(('Closed benchmark chicane (after the E2 edge fix), exit, vs initial chirp: 1D (with and without drift cutoff) vs 2D (all current defaults, no cutoff) vs 2D without transverse force'
+              if CLOSED else 'Benchmark chicane, exit, vs initial chirp: 1D vs 2D (current defaults) vs 2D without transverse force; dashed grey: 2D old default')
+             + '\n(core averages, |z| < 2σz; shaded: phase space folded, slice quantities hollow' + ('' if CLOSED else '; drift_cutoff 1 R·φ in every run') + ')')
+plt.savefig(os.path.join(BASE, 'chirp_scan_models' + ('_closed' if CLOSED else '') + '.png'), dpi=110)

@@ -1,0 +1,41 @@
+Why does the CSR change of the core slice energy spread go negative through B3-D3-B4 and turn positive
+at the end of B4 (nominal chicane, along_s.png)? Exact decomposition at every node.
+
+Tracking never changes pz, so each particle's energy is  delta = delta0 + K,  with delta0 its initial
+pz and K the CSR kick accumulated so far. Within each core slice of the CSR-on beam (80 slices over
++-3 sigma_z, quadratic chirp removed, |z| < 2 sigma_z, population-weighted):
+    var(delta) = var(delta0) + var(K) + 2 cov(delta0, K)
+var(delta0) on the CSR-on slices differs from the CSR-off slice variance only because CSR has moved
+particles in z (which particles share a slice), so
+    sigma_on^2 - sigma_off^2 = [var_on-slices(delta0) - sigma_off^2] + var(K) + 2 cov(delta0, K)
+              =  re-slicing                      +  kick spread  + kick-energy correlation
+K is also split by where the kick was taken: before B3, B3, D3, B4, Df.
+
+2dC: decomposition sigma_on vs independent run slice_var: max rel diff 6.7e-12 (same particles if CSR on deterministic)
+1d_full: decomposition sigma_on vs independent run slice_var: max rel diff 9.4e-14 (same particles if CSR on deterministic)
+
+== 2D (closed chicane, current defaults) ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
+                   s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df
+B3 middle      7.354   428.9k    +0.81% |    +0.34%   +0.26%   +1.04% |  +0.10    0.051 |    +0.58%    +0.46%    +0.00%    +0.00%    +0.00%
+B3 exit        7.606  2232.6k    +2.61% |    +2.84%   +0.19%   +2.27% |  +0.26    0.043 |    -0.62%    +2.88%    +0.00%    +0.00%    +0.00%
+D3 middle     10.008  2260.6k    -0.30% |    +3.03%   +0.25%   -3.88% |  -0.39    0.049 |    -0.62%    +2.79%    -6.05%    +0.00%    +0.00%
+B4 entrance   12.612  2297.2k    -0.75% |    +3.26%   +0.26%   -5.02% |  -0.48    0.050 |    -0.63%    +2.68%    -7.07%    +0.00%    +0.00%
+B4 1/4        12.732  1664.8k    -1.48% |    +2.22%   +0.43%   -5.58% |  -0.42    0.065 |    -0.59%    +3.99%    -9.02%    +0.04%    +0.00%
+B4 1/2        12.854  1105.2k    +0.06% |    +1.78%   +0.91%   -2.57% |  -0.13    0.095 |    -0.56%    +6.12%   -12.74%    +4.61%    +0.00%
+B4 3/4        12.992   517.9k    +5.05% |    +4.49%   +4.59%   +1.27% |  +0.03    0.210 |    -0.71%   +11.03%   -25.48%   +16.44%    +0.00%
+B4 9/10       13.065   224.1k   +15.54% |   +21.17%  +25.26%  -12.94% |  -0.12    0.457 |    -2.46%    +6.89%   -54.89%   +37.52%    +0.00%
+B4 exit       13.112   105.3k   +18.40% |   +79.12% +117.23% -156.16% |  -0.54    0.809 |   -13.07%  -127.00%   -27.78%   +11.68%    +0.00%
+end           13.312   105.3k   +18.59% |   +79.12% +117.64% -156.13% |  -0.54    0.810 |   -13.07%  -127.00%   -27.78%   +11.68%    +0.03%
+
+== 1D, no cutoff ==  (variances as % of the CSR-off slice variance sigma_off^2 at the same s)
+                   s  sig_off  dsig/sig |  re-slice    var K     2cov |    rho x=sK/sd0 | 2cov by kick region: before B3        B3        D3        B4        Df
+B3 middle      7.354   428.9k    -0.08% |    +0.01%   +0.00%   -0.18% |  -0.21    0.004 |    -0.17%    -0.01%    +0.00%    +0.00%    +0.00%
+B3 exit        7.606  2232.6k    -0.23% |    +0.37%   +0.00%   -0.82% |  -0.59    0.007 |    -0.49%    -0.34%    +0.00%    +0.00%    +0.00%
+D3 middle     10.008  2260.6k    -0.24% |    +0.39%   +0.01%   -0.88% |  -0.61    0.007 |    -0.50%    -0.34%    -0.04%    +0.00%    +0.00%
+B4 entrance   12.612  2297.2k    -0.27% |    +0.41%   +0.01%   -0.95% |  -0.65    0.007 |    -0.51%    -0.35%    -0.10%    +0.00%    +0.00%
+B4 1/4        12.732  1664.8k    -0.63% |    -0.89%   +0.00%   -0.37% |  -0.44    0.004 |    -0.49%    -0.24%    +0.35%    +0.01%    +0.00%
+B4 1/2        12.854  1105.2k    -0.67% |    -2.05%   +0.03%   +0.70% |  +0.21    0.017 |    -0.49%    -0.04%    +1.07%    +0.16%    +0.00%
+B4 3/4        12.992   517.9k    +0.90% |    -3.36%   +0.50%   +4.67% |  +0.34    0.072 |    -0.49%    +0.56%    +3.25%    +1.36%    +0.00%
+B4 9/10       13.065   224.1k    +6.59% |    -3.93%   +4.49%  +13.06% |  +0.31    0.216 |    -0.47%    +1.79%    +7.41%    +4.34%    +0.00%
+B4 exit       13.112   105.3k    +9.89% |    -1.98%  +27.03%   -4.29% |  -0.04    0.525 |    +0.07%    -0.48%    -3.17%    -0.72%    +0.00%
+end           13.312   105.3k    +9.89% |    -1.98%  +27.03%   -4.29% |  -0.04    0.525 |    +0.07%    -0.48%    -3.17%    -0.72%    -0.00%

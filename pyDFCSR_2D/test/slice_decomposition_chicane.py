@@ -25,7 +25,11 @@ import time
 import numpy as np
 
 ARGS = sys.argv[1:]
-sys.argv = sys.argv[:1]                      # chicane_2d_vs_1d reads --shear from argv at import
+_keep = []                                   # pass --out / --shear through to chicane_2d_vs_1d
+for _k in ('--out', '--shear'):
+    if _k in ARGS:
+        _i = ARGS.index(_k); _keep += ARGS[_i:_i + 2]; ARGS = ARGS[:_i] + ARGS[_i + 2:]
+sys.argv = sys.argv[:1] + _keep              # chicane_2d_vs_1d reads --shear / --out from argv at import
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import chicane_2d_vs_1d as C                 # noqa: E402
@@ -139,9 +143,10 @@ def terms(name):
 
 def plot():
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
-    names = [n for n in ('2d', '2d_noT', '2d_new', '2d_new_noT', '1d') if os.path.isfile(os.path.join(OUT, f'slice_decomp_{n}.npz'))]
+    names = [n for n in ('2d', '2d_noT', '2d_new', '2d_new_noT', '2dC', '2dC_noT', '1d', '1d_full') if os.path.isfile(os.path.join(OUT, f'slice_decomp_{n}.npz'))]
     T = {n: terms(n) for n in names}
-    lab = {'2d': '2D (old default)', '2d_noT': '2D, no transverse force (old default)', '2d_new': '2D, both fixes',
+    lab = {'2dC': '2D (closed chicane, current defaults)', '2dC_noT': '2D, no transverse force', '1d_full': '1D, no cutoff',
+           '2d': '2D (old default)', '2d_noT': '2D, no transverse force (old default)', '2d_new': '2D, both fixes',
            '2d_new_noT': '2D, both fixes, no transverse force', '1d': '1D'}
     L = [__doc__.split('Usage')[0].strip(), '']
     # consistency: v_on from the decomposition vs the slice_var recorded independently in the main runs
