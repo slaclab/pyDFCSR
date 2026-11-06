@@ -17,7 +17,10 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 HERE = os.path.dirname(os.path.abspath(__file__))
 CH = os.path.join(HERE, 'benchmark_results', 'chicane_2d_vs_1d')
 if '--out' in sys.argv:
-    _i = sys.argv.index('--out'); CH = os.path.join(CH, sys.argv[_i + 1]); del sys.argv[_i:_i + 2]
+    _i = sys.argv.index('--out'); CH = os.path.normpath(os.path.join(CH, sys.argv[_i + 1])); del sys.argv[_i:_i + 2]
+TITLE = ''
+if '--title' in sys.argv:
+    _i = sys.argv.index('--title'); TITLE = sys.argv[_i + 1]; del sys.argv[_i:_i + 2]
 RUN = sys.argv[1] if len(sys.argv) > 1 else '2d_reach'
 RUN1 = sys.argv[2] if len(sys.argv) > 2 else '1d_full'
 SURF, INK, INK2, MUTED, GRID = '#fcfcfb', '#0b0b0b', '#52514e', '#898781', '#e1e0d9'
@@ -77,7 +80,7 @@ def maps(R, key, label, fname):
         if i % nc == 0: ax.set_ylabel('ξ [µm]')
         if i // nc == nr - 1 or i + nc >= n: ax.set_xlabel('z / σz')
         else: ax.set_xticklabels([])
-    fig.suptitle(f'{label}, run {RUN}, every kick (z/σz, ξ = offset from the tilted axis); each panel normalised to its own '
+    fig.suptitle(f'{TITLE}{label}, run {RUN}, every kick (z/σz, ξ = offset from the tilted axis); each panel normalised to its own '
                  f'max |value|, red > 0, blue < 0, range in MeV/m', x=0.01, ha='left', fontsize=10, fontweight='bold', color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.975), h_pad=0.4, w_pad=0.3)
     fig.savefig(os.path.join(CH, fname), dpi=130); plt.close(fig); print('wrote', fname)
@@ -107,7 +110,7 @@ def zproj(R, D1, fname):
          plt.Line2D([], [], color=BLUE, lw=1.2, ls=(0, (3, 1.5)))]
     fig.legend(h, [f'2D, x-projection (charge-weighted average over ξ), run {RUN}', '± rms over ξ at that z',
                    f'1D at the same kick, run {RUN1}'], loc='upper right', ncol=3, frameon=False, fontsize=8.5, labelcolor=INK2)
-    fig.suptitle('Longitudinal wake dE/ds projected on z, every kick', x=0.01, ha='left', fontsize=10, fontweight='bold', color=INK)
+    fig.suptitle(f'{TITLE}Longitudinal wake dE/ds projected on z, every kick', x=0.01, ha='left', fontsize=10, fontweight='bold', color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.965), h_pad=0.4, w_pad=0.3)
     fig.savefig(os.path.join(CH, fname), dpi=130); plt.close(fig); print('wrote', fname)
 
@@ -147,7 +150,7 @@ def along_s(R, D1, fname):
         if ax is not axs[-1]: plt.setp(ax.get_xticklabels(), visible=False)
     t = np.arange(0, len(s), 4)
     axs[-1].set_xticks(t); axs[-1].set_xticklabels([f'{s[i]:.2f}' for i in t], rotation=60, fontsize=7); axs[-1].set_xlabel('s [m]')
-    fig.suptitle(f'Chicane wakes along the lattice, run {RUN} (signed, one colour scale per panel; bands of the bend kicks are dense)',
+    fig.suptitle(f'{TITLE}Chicane wakes along the lattice, run {RUN} (signed, one colour scale per panel; bands of the bend kicks are dense)',
                  x=0.01, ha='left', fontsize=11, fontweight='bold', color=INK, y=0.995)
     fig.savefig(os.path.join(CH, fname), dpi=130, bbox_inches='tight'); plt.close(fig); print('wrote', fname)
 
