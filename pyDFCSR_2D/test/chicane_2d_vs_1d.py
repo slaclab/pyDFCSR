@@ -97,6 +97,12 @@ RUNS = {
                          dep=dict(curvature=True)),
     '2d_curv_prev': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2,
                          dep=dict(curvature=True), prev=True),
+    # near-region s' cell 0.5 -> 0.25 sigma_xi (D3 near error 1-6% of the wake -> mostly < 1%, map time +3%)
+    '2d_near': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2,
+                    integ=dict(near_cell=0.25)),
+    # everything: near_cell 0.25, curvature (fit window 4), mesh on the ridge, previous-bend reach (log-graded)
+    '2d_all': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2, prev=True,
+                   dep=dict(curvature=True, curv_zlim=4.0), integ=dict(near_cell=0.25)),
     # timing pair, run one after the other on an idle machine (the four runs above shared it with 3 others)
     '2d_time_old': dict(cls='2d'),
     '2d_time_new': dict(cls='2d', tangent=True, vx='affine'),
@@ -113,6 +119,7 @@ LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force',
          '2d_new_noT': '2D, both fixes, no transverse force',
          '2d_jac': '2D, defaults, no cutoff, far band Jacobian-scaled',
          '2d_jac_curv': '2D, + far band Jacobian + curvature shear',
+         '2d_near': '2D, defaults + near_cell 0.25, no cutoff', '2d_all': '2D, all fixes (near 0.25, curvature 4, prev reach)',
          '2d_curv_mesh': '2D, + Jacobian + curvature, mesh on the ridge', '2d_curv_prev': '2D, + ... + previous-bend reach',
          '2d_x8': '2D, defaults, no cutoff, deposition xlim 8', '2d_x8c': '2D, defaults, no cutoff, xlim 8 xbins 300',
          '2d_reach_cap': '2D, reach fix + node cap, no cutoff', '2d_reach_cap_noT': '2D, reach fix + cap, no cutoff, no transverse',
@@ -143,6 +150,7 @@ def config(name):
         cfg['particle_deposition'].update(r.get('dep', {}))
         cfg['CSR_integration']['band_jacobian_min'] = float(r.get('jac', 0.0))
         cfg['CSR_integration']['prev_bend_reach'] = bool(r.get('prev', False))
+        cfg['CSR_integration'].update(r.get('integ', {}))
         if 'cutoff2d' in r:
             cfg['CSR_integration']['drift_cutoff'] = float(r['cutoff2d'])
     if 'transverse' in r:
@@ -353,7 +361,7 @@ def analyze():
     # ---- plots
     cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4',
             '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8', '2d_new_xavg': 'C9', '2d_new_xavgB4': 'C4',
-            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8', '2d_x8': 'C2', '2d_x8c': 'C0', '2d_jac': 'C5', '2d_jac_curv': 'C4', '2d_curv_mesh': 'C9', '2d_curv_prev': 'C7'}
+            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8', '2d_x8': 'C2', '2d_x8c': 'C0', '2d_jac': 'C5', '2d_jac_curv': 'C4', '2d_curv_mesh': 'C9', '2d_curv_prev': 'C7', '2d_near': 'C1', '2d_all': 'C3'}
     have_slice = all('slice_var' in R[n] for n in ['off'] + names)
     if have_slice:
         fig = plt.figure(figsize=(14, 16.5), layout='constrained')

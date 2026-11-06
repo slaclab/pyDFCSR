@@ -40,7 +40,7 @@ def kernel(tr, xs, zs):
         tr.u_start, tr.delta_u, tr.w_start, tr.delta_w, tr.min_x, tr.delta_x,
         tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr, tr.x_bar_arr,
         tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M, tr.is_uniform,
-        tr.curv_c2_arr, tr.curv_c3_arr, float(tr.fit_zlim))
+        tr.curv_c2_arr, tr.curv_c3_arr, float(tr.curv_zlim))
 
 
 def test_default_off_is_affine():

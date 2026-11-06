@@ -26,7 +26,7 @@ class Integration_params:
                          drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
                          far_fine_max = 500, band_jacobian_min = 0.2,
-                         prev_bend_reach = False):
+                         prev_bend_reach = False, prev_bend_grade = 0.02):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
         self.xbins = xbins
@@ -167,6 +167,8 @@ class Integration_params:
         # an extra far region from the previous bend's entrance up to this bend's own
         # reach, laid out like an exit transient. Off by default.
         self.prev_bend_reach = prev_bend_reach
+        # log-grading ratio of that region's s' nodes (CSR2D._prev_region_nodes)
+        self.prev_bend_grade = prev_bend_grade
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
         # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.

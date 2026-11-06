@@ -430,7 +430,7 @@ class DF_tracker_comoving:
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
                          clip_warn=1e-3, frame_blend='orient', vx_model='affine',
-                         curvature=False):
+                         curvature=False, curv_zlim=None):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -510,6 +510,10 @@ class DF_tracker_comoving:
         # chicane's B2, a false edge in rho near |w| = 3, and +-3 sigma_z spikes in the
         # wake. Off by default; the affine frame (and the localization axis) is unchanged.
         self.curvature = bool(curvature)
+        # fit window of the curvature shear in |w|, and where g turns linear; default
+        # fit_zlim. Wider than the tilt fit because the tails it must follow are exactly
+        # what a +-3 window leaves out (B3 exit: cubic misses the ridge by 1.5 sxi at 3.25).
+        self.curv_zlim = float(fit_zlim if curv_zlim is None else curv_zlim)
 
     def get_DF(self, x, z, px, t):
         zmean = np.mean(z)
@@ -534,11 +538,12 @@ class DF_tracker_comoving:
         # --- optional curvature shear, fitted in (u, w) on the core ---
         c2 = c3 = 0.0
         if self.curvature:
-            wc, uc = w[core], u[core]
+            cw = np.abs(w) < self.curv_zlim
+            wc, uc = w[cw], u[cw]
             A = np.column_stack([wc * wc - 1.0, wc ** 3, np.ones(wc.size), wc])
             coef = np.linalg.lstsq(A, uc, rcond=None)[0]
             c2, c3 = float(coef[0]), float(coef[1])
-            g = _curv_g_vec(c2, c3, w, self.fit_zlim)
+            g = _curv_g_vec(c2, c3, w, self.curv_zlim)
             u = u - g
             # sigma_xi stays the affine (all-particle) width: the grid and the bands are
             # sized by it, and keeping it makes curvature=True a pure reshuffle of u

@@ -708,7 +708,7 @@ class CSR2D:
             return np.zeros_like(np.asarray(z, dtype=float))
         from .deposit_smooth import _curv_g_vec
         w = (np.asarray(z, dtype=float) - tr.z_bar) / tr.sigma_z
-        return tr.sigma_xi * _curv_g_vec(tr.curv_c2, tr.curv_c3, w, tr.fit_zlim)
+        return tr.sigma_xi * _curv_g_vec(tr.curv_c2, tr.curv_c3, w, tr.curv_zlim)
 
     def get_CSR_mesh(self):
         """
@@ -1010,7 +1010,7 @@ class CSR2D:
         c3 = b * tr.curv_c3_arr[k] + a * tr.curv_c3_arr[k1]
         _, _, z_bar, s_xi, s_z = self._comoving_frame_at(t_ret)
         w = (z_ret - z_bar) / s_z
-        wc = np.clip(w, -tr.fit_zlim, tr.fit_zlim)
+        wc = np.clip(w, -tr.curv_zlim, tr.curv_zlim)
         g = c2 * (wc * wc - 1.0) + c3 * wc ** 3 + (2.0 * c2 * wc + 3.0 * c3 * wc * wc) * (w - wc)
         return s_xi * g
 
@@ -1522,6 +1522,19 @@ class CSR2D:
             return -np.inf
         return sb + abs(self.R_rec * self.phi_rec)
 
+    def _prev_region_nodes(self, s, pb, s1):
+        """
+        s' nodes of the prev_bend_reach region [pb, s1]: log-graded in u = s - s' at
+        prev_bend_grade. Measured at the chicane's B4 entrance against a 4001-node
+        reference, the region is a smooth 1/u-like tail of the drift history (53% within
+        0.5 m of s1, 90% within 2 m), not a narrow band: grading 0.02 gives 113 nodes and
+        <= 0.4% error, where the exit-transient layout used 544 nodes for 0.1%.
+        """
+        g = self.integration_params.prev_bend_grade
+        u_lo, u_hi = max(s - s1, 1e-12), s - pb
+        k = int(np.ceil(np.log(u_hi / u_lo) / np.log1p(g)))
+        return np.unique(s - np.minimum(u_lo * (1.0 + g) ** np.arange(k + 1), u_hi))
+
     def _prev_bend_reach_start(self):
         """Entrance of the previous bend while inside the next one, or None."""
         ip = self.integration_params
@@ -1812,7 +1825,7 @@ class CSR2D:
             # shape -- so it gets that layout (causal edge, fine window, grading).
             pb = self._prev_bend_reach_start()
             if pb is not None and pb < s1:
-                sp_prev = self._far_region_nodes(s, x, t, pb, s1, transient=True)
+                sp_prev = self._prev_region_nodes(s, pb, s1)
                 parts.append(self._integrate_xi_region(s, x, t, sp_prev, ignore_vx, None,
                                                        scale_bands=True))
             if radii is not None:
@@ -1910,7 +1923,7 @@ class CSR2D:
             tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr,
             tr.x_bar_arr,
             tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
-            tr.is_uniform, tr.curv_c2_arr, tr.curv_c3_arr, float(tr.fit_zlim))
+            tr.is_uniform, tr.curv_c2_arr, tr.curv_c3_arr, float(tr.curv_zlim))
 
     def _assert_history(self):
         """
