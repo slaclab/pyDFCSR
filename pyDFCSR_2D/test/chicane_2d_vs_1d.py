@@ -40,6 +40,10 @@ OUT = os.path.join(HERE, 'benchmark_results', 'chicane_2d_vs_1d')
 SHEAR = float(sys.argv[sys.argv.index('--shear') + 1]) if '--shear' in sys.argv else None
 if SHEAR is not None:
     OUT = os.path.join(OUT, f'shear{SHEAR:g}')
+# --out SUBDIR: write everything (runs, inputs, npz) under OUT/SUBDIR, e.g. for a rerun after a tracking change.
+# 'closed': after 85b40ca (bend exit edges were dropped in auto/manual, so the chicane did not close).
+if '--out' in sys.argv:
+    OUT = os.path.join(OUT, sys.argv[sys.argv.index('--out') + 1])
 MC2 = 510998.95
 BENDS = [(0.1, 0.6002, 'B1'), (5.606, 6.1062, 'B2'), (7.1062, 7.6064, 'B3'), (12.6122, 13.1124, 'B4')]
 EDGES = [0.0, 0.1, 0.6002, 5.606, 6.1062, 7.1062, 7.6064, 12.6122, 13.1124, 13.3124]
