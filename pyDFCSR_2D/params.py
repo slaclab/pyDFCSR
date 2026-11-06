@@ -25,7 +25,7 @@ class Integration_params:
                          causal_clip = True, far_window = 1.0, far_cell = 10.0,
                          drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
-                         far_fine_max = 500, band_jacobian_min = 0.0,
+                         far_fine_max = 500, band_jacobian_min = 0.2,
                          prev_bend_reach = False):
         self.n_formation_length = n_formation_length
         self.zbins = zbins
@@ -157,8 +157,11 @@ class Integration_params:
         #     1 rad dipole exit drift  <= 4e-5 (387-419)       unchanged (cap not reached)
         # A uniformly coarser far_cell does NOT work: far_cell 100 gave 5e-2 in D1.
         self.far_fine_max = far_fine_max
-        # Scale each x' band by 1/|du/dx'| at its centre, floored at this value (0 = off,
-        # the old fixed +-xlim*margin*sigma_xi). See CSR2D._retarded_xi_bands.
+        # Scale each FAR x' band by 1/|du/dx'| at its centre, floored at this value (0 =
+        # off, the old fixed +-xlim*margin*sigma_xi). See CSR2D._retarded_xi_bands.
+        # Default 0.2 since 2026-11-05: the D3 far integral was 8-18% low without it, and
+        # matches a +-40 sigma_xi reference to <= 0.3% with it; B1-B4, D1, D2 change
+        # <= 0.1%; no run-time cost (D3 maps 42-47 -> 32-38 ms/pt, same node count).
         self.band_jacobian_min = band_jacobian_min
         # Inside a bend, also integrate the PREVIOUS bend's exit tail (needs drift_reach):
         # an extra far region from the previous bend's entrance up to this bend's own

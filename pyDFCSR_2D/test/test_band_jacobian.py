@@ -1,7 +1,7 @@
 """
 Integration_params.band_jacobian_min: each x' band scaled by 1/|du/dx'| so it covers the same +-xlim*margin of the
 beam in u whatever the angle of the line of sight. Checked here on the analytic quantity alone (no tracking):
-  - default 0 = off
+  - default 0.2 since 2026-11-05 (0 = off)
   - J = 1 - tau * d|r-r'|/dx' reproduces a finite difference of u_ret(x') for a straight, tilted beam
 """
 import numpy as np
@@ -9,8 +9,8 @@ import numpy as np
 from pyDFCSR_2D.params import Integration_params
 
 
-def test_default_off():
-    assert Integration_params().band_jacobian_min == 0.0
+def test_default():
+    assert Integration_params().band_jacobian_min == 0.2
 
 
 def test_jacobian_formula_straight_beam():
