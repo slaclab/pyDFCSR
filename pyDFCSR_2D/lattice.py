@@ -198,7 +198,8 @@ class Lattice():
         """
         Build the step schedule and expose the legacy attributes derived from it.
 
-        `mode: legacy` (the default) reproduces the historical node set, kick cadence and
+        `mode: legacy` (the default here when no step_control is given; CSR2D now passes
+        mode 'auto' by default) reproduces the historical node set, kick cadence and
         steps_per_element exactly -- verified against a verbatim copy of the old algorithm on 120
         randomised lattices, including the cases where np.arange overshoots the lattice end.
         """

@@ -302,12 +302,17 @@ class CSR1D:
             assert k in cfg, f'Required input parameter {k} to CSR1D was not found.'
         self.input = cfg
         self.beam = Beam(cfg['input_beam'])
-        sc = cfg.get('step_control') or {}
+        # exactly as CSR2D.parse_input, including the default mode 'auto' + midpoint kicks,
+        # so CSR1D and CSR2D keep sharing one schedule for the same config
+        sc = dict(cfg.get('step_control') or {})
+        sc.setdefault('mode', 'auto')
+        if sc['mode'] == 'auto':
+            sc.setdefault('kick_interval', 'midpoint')
         sigma0 = None
-        if sc.get('mode') == 'auto':                     # exactly as CSR2D.parse_input
+        if sc.get('mode') == 'auto':
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py, b.z, b.pz)
-        self.lattice = Lattice(cfg['input_lattice'], step_control=sc or None, sigma0=sigma0)
+        self.lattice = Lattice(cfg['input_lattice'], step_control=sc, sigma0=sigma0)
         self.CSR_params = CSR_params(cfg['CSR_computation']) if 'CSR_computation' in cfg else CSR_params()
         self.params = CSR1D_params(cfg.get('CSR_1D'))
         self.geometry = CSR1DGeometry(self.lattice.lattice_config, self.lattice.distance)

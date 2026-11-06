@@ -85,6 +85,9 @@ def _write_inputs(tag, frame_blend):
                                 'poly_degree': 1, 'velocity_threhold': 1000,
                                 'frame_blend': frame_blend},
         'CSR_integration': {'n_formation_length': 1.5, 'zbins': 200, 'xbins': 200},
+        # the uniform schedule these acceptance numbers were written for (step_control now
+        # defaults to 'auto', which places snapshots differently around the waist)
+        'step_control': {'mode': 'legacy'},
         'CSR_computation': {'compute_CSR': 0, 'apply_CSR': 0, 'transverse_on': 1,
                             'xbins': 21, 'zbins': 51, 'xlim': 3, 'zlim': 3,
                             'write_beam': [], 'write_wakes': False,

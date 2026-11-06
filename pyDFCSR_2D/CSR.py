@@ -57,17 +57,23 @@ class CSR2D:
         self.check_input_consistency(input)
         self.input = input
         self.beam = Beam(input['input_beam'])
-        sc = input.get('step_control') or {}
+        # step_control defaults to mode 'auto' with midpoint kicks (since 2026-11-06), the
+        # schedule every validated run used. A config that wants the old uniform stepping
+        # must now say step_control: {mode: legacy}.
+        sc = dict(input.get('step_control') or {})
+        sc.setdefault('mode', 'auto')
+        if sc['mode'] == 'auto':
+            sc.setdefault('kick_interval', 'midpoint')
         sigma0 = None
         if sc.get('mode') == 'auto':
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py, b.z, b.pz)
-        self.lattice = Lattice(input['input_lattice'], step_control=sc or None,
-                               sigma0=sigma0)
+        self.lattice = Lattice(input['input_lattice'], step_control=sc, sigma0=sigma0)
 
         if 'particle_deposition' in input:
             deposition_config = input['particle_deposition']
-            method = deposition_config.get('method', 'legacy')
+            # default 'bspline_comoving' since 2026-11-06; 'legacy' (CIC) must be asked for
+            method = deposition_config.get('method', 'bspline_comoving')
             if method == 'bspline_comoving':
                 self.DF_tracker = DF_tracker_comoving(deposition_config)
             elif method == 'bspline_fft':
@@ -75,7 +81,7 @@ class CSR2D:
             else:
                 self.DF_tracker = DF_tracker(deposition_config)
         else:
-            self.DF_tracker = DF_tracker()
+            self.DF_tracker = DF_tracker_comoving({})
         self.use_comoving = isinstance(self.DF_tracker, DF_tracker_comoving)
         # both B-spline paths deposit in the tilt-removed frame, so both need the
         # xi-following integration bands rather than the sigma_x-wide rectangles
