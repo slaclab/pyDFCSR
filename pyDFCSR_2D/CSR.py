@@ -764,6 +764,18 @@ class CSR2D:
         xbins = self.CSR_params.xbins
         zbins = self.CSR_params.zbins
 
+        if (self.use_comoving and self.CSR_params.mesh_mode == 'uniform'
+                and not getattr(self, '_taper_mesh_warned', False)
+                and xlim > self.DF_tracker.u_flat() + 1e-9):
+            # The outer mesh rows sit where the deposit's u edge taper has removed part of the
+            # source charge (DF_tracker_comoving.u_taper), so their near field is weakened.
+            # Few particles are there, but say so once.
+            self._taper_mesh_warned = True
+            print(f'  [CSR2D] note: the wake mesh spans +-{xlim} sigma_x, beyond the deposit\'s '
+                  f'full-weight region |u| <= {self.DF_tracker.u_flat():.2f} (u_taper); the '
+                  f'outermost rows see a tapered source. Lower CSR_computation.xlim, or raise '
+                  f'particle_deposition xlim/xbins.')
+
         if self.CSR_params.mesh_mode == 'charge':
             # node density follows the projected charge (peakfind.charge_nodes), smoothed
             # over mesh_smooth deposition resolution lengths so the field just outside a

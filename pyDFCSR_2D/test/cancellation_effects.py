@@ -13,6 +13,7 @@ F  clipped charge: zero the stored fields beyond |u| > u_c
 G  figure of the integrand on the (x', s') nodes, both forms
 H  collapse: C at the bunch centre against sigma_z^(2/3)/sigma_xi, every case
 I  transverse (u) vs longitudinal (w) grid edges, rms and quantile frames
+J  the u edge taper (particle_deposition.u_taper): off vs on, clean, outlier and halo beams
 
 Writes benchmark_results/cancellation_effects/<section>.txt and figures.
 """
@@ -516,8 +517,52 @@ def section_I():
     log.close()
 
 
+def section_J():
+    """particle_deposition.u_taper (deposit_smooth.DF_tracker_comoving.u_weight), off vs on."""
+    log = Log('J_u_taper')
+    log('J. Transverse edge taper of the deposit, u_taper 0 (hard edge at +-xlim) vs 0.5 (default).')
+    log('   edge = max over snapshots of the smoothed density at u = +-xlim / peak; removed = charge')
+    log('   outside the grid or in the taper (newest snapshot). In bend, s = 0.5 m.')
+    log('')
+    log(f'{"beam":24s} {"u_taper":>7s} {"edge":>8s} {"removed":>8s} {"|ship-ibp|/|ship|":>17s}')
+    pairs = {}
+    for nm, kw in (('Gaussian, Hammersley 200k', {}),
+                   ('20k pseudo-random seed 3', dict(n_particle=20000, seed=3)),
+                   ('1M pseudo-random seed 1', dict(n_particle=1000000, seed=1))):
+        for ut in (0.0, 0.5):
+            csr = L.build(f'J_{len(pairs)}_{ut}', s_stop=0.5, extra_dep={'u_taper': ut}, **kw)
+            r = both(csr, cut_points(csr))
+            pairs[(nm, ut)] = r
+            tr = csr.DF_tracker
+            log(f'{nm:24s} {ut:7.1f} {tr.edge_u_max:8.1e} {tr.clipped:8.1e} '
+                f'{rel(r[:,2], r[:,1]):17.1e}')
+        a, b = pairs[(nm, 0.0)], pairs[(nm, 0.5)]
+        log(f'{"":24s} wake change on vs off: shipped {rel(b[:,1], a[:,1]):.1e}, '
+            f'by parts {rel(b[:,2], a[:,2]):.1e}')
+    log('')
+    log('Halo beam: 98% Gaussian core + 2% halo 3x wider in x (sigma_xi 46 um at s = 0.5 m).')
+    log('Reference: xlim 10, 400 bins (same cell), hard edge; the same observer points for all.')
+    h5 = L.halo_beam('J_halo', frac=0.02, halo_factor=3.0)
+    rows, pts = {}, None
+    for tag, dep in (('xlim 10, hard (ref)', {'xlim': 10, 'xbins': 400, 'u_taper': 0.0}),
+                     ('xlim 5, hard', {'u_taper': 0.0}),
+                     ('xlim 5, taper 0.5', {'u_taper': 0.5}),
+                     ('xlim 7, taper 0.5', {'xlim': 7, 'xbins': 280, 'u_taper': 0.5})):
+        csr = L.build('J_halo_' + tag.split(',')[0].replace(' ', '') + str(dep['u_taper']),
+                      s_stop=0.5, beam_h5=h5, extra_dep=dep)
+        pts = cut_points(csr) if pts is None else pts
+        rows[tag] = (both(csr, pts), csr.DF_tracker.edge_u_max, csr.DF_tracker.clipped)
+    ref = 0.5 * (rows['xlim 10, hard (ref)'][0][:, 1] + rows['xlim 10, hard (ref)'][0][:, 2])
+    log(f'{"grid":20s} {"edge":>8s} {"removed":>8s} {"|ship-ibp|/|ship|":>17s} '
+        f'{"shipped vs ref":>15s} {"by parts vs ref":>16s}')
+    for tag, (r, e, c) in rows.items():
+        log(f'{tag:20s} {e:8.1e} {c:8.1e} {rel(r[:,2], r[:,1]):17.1e} {rel(r[:,1], ref):15.2e} '
+            f'{rel(r[:,2], ref):16.2e}')
+    log.close()
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
-    which = sys.argv[1:] or list('ABCDEFGHI')
+    which = sys.argv[1:] or list('ABCDEFGHIJ')
     for w in which:
         globals()[f'section_{w}']()

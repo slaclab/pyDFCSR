@@ -469,7 +469,8 @@ class DF_tracker_comoving:
                          frame='rms', frame_quantile=0.005, frame_margin=0.1,
                          smoothing_adaptive=False, smoothing_min_particles=100,
                          smoothing_sigma_z_max=16.0, peak_halfwidth=3.0, peak_taper=2.0,
-                         peak_rate=0.2, peak_shift=0.25, smoothing_res_fwhm=None):
+                         peak_rate=0.2, peak_shift=0.25, smoothing_res_fwhm=None,
+                         u_taper=0.5, edge_warn=1e-4):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -544,6 +545,26 @@ class DF_tracker_comoving:
         # restrict the tilt fit to the core, so tail particles cannot lever it
         self.fit_zlim = fit_zlim
         self.clip_warn = clip_warn
+        # Transverse edge taper (progress_cancellation.md §4c-d). The deposit used to end in a
+        # hard cut at u = +-xlim: particles beyond were dropped and the interpolant is zero past
+        # the grid, so wherever the beam reaches the edge rho has a step there that the stored
+        # d rho/du does not contain. The longitudinal integrand is G * d rho/dx, whose +- lobes
+        # cancel by a factor C = 60-1000 (C ~ 188 sigma_z^(2/3)/sigma_xi um), and an error in
+        # d rho/dx with a nonzero integral across the beam is amplified by ~C: clipping 0.3% of
+        # the charge moved the wake by 3%, against 0.19% when the cut is consistent.
+        # So each particle's deposit weight is multiplied by T(u): 1 for |u| <= e - u_taper,
+        # a C2 smootherstep to 0 at |u| = e, with e = xlim - 3 smoothing_sigma delta_u so the
+        # smoothed field is down to ~1e-2 of the ramp's density at the grid edge. The charge
+        # removed is then removed consistently (the stored derivatives are those of the tapered
+        # field), and counts as clipped in the clip_warn diagnostic. A z cut does not need this:
+        # T(z) rho has d/dx = T(z) d rho/dx, still cancelling; frames quantile/peak taper z
+        # for the physical step in the current. u_taper = 0: the hard edge, as before.
+        self.u_taper = float(u_taper)
+        # warn (once per run) if the smoothed density at the u edge exceeds edge_warn * peak
+        self.edge_warn = float(edge_warn)
+        self.edge_u = 0.0            # u-edge density / peak of the newest snapshot
+        self.edge_u_max = 0.0        # its maximum over the run
+        self._edge_warned = False
 
         # Which parametrisation of the frame is interpolated BETWEEN snapshots.
         # Deposition is identical either way; only the blend differs.
@@ -613,6 +634,38 @@ class DF_tracker_comoving:
         # what a +-3 window leaves out (B3 exit: cubic misses the ridge by 1.5 sxi at 3.25).
         self.curv_zlim = float(fit_zlim if curv_zlim is None else curv_zlim)
 
+    def u_flat(self):
+        """|u| up to which the edge taper keeps the full deposit weight (xlim if off)."""
+        if self.u_taper <= 0.0:
+            return self.u_end
+        return self.u_end - 3.0 * self.smoothing_sigma * self.delta_u - self.u_taper
+
+    def u_weight(self, u):
+        """Deposit weight T(u) of the transverse edge taper (see configure_params)."""
+        if self.u_taper <= 0.0:
+            return np.ones_like(u)
+        from .peakfind import window_weight
+        flat = self.u_flat()
+        if flat <= 0.0:
+            raise ValueError(f'u_taper = {self.u_taper} does not fit inside xlim = {self.xlim} '
+                             f'(edge pad {3.0 * self.smoothing_sigma * self.delta_u:.2f} sigma_xi)')
+        return window_weight(u, -flat, flat, self.u_taper)
+
+    def _check_edge(self, density_smooth, t):
+        """Smoothed density at the u edges relative to its peak; warn once per run."""
+        pk = float(np.max(density_smooth))
+        e = 0.0
+        if pk > 0.0:
+            e = float(max(np.abs(density_smooth[0]).max(), np.abs(density_smooth[-1]).max())) / pk
+        self.edge_u = e
+        self.edge_u_max = max(self.edge_u_max, e)
+        if e > self.edge_warn and not self._edge_warned:
+            self._edge_warned = True
+            print(f'  [DF_tracker_comoving] warning: the density at the u = +-{self.xlim} grid '
+                  f'edge is {e:.1e} of its peak at t = {t:.4f}. The longitudinal integrand '
+                  f'amplifies such an edge by its cancellation factor; widen xlim or set '
+                  f'u_taper > 0 (further snapshots are not reported; see edge_u_max).')
+
     def get_DF(self, x, z, px, t):
         if self.frame in ('quantile', 'peak'):
             return self._get_DF_quantile(x, z, px, t)
@@ -650,8 +703,9 @@ class DF_tracker_comoving:
         self.curv_c2, self.curv_c3 = c2, c3
 
         npart = len(u)
+        Tu = self.u_weight(u)
         density = histogram_bspline_2d(
-            q1=u, q2=w, w=np.ones(npart),
+            q1=u, q2=w, w=Tu,
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
         if self.vx_model == 'affine':
@@ -669,7 +723,7 @@ class DF_tracker_comoving:
         vx_fit = (vx_coef[0] + vx_coef[1] * u + vx_coef[2] * wq
                   + vx_coef[3] * wq ** 2 + vx_coef[4] * wq ** 3)
         vx_weighted = histogram_bspline_2d(
-            q1=u, q2=w, w=px - vx_fit if self.vx_model == 'affine' else px,
+            q1=u, q2=w, w=Tu * (px - vx_fit if self.vx_model == 'affine' else px),
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
 
@@ -685,7 +739,8 @@ class DF_tracker_comoving:
         self.clipped = 1.0 - captured
         if self.clipped > self.clip_warn:
             print(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the '
-                  f'charge fell outside the +-{self.xlim}/{self.zlim} sigma grid at t = {t:.4f}')
+                  f'charge fell outside the +-{self.xlim}/{self.zlim} sigma grid or in its '
+                  f'u edge taper at t = {t:.4f}')
 
         # --- smoothing and derivatives, in the NORMALIZED frame ---
         density_smooth, density_du, density_dw = smooth_and_differentiate(
@@ -705,6 +760,7 @@ class DF_tracker_comoving:
         _, vx_du, _ = smooth_and_differentiate(
             vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, self.smoothing_sigma_z)
         vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+        self._check_edge(density_smooth, t)
 
         if self.vx_model == 'affine':
             # the fitted part is exact and noise-free, so it is added without the
@@ -851,8 +907,9 @@ class DF_tracker_comoving:
             u = u - _curv_g_vec(c2, c3, w, self.curv_zlim)
         self.curv_c2, self.curv_c3 = c2, c3
 
+        Tu = self.u_weight(u)
         density = histogram_bspline_2d(
-            q1=u, q2=w, w=T,
+            q1=u, q2=w, w=T * Tu,
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
         wq = np.clip(w, w_lo, w_hi)
@@ -865,7 +922,7 @@ class DF_tracker_comoving:
         vx_fit = (vx_coef[0] + vx_coef[1] * u + vx_coef[2] * wq
                   + vx_coef[3] * wq ** 2 + vx_coef[4] * wq ** 3)
         vx_weighted = histogram_bspline_2d(
-            q1=u, q2=w, w=T * (px - vx_fit if self.vx_model == 'affine' else px),
+            q1=u, q2=w, w=T * Tu * (px - vx_fit if self.vx_model == 'affine' else px),
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
 
@@ -874,12 +931,14 @@ class DF_tracker_comoving:
         vx_weighted /= norm
         f_window = float(T.sum()) / npart
         captured = density.sum() * self.delta_u * self.delta_w
-        # clipped = charge INSIDE the window that missed the grid (should be ~0: T vanishes
-        # at the grid edge); the window's own taper is reported as f_window, not as clipping
+        # clipped = charge INSIDE the window that missed the grid or fell in the u edge taper
+        # (should be ~0: T vanishes at the grid edge); the window's own taper is reported as
+        # f_window, not as clipping
         self.clipped = 1.0 - captured / f_window
         if self.clipped > self.clip_warn:
             print(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the windowed '
-                  f'charge fell outside the +-{self.xlim} sigma_xi grid at t = {t:.4f}')
+                  f'charge fell outside the +-{self.xlim} sigma_xi grid or in its u edge '
+                  f'taper at t = {t:.4f}')
 
         sz = self.smoothing_sigma if self.smoothing_sigma_z is None else self.smoothing_sigma_z
         fw_pk = peak_fwhm(z[sel])
@@ -911,6 +970,7 @@ class DF_tracker_comoving:
             _, vx_du, _ = smooth_and_differentiate(
                 vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
         vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+        self._check_edge(density_smooth, t)
         if self.vx_model == 'affine':
             wg = np.clip(self.w_grids, w_lo, w_hi)[None, :]
             vx_smooth = vx_smooth + (vx_coef[0] + vx_coef[1] * self.u_grids[:, None]

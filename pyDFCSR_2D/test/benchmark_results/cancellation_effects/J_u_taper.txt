@@ -1,0 +1,22 @@
+J. Transverse edge taper of the deposit, u_taper 0 (hard edge at +-xlim) vs 0.5 (default).
+   edge = max over snapshots of the smoothed density at u = +-xlim / peak; removed = charge
+   outside the grid or in the taper (newest snapshot). In bend, s = 0.5 m.
+
+beam                     u_taper     edge  removed |ship-ibp|/|ship|
+Gaussian, Hammersley 200k     0.0  5.1e-05  0.0e+00           2.3e-06
+Gaussian, Hammersley 200k     0.5  3.5e-08  1.5e-05           1.9e-06
+                         wake change on vs off: shipped 3.8e-05, by parts 3.7e-05
+20k pseudo-random seed 3     0.0  5.5e-04  0.0e+00           2.8e-03
+20k pseudo-random seed 3     0.5  3.3e-07  9.0e-05           1.8e-06
+                         wake change on vs off: shipped 3.0e-03, by parts 3.4e-04
+1M pseudo-random seed 1      0.0  4.7e-05  2.0e-06           1.9e-04
+1M pseudo-random seed 1      0.5  2.3e-08  1.8e-05           1.7e-06
+                         wake change on vs off: shipped 1.8e-04, by parts 2.3e-05
+
+Halo beam: 98% Gaussian core + 2% halo 3x wider in x (sigma_xi 46 um at s = 0.5 m).
+Reference: xlim 10, 400 bins (same cell), hard edge; the same observer points for all.
+grid                     edge  removed |ship-ibp|/|ship|  shipped vs ref  by parts vs ref
+xlim 10, hard (ref)   2.0e-04  2.4e-05           3.8e-05        1.92e-05         1.92e-05
+xlim 5, hard          1.1e-03  8.2e-04           2.1e-02        2.03e-02         5.17e-04
+xlim 5, taper 0.5     2.0e-07  1.6e-03           4.6e-06        9.58e-04         9.56e-04
+xlim 7, taper 0.5     5.4e-08  2.1e-04           7.5e-06        1.61e-04         1.61e-04

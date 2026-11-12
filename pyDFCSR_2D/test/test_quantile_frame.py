@@ -29,9 +29,11 @@ def golden():
     return np.load(os.path.join(HERE, 'golden', 'golden_2d.npz'))
 
 
+# u_taper (default 0.5 since 2026-11-12, progress_cancellation.md §4e) is the one default that
+# deliberately changes the deposit; with it off, the old path must still be bit-identical.
 @pytest.mark.parametrize('extra_dep, extra_csr', [
-    (None, None),
-    ({'frame': 'rms', 'smoothing_sigma_z': None}, {'mesh_mode': 'uniform'}),
+    ({'u_taper': 0.0}, None),
+    ({'frame': 'rms', 'smoothing_sigma_z': None, 'u_taper': 0.0}, {'mesh_mode': 'uniform'}),
 ])
 def test_defaults_bit_identical(golden, extra_dep, extra_csr):
     import make_golden_2d

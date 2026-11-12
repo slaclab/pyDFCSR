@@ -30,8 +30,12 @@ LATTICE = os.path.abspath(os.path.join(HERE, '..', 'example', 'input', 'dipole_l
 
 def write_inputs(tag, sigma_x_um=50.0, sigma_z_um=50.0, shear=0.0, n_particle=200000,
                  seed=None, dep_bins=200, smoothing_sigma=3.0, int_bins=200,
-                 n_formation_length=4.0, extra_dep=None):
-    """seed None: Hammersley (quasi-random, as Step 12); an int: pseudo-random with that seed."""
+                 n_formation_length=4.0, extra_dep=None, beam_h5=None):
+    """
+    seed None: Hammersley (quasi-random, as Step 12); an int: pseudo-random with that seed.
+    beam_h5: read the beam from this openPMD ParticleGroup file instead (the distgen file is
+    still written, unused).
+    """
     os.makedirs(INPUT_DIR, exist_ok=True)
     beam = {
         'n_particle': int(n_particle), 'species': 'electron',
@@ -58,10 +62,14 @@ def write_inputs(tag, sigma_x_um=50.0, sigma_z_um=50.0, shear=0.0, n_particle=20
         yaml.dump(beam, f, default_flow_style=False, sort_keys=False)
     dep = {'method': 'bspline_comoving', 'xbins': int(dep_bins), 'zbins': int(dep_bins),
            'xlim': 5, 'zlim': 5, 'smoothing_sigma': float(smoothing_sigma),
-           'poly_degree': 1, 'velocity_threhold': 1000}
+           'poly_degree': 1, 'velocity_threhold': 1000,
+           # sections A-I were run before the u edge taper existed; pin the hard edge so they
+           # reproduce. Section J sets u_taper explicitly.
+           'u_taper': 0.0}
     dep.update(extra_dep or {})
     config = {
-        'input_beam': {'style': 'distgen', 'distgen_input_file': bp},
+        'input_beam': ({'style': 'distgen', 'distgen_input_file': bp} if beam_h5 is None
+                       else {'style': 'ParticleGroup', 'ParticleGroup_h5': beam_h5}),
         'input_lattice': {'lattice_input_file': LATTICE},
         'particle_deposition': dep,
         'CSR_integration': dict(n_formation_length=float(n_formation_length),
@@ -200,3 +208,34 @@ def z_cut(csr, ix=None, which=None):
     out = np.asarray(out)
     zz = np.array([csr.CSR_zmesh[ix * nz + j] for j in range(nz)]) / csr.beam._sigma_z
     return zz, out[:, 0], out[:, 1]
+
+
+def halo_beam(tag, frac=0.02, halo_factor=3.0, n_particle=200000, sigma_x_um=50.0, **kw):
+    """
+    A Gaussian core plus a transverse halo: a fraction `frac` of the charge in a Gaussian
+    `halo_factor` times wider in x (same z, energy). Written as a ParticleGroup file; returns
+    its path. Both parts Hammersley, so the result is reproducible.
+    """
+    from distgen import Generator
+    pgs = []
+    for f, sx, nm in ((1.0 - frac, sigma_x_um, 'core'), (frac, sigma_x_um * halo_factor, 'halo')):
+        n = max(int(round(n_particle * f)), 1)
+        cfg = write_inputs(f'{tag}_{nm}', sigma_x_um=sx, n_particle=n, **kw)
+        import yaml as _y
+        with open(cfg) as fh:
+            bp = _y.safe_load(fh)['input_beam']['distgen_input_file']
+        with open(bp) as fh:
+            b = _y.safe_load(fh)
+        b['total_charge'] = {'units': 'nC', 'value': float(f)}
+        if nm == 'halo':
+            # a different Hammersley offset, so the halo is not a scaled copy of the core
+            b['random'] = {'type': 'hammersley', 'burnin': 100003}
+        with open(bp, 'w') as fh:
+            _y.dump(b, fh, default_flow_style=False, sort_keys=False)
+        g = Generator(bp)
+        g.run()
+        pgs.append(g.particles)
+    pg = pgs[0] + pgs[1]
+    path = os.path.join(INPUT_DIR, f'beam_{tag}.h5')
+    pg.write(path)
+    return path

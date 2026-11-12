@@ -417,6 +417,89 @@ by a smooth function of u that reaches zero before ±xlim, and differentiate aft
 make the grid wide enough that the u-edge density is negligible. Then warn on the u-edge
 density per snapshot.
 
+
+### 4e. The clean-up: a transverse edge taper of the deposit (2026-11-12) ✅ default on
+
+**What changed.** `particle_deposition.u_taper` (`deposit_smooth.DF_tracker_comoving`) is new,
+default 0.5. Each particle's deposit weight, for ρ and for the vₓ deposit alike, is multiplied by
+a smooth T(u):
+
+```
+e     = xlim − 3·smoothing_sigma·Δu      # 3 smoothing widths inside the grid edge
+flat  = e − u_taper
+T(u)  = 1                         for |u| ≤ flat
+        C² smootherstep → 0        for flat < |u| < e    (peakfind.window_weight)
+        0                         for |u| ≥ e
+deposit(ρ) with weights T(u)·[T(z) in frames quantile/peak];  deposit(ρ vₓ) likewise
+then smooth and differentiate as before    →  the stored ∂ρ/∂u is that of the TAPERED field
+```
+
+Invariants and why each choice:
+- **Derivatives after weighting.** Then ρ and ∂ρ/∂u describe the same field, which is the whole
+  point (§4c).
+- **The 3-smoothing-width pad.** The Gaussian smoothing spreads charge by ~σ_s, so stopping at e
+  leaves the smoothed density at the grid edge at ~1e-2 of the ramp's (already small) density.
+  Measured: edge density 5e-5 → 4e-8.
+- **Only in u.** A z cut is consistent (§4d), and z already has its own taper in the
+  quantile/peak frames.
+- **Tapered charge counts as clipped.** The existing `clip_warn` (1e-3) reports it, now worded
+  "outside the grid or in its u edge taper".
+- **`u_taper: 0`** is the old hard edge, bit-identical to before (checked against the
+  golden fixture).
+
+Two diagnostics are new:
+- `edge_u`, `edge_u_max`: the smoothed density at u = ±xlim relative to the peak. A one-time
+  warning fires above `edge_warn` (1e-4).
+- A one-time note in `CSR2D.get_CSR_mesh` when the uniform wake mesh reaches beyond the
+  full-weight region. Its outer rows then see a tapered source. The default mesh (±5σ) with
+  128 deposition bins (flat edge 3.80) always gets the note.
+
+**Results** (`J_u_taper.txt`, bend s = 0.5 m):
+
+| beam | u_taper | edge / peak | charge removed | \|ship − ibp\|/\|ship\| | wake change (shipped) |
+|---|---|---|---|---|---|
+| Gaussian, Hammersley 200k | 0 | 5.1e-5 | 0 | 2.3e-6 | |
+| | 0.5 | 3.5e-8 | 1.5e-5 | 1.9e-6 | 3.8e-5 |
+| 20k pseudo-random, seed 3 (an outlier) | 0 | 5.5e-4 | 0 | **2.8e-3** | |
+| | 0.5 | 3.3e-7 | 9.0e-5 | 1.8e-6 | 3.0e-3 |
+| 1M pseudo-random, seed 1 | 0 | 4.7e-5 | 2.0e-6 | 1.9e-4 | |
+| | 0.5 | 2.3e-8 | 1.8e-5 | 1.7e-6 | 1.8e-4 |
+
+What the table shows:
+- In every case the two forms of the integral now agree at the quadrature level (~2e-6). The
+  inconsistency is gone.
+- On the clean beam the cost is a 3.8e-5 change.
+- Where there was an inconsistency, the shipped wake moves by about the disagreement it used to
+  have (3.0e-3, 1.8e-4). The by-parts wake moves 10× less (3.4e-4, 2.3e-5), because it only
+  ever saw the consistent change.
+
+**A beam with a transverse halo** (98 % core + 2 % at 3× the width). This is the case the taper
+is for. Every grid is compared with an xlim = 10, 400-bin reference at the same observers:
+
+| grid | edge / peak | charge removed | \|ship − ibp\|/\|ship\| | shipped vs reference | by parts vs reference |
+|---|---|---|---|---|---|
+| xlim 10, hard (reference) | 2.0e-4 | 2.4e-5 | 3.8e-5 | 1.9e-5 | 1.9e-5 |
+| xlim 5, hard (before) | 1.1e-3 | 8.2e-4 | 2.1e-2 | **2.0e-2** | 5.2e-4 |
+| xlim 5, taper 0.5 (now) | 2.0e-7 | 1.6e-3 | 4.6e-6 | **9.6e-4** | 9.6e-4 |
+| xlim 7, taper 0.5 | 5.4e-8 | 2.1e-4 | 7.5e-6 | 1.6e-4 | 1.6e-4 |
+
+What this shows:
+- The error with the hard edge is 2 %, and the taper makes it 0.1 %, a 21× improvement.
+- What remains is the honest cost of the halo charge the grid cannot hold (0.16 %, removed
+  smoothly). It shrinks as the grid widens.
+- The by-parts form was already at 0.05 % with the hard edge: it is the robust form (§6, M1).
+
+**Effect on existing results.**
+- This is a default change, so runs differ from before at the level of the charge in the taper.
+- The golden fixture (20k particles, 64 bins, flat edge 3.56) changes by 1e-4 in L2 over the
+  final wake mesh. The pointwise maximum is 1.9 % at the first kick, falling to ≤ 0.2 % later,
+  always on the outermost mesh row (x = −4σ), which sits inside the taper zone.
+- `test_quantile_frame.py::test_defaults_bit_identical` now pins `u_taper: 0`. Its purpose is to
+  show the old path still reproduces, and it does, bit for bit. All 188 unit tests pass.
+
+**Not done in this step:** the run-time shipped-vs-by-parts check (it needs the by-parts form
+inside `CSR.py`, so it goes with M1), and the other deposition paths (`legacy`, `bspline_fft`).
+
 ---
 
 ## 5. Revisions to Step 12 (`progress_comoving_interp.md`)
@@ -500,7 +583,7 @@ quadrature tolerance would have caught the BC20 bug and the B2/B3 spikes.
 At 200k particles it is ~1 %, at 1M ~0.5 %. Only density estimation can reduce it.
 
 **Recommendation.**
-1. Adopt M4 now. Add the M1-vs-shipped agreement as a diagnostic (`CSR_integration.check_ibp`,
+1. Adopt M4 now (the u taper: done, §4e). Add the M1-vs-shipped agreement as a diagnostic (`CSR_integration.check_ibp`,
    evaluated on a few mesh points per kick).
 2. Develop M1 into an option for the far and near regions with analytic J and D. Measure the
    speed-up at matched accuracy, where the expected gain is a 5–10× reduction in x′ nodes.
@@ -521,9 +604,10 @@ python cancellation_effects.py            # all sections; or e.g. `python cancel
   written under `benchmark_results/cancellation_effects/inputs/` with absolute paths), and the
   shipped quadrature opened node by node. The node sums are asserted equal to `get_CSR_wake`.
 - `test/cancellation_ibp.py`: the integration-by-parts prototype (§2).
-- `test/cancellation_effects.py`: sections A–I.
+- `test/cancellation_effects.py`: sections A–J. Sections A–I pin `u_taper: 0`, the hard
+  edge they were run with (`cancellation_lib.write_inputs`); J compares both.
 - `test/benchmark_results/cancellation_effects/`: `A_anatomy.txt`, `B_scaling.txt`/`.png`,
-  `H_collapse.txt`/`.png`, `I_edges.txt`,
+  `H_collapse.txt`/`.png`, `I_edges.txt`, `J_u_taper.txt`,
   `C_quadrature.txt`/`.png`, `D_shot_noise.txt`, `E_injected_noise.txt`,
   `F_clipped_charge.txt`, `G_integrand_map.png`.
 
