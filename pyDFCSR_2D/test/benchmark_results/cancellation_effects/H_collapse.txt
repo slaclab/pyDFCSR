@@ -1,0 +1,22 @@
+H. C at the bunch centre (shipped form) against the thin-beam law C ~ sigma_z^(2/3)/sigma_xi
+   (R = 1 m throughout; the R^(1/3) factor is not tested). sigma_xi = slice width,
+   sigma_x = projected width, sigma_z = projected bunch length, all at the observation time.
+
+case        sigma_x  sigma_xi  sigma_z    tau        C  C/(sz^2/3/sxi)   (um)
+bend           46.7      43.5     53.8  -0.32     60.2           183.9
+thin           14.3      14.3     50.3  -0.03    203.4           213.3
+exit           60.4      53.9     67.3  -0.40     46.9           153.0
+shear0.5       52.0      52.0     44.7  -0.00     43.3           178.7
+shear2        102.8     102.8     22.4  -0.03     14.1           183.1
+shear20       921.8       8.5    341.1  -2.70   1165.4           202.2
+sx10           12.6      12.6     50.2  -0.02    245.9           227.7
+sx25           24.5      24.0     51.0  -0.09    108.0           188.8
+sx100          92.1      72.1     64.0  -0.90     41.7           187.8
+sx200         183.7      98.0     93.9  -1.66     42.0           199.2
+sz25           46.6      36.5     32.1  -0.90     53.3           192.8
+sz100          46.7      45.8    102.0  -0.09     85.4           179.3
+sz200          46.7      46.4    201.0  -0.02    130.3           176.4
+
+free fit: C ~ sigma_xi^-1.08 sigma_z^+0.63   (law: -1, +2/3)
+C = 188 sigma_z^(2/3)/sigma_xi [um, median]: C/law ranges 0.81..1.21
+the same fit with the PROJECTED sigma_x: C ~ sigma_x^-0.31 sigma_z^+1.29

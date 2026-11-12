@@ -11,6 +11,7 @@ D  shot noise: wake scatter over random seeds, both forms
 E  injected noise: rho only, rho_x only, both consistently
 F  clipped charge: zero the stored fields beyond |u| > u_c
 G  figure of the integrand on the (x', s') nodes, both forms
+H  collapse: C at the bunch centre against sigma_z^(2/3)/sigma_xi, every case
 
 Writes benchmark_results/cancellation_effects/<section>.txt and figures.
 """
@@ -389,8 +390,78 @@ def section_G():
     fig.savefig(os.path.join(OUT, 'G_integrand_map.png'), dpi=140, bbox_inches='tight')
 
 
+def section_H():
+    """
+    C at the bunch centre for every case, against sigma_z^(2/3) / sigma_xi.
+
+    sigma_xi is the SLICE width (rms across the tilt-removed beam, the co-moving frame's
+    sigma_xi at the newest snapshot), which is what the +- lobes of d rho/dx span at fixed z.
+    The projected sigma_x is printed too: for a tilted beam (sigma_x0 = 200 um at tau = -1.66,
+    shear 20 at tau = -2.7) the two differ by 2x to 100x, and only sigma_xi collapses the data.
+    """
+    log = Log('H_collapse')
+    log('H. C at the bunch centre (shipped form) against the thin-beam law C ~ sigma_z^(2/3)/sigma_xi')
+    log('   (R = 1 m throughout; the R^(1/3) factor is not tested). sigma_xi = slice width,')
+    log('   sigma_x = projected width, sigma_z = projected bunch length, all at the observation time.')
+    log('')
+    cases = dict(CASES)
+    for v in (10., 25., 100., 200.):
+        cases[f'sx{v:g}'] = dict(s_stop=0.5, sigma_x_um=v)
+    for v in (25., 100., 200.):
+        cases[f'sz{v:g}'] = dict(s_stop=0.5, sigma_z_um=v)
+    log(f'{"case":10s} {"sigma_x":>8s} {"sigma_xi":>9s} {"sigma_z":>8s} {"tau":>6s} {"C":>8s} '
+        f'{"C/(sz^2/3/sxi)":>15s}   (um)')
+    rows = []
+    for name, kw in cases.items():
+        csr = L.build('H_' + name, **kw)
+        nz = csr.CSR_params.zbins
+        k = 2 * nz + nz // 2          # z/sigma_z = +0.08, the 'centre' of sections A-C
+        s, x = csr.beam.position + csr.CSR_zmesh[k], csr.CSR_xmesh[k]
+        ps = L.pieces(csr, s, x)
+        C = L.cancel(np.concatenate([p['z'].ravel() for p in ps]))[0]
+        sx, sxi, sz = (csr.beam._sigma_x * 1e6, csr.DF_tracker.sigma_xi_arr[-1] * 1e6,
+                       csr.beam._sigma_z * 1e6)
+        X = sz ** (2 / 3) / sxi
+        rows.append((sx, sxi, sz, C, X, name))
+        log(f'{name:10s} {sx:8.1f} {sxi:9.1f} {sz:8.1f} {csr.beam._slope[0]:+6.2f} {C:8.1f} '
+            f'{C/X:15.1f}')
+    r = np.array([q[:5] for q in rows])
+    co = np.linalg.lstsq(np.c_[np.log(r[:, 1]), np.log(r[:, 2]), np.ones(len(r))],
+                         np.log(r[:, 3]), rcond=None)[0]
+    k = np.median(r[:, 3] / r[:, 4])
+    log('')
+    log(f'free fit: C ~ sigma_xi^{co[0]:+.2f} sigma_z^{co[1]:+.2f}   (law: -1, +2/3)')
+    ratio = r[:, 3] / r[:, 4] / k
+    log(f'C = {k:.0f} sigma_z^(2/3)/sigma_xi [um, median]: C/law ranges {ratio.min():.2f}..{ratio.max():.2f}')
+    co_p = np.linalg.lstsq(np.c_[np.log(r[:, 0]), np.log(r[:, 2]), np.ones(len(r))],
+                           np.log(r[:, 3]), rcond=None)[0]
+    log(f'the same fit with the PROJECTED sigma_x: C ~ sigma_x^{co_p[0]:+.2f} sigma_z^{co_p[1]:+.2f}')
+    log.close()
+
+    fig, axs = plt.subplots(1, 2, figsize=(9.5, 3.8), sharey=True)
+    for ax, col, xl in ((axs[0], 0, r'$\sigma_z^{2/3}/\sigma_x$, projected σx  (µm$^{-1/3}$)'),
+                        (axs[1], 1, r'$\sigma_z^{2/3}/\sigma_\xi$, slice σξ  (µm$^{-1/3}$)')):
+        X = r[:, 2] ** (2 / 3) / r[:, col]
+        ax.loglog(X, r[:, 3], 'o', color=BLUE, ms=8)
+        xx = np.geomspace(X.min() / 1.5, X.max() * 1.5, 10)
+        if col == 1:
+            ax.loglog(xx, k * xx, color='0.4', lw=1, ls='--', label=f'C = {k:.0f}·σz^(2/3)/σξ')
+            ax.legend(frameon=False)
+        for q, xv in zip(rows, X):
+            if q[5] in ('shear20', 'sx200', 'shear2', 'exit'):
+                ax.annotate(q[5], (xv, q[3]), textcoords='offset points', xytext=(6, -10),
+                            fontsize=8, color='0.3')
+        ax.set_xlabel(xl)
+        ax.grid(alpha=0.25, which='both')
+    axs[0].set_ylabel('C at the bunch centre (shipped form)')
+    fig.suptitle('Cancellation factor, every case: it is set by the slice width, not the projected one',
+                 fontsize=11)
+    fig.tight_layout()
+    fig.savefig(os.path.join(OUT, 'H_collapse.png'), dpi=140)
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
-    which = sys.argv[1:] or list('ABCDEFG')
+    which = sys.argv[1:] or list('ABCDEFGH')
     for w in which:
         globals()[f'section_{w}']()

@@ -41,7 +41,10 @@ these cuts.
   - ~45 past the exit;
   - ~1100 at shear 20.
 
-  It scales like **1/σx** (measured slope −1.08) and roughly as σz^0.4–0.5. The transverse
+  All 13 cases collapse onto **C ≈ 188·σz^(2/3)/σξ** (µm, R = 1 m) to within ±20 % (§3). Here
+  σξ is the **slice** width: the rms across the tilt-removed beam, the co-moving frame's σξ.
+  It is not the projected σx; for a tilted beam the two differ by up to 100×. Shear 20's
+  C ≈ 1100 is simply its 8.5 µm slice width. The transverse
   integrand cancels much less: C ≈ 1.2 in the bend, ~12 past the exit, ~28 at shear 20.
 - **What it costs.**
   - **Not shot noise.** The wake's scatter over random seeds is identical, to all quoted digits,
@@ -92,11 +95,12 @@ sign, one per side of the beam. These are the "two large bands":
 also moves the retarded point. z_ret = s′ − t + R and R changes with x′ at the rate
 R_x′ = dR/dx′ = −n′·(r − r′)/R, which is ≈ ±sin(φ/2) for a source φ upstream in the bend. The
 light cone therefore crosses the beam **obliquely**: the + lobe at x′ < x̄ and the − lobe at
-x′ > x̄ are read from z-slices a distance ≈ R_x′·σx apart.
+x′ > x̄ are read from z-slices a distance ≈ R_x′·σξ apart. Here σξ is the beam's width at
+fixed z, i.e. the slice width across the tilt-removed beam, which is what the two lobes span.
 
 - If the slices were identical, the two lobes would cancel exactly. ∫∂ρ/∂x dx′ = 0, the lobes
   of a derivative.
-- What survives is the density **difference** between two slices ~R_x′·σx apart. That is a
+- What survives is the density **difference** between two slices ~R_x′·σξ apart. That is a
   finite-difference estimate of ∂ρ/∂z, which is the 1D CSR wake (λ′ convolved with a smooth
   kernel).
 
@@ -107,16 +111,27 @@ each side of a ridge line that runs slightly downhill, and subtracting. That wor
 gram you mis-weigh in either bucket counts against the small difference, not the large weight.
 
 **The scaling law this predicts.**
-- Gross per column: ∫|∂ρ/∂x| dx′ = √(2/π) λ/σx.
+- Gross per column: ∫|∂ρ/∂x| dx′ = √(2/π) λ/σξ.
 - Net per column: ≈ R_x′ λ′ ~ sin(φ/2) λ/σz.
-- So C ~ √(2/π) σz / (σx sin(φ/2)), with the formation angle φ ~ (24σz/R)^(1/3). That gives
-  **C ∝ σz^(2/3) R^(1/3) / σx**.
+- So C ~ √(2/π) σz / (σξ sin(φ/2)), with the formation angle φ ~ (24σz/R)^(1/3). That gives
+  **C ∝ σz^(2/3) R^(1/3) / σξ**.
 
-The prediction is checked in §3: σx slope −1.08 (predicted −1); σz slope +0.41 (predicted
-+0.67, the right sign and order).
+§3 checks the prediction. A free fit over all 13 cases gives C ∝ σξ^−1.08 σz^+0.63, and the law
+holds with one constant, C = 188·σz^(2/3)/σξ (µm), to ±20 %. That constant is 3.4× the crude
+estimate (√(2/π)·2/24^(1/3) = 0.55 in metres, i.e. 55 in µm units). The difference is the
+ratio of λ to σz λ′ averaged over the formation region. The R^(1/3) has not been tested: every
+case here has R = 1 m.
 
-The key consequence is that **the thinner the beam, the worse it gets.** The 1D limit, which
-is the usual operating point, is where the 2D formula is most ill-conditioned.
+The key consequence: **the thinner the slice, the worse it gets.**
+- The 1D limit, the usual operating point, is where the 2D formula is most ill-conditioned.
+- So is a strongly chirped or dispersed beam. It can be millimetres wide in projection while its
+  slice is a few µm.
+
+**A wrong turn, recorded so it is not repeated.** §3's first version tabulated the *projected*
+σx (`beam._sigma_x` = std(x)). Against it the σx scan seemed to "flatten" at σx ≥ 100 µm, and
+shear 20 (σx = 922 µm, C = 1165) looked like a separate tilt effect. Against the slice width
+both are on the same line (`H_collapse.png`). A fit against the projected σx gives the
+meaningless σx^−0.31 σz^+1.29.
 
 ---
 
@@ -195,14 +210,14 @@ polar patch: shipped form (its C is 1–3)
 
 **Per case** (`A_anatomy.txt`; mid-row z cut, 16 points (see the wake grid above); τ = beam tilt dx/dz at s):
 
-| case | σx µm | σz µm | τ | C shipped, centre / median | C by parts, centre / median | \|ship − ibp\|/\|ship\| | min\|J\| |
-|---|---|---|---|---|---|---|---|
-| in bend, s = 0.5 m | 46.7 | 53.8 | −0.32 | 60.2 / 53.4 | 1.16 / 1.36 | 2.3e-6 | 0.68 |
-| in bend, σx0 = 12.5 µm | 14.3 | 50.3 | −0.03 | 203 / 179 | 1.57 / 1.66 | 6.9e-7 | 0.97 |
-| past exit, s = 1.2 m | 60.4 | 67.3 | −0.40 | 46.9 / 42.6 | 2.65 / 3.49 | 4.9e-4 | 0.59 |
-| in bend, shear 0.5 | 52.0 | 44.7 | −0.00 | 43.3 / 38.5 | 1.09 / 1.29 | 4.8e-6 | 0.97 |
-| in bend, shear 2 | 103 | 22.4 | −0.03 | 14.1 / 12.6 | 1.15 / 1.63 | 2.4e-5 | 0.82 |
-| in bend, shear 20 (xlim 8) | 922 | 341 | −2.70 | 1165 / 870 | 9.0 / 17.4 | **1.1e-2** | **0** |
+| case | σx proj. µm | σξ slice µm | σz µm | τ | C shipped, centre / median | C by parts, centre / median | \|ship − ibp\|/\|ship\| | min\|J\| |
+|---|---|---|---|---|---|---|---|---|
+| in bend, s = 0.5 m | 46.7 | 43.5 | 53.8 | −0.32 | 60.2 / 53.4 | 1.16 / 1.36 | 2.3e-6 | 0.68 |
+| in bend, σx0 = 12.5 µm | 14.3 | 14.3 | 50.3 | −0.03 | 203 / 179 | 1.57 / 1.66 | 6.9e-7 | 0.97 |
+| past exit, s = 1.2 m | 60.4 | 53.9 | 67.3 | −0.40 | 46.9 / 42.6 | 2.65 / 3.49 | 4.9e-4 | 0.59 |
+| in bend, shear 0.5 | 52.0 | 52.0 | 44.7 | −0.00 | 43.3 / 38.5 | 1.09 / 1.29 | 4.8e-6 | 0.97 |
+| in bend, shear 2 | 103 | 103 | 22.4 | −0.03 | 14.1 / 12.6 | 1.15 / 1.63 | 2.4e-5 | 0.82 |
+| in bend, shear 20 (xlim 8) | 922 | 8.5 | 341 | −2.70 | 1165 / 870 | 9.0 / 17.4 | **1.1e-2** | **0** |
 
 How to read the table:
 - The C left after integration by parts is the 1D-like cancellation of λ′ ± lobes along z
@@ -217,21 +232,37 @@ How to read the table:
 
 ![scaling](pyDFCSR_2D/test/benchmark_results/cancellation_effects/B_scaling.png)
 
-| σx0 µm (σz0 = 50) | 10 | 25 | 50 | 100 | 200 |
+| σx0 µm (σz0 = 50; initial, uncorrelated) | 10 | 25 | 50 | 100 | 200 |
 |---|---|---|---|---|---|
+| σx projected at s = 0.5 m | 12.6 | 24.5 | 46.7 | 92.1 | 183.7 |
+| σξ slice at s = 0.5 m | 12.6 | 24.0 | 43.5 | 72.1 | 98.0 |
 | C shipped (centre) | 246 | 108 | 60.2 | 41.7 | 42.0 |
 | C by parts (centre) | 1.81 | 1.14 | 1.16 | 1.39 | 2.00 |
 
 | σz0 µm (σx0 = 50) | 25 | 50 | 100 | 200 |
 |---|---|---|---|---|
+| σz at s = 0.5 m | 32.1 | 53.8 | 102.0 | 201.0 |
+| σξ slice at s = 0.5 m | 36.5 | 43.5 | 45.8 | 46.4 |
 | C shipped (centre) | 53.3 | 60.2 | 85.4 | 130.3 |
 | C by parts (centre) | 1.36 | 1.16 | 1.13 | 1.22 |
 
 How to read the tables:
-- The log-log slope against σx over the three thin points is −1.08, against the predicted −1.
-- The curve flattens at σx ≥ 100 µm, where the beam has tilted (τ = −0.9 and −1.66). Tilt
-  makes J ≠ 1 and changes the geometry of the cut.
-- The slope against σz is +0.41, against the predicted +2/3.
+- The figure above (`B_scaling.png`) is plotted against the *projected* σx and the *final* σz.
+  That is why it seems to flatten at σx ≥ 100 µm: the dispersion in the bend tilts those beams
+  (τ = −0.9, −1.66), so the projected width grows while the slice width grows much less
+  (72 and 98 µm).
+- The σz scan's small-σz point also has a narrower slice (36.5 µm), which flattens the naive
+  σz slope to +0.41.
+
+**All cases against the slice width** (`H_collapse.txt`, centre node):
+
+![collapse](pyDFCSR_2D/test/benchmark_results/cancellation_effects/H_collapse.png)
+
+- Free fit: C ∝ σξ^−1.08 σz^+0.63 (the law: −1, +2/3).
+- With one constant, C = 188·σz^(2/3)/σξ (µm, R = 1 m), every case lies within 0.81–1.21 of the
+  law. That includes shear 20 (σξ = 8.5 µm, σz = 341 µm, C = 1165) and shear 2 (σξ = 103 µm,
+  σz = 22 µm, C = 14).
+- Left panel: the same data against the projected σx does not collapse.
 
 ---
 
@@ -352,7 +383,8 @@ is amplifying it.
    actually takes, which includes the z_ret and t_ret motion. It is exact and removes the
    pointwise cancellation (C 60 → 1.2).
 3. **"Since L_f ∝ σz^(1/3), slope −0.76 against L_f/σz is +1 against σz."** Arithmetic slip:
-   −0.76 × (−2/3) = **+0.51**, and Step 12's own table gives σz^0.50. Here: +0.41.
+   −0.76 × (−2/3) = **+0.51**, and Step 12's own table gives σz^0.50. Against the slice width
+   and the final σz the law is σz^(2/3)/σξ (fit +0.63, −1.08).
 4. **Proposed control variate.** It would reduce the quadrature cost for the Gaussian part only,
    and does nothing for shot noise (point 1). §6 compares it with integration by parts.
 
@@ -440,8 +472,9 @@ python cancellation_effects.py            # all sections; or e.g. `python cancel
   written under `benchmark_results/cancellation_effects/inputs/` with absolute paths), and the
   shipped quadrature opened node by node. The node sums are asserted equal to `get_CSR_wake`.
 - `test/cancellation_ibp.py`: the integration-by-parts prototype (§2).
-- `test/cancellation_effects.py`: sections A–G.
+- `test/cancellation_effects.py`: sections A–H.
 - `test/benchmark_results/cancellation_effects/`: `A_anatomy.txt`, `B_scaling.txt`/`.png`,
+  `H_collapse.txt`/`.png`,
   `C_quadrature.txt`/`.png`, `D_shot_noise.txt`, `E_injected_noise.txt`,
   `F_clipped_charge.txt`, `G_integrand_map.png`.
 
