@@ -50,12 +50,15 @@ these cuts.
   - **Not shot noise.** The wake's scatter over random seeds is identical, to all quoted digits,
     whether the integral is written with or without the cancellation. This is because the stored
     ∂ρ/∂x is the consistent derivative of the same smoothed ρ.
-  - **Quadrature accuracy.** The shipped form needs ≥ 128 x′ nodes per band. At 16–64 nodes it
-    is off by 1–20 % (50–200 % for the thin beam).
+  - **Quadrature accuracy.** The shipped form needs ~96–128 x′ nodes per band. At 16–64 nodes
+    it is off by 1–20 % (50–200 % for the thin beam). Today's default of 200 is converged, and
+    the x′ node count is not what a wake point's time is spent on (§7b).
   - **Robustness.** Any error in ∂ρ/∂x that does not integrate to zero across the beam is
     amplified by ~C. Clipping 0.3 % of the charge moves the shipped wake by 3 %.
-- **A fix that works (prototype, diagnostic only).** Integrate the main term by parts along
-  each s′ column. It reproduces the shipped wake to ~2e-6 and brings C down to 1–3 at the bunch
+- **A fix that works, now in the code as `CSR_integration.ibp` (§7; off by default).** Integrate
+  the main term by parts along each s′ column. In the code it gives the same beam as the shipped
+  form to 1e-5 in a full run, but it is **not faster** (§7b). Its use is robustness, and the
+  shipped-vs-by-parts check `CSR_integration.ibp_check`. It reproduces the shipped wake to ~2e-6 and brings C down to 1–3 at the bunch
   centre. It reaches 0.1–1.4 % accuracy with 16–24 x′ nodes (≤ 0.6 % inside the bend), and its response to the clipped
   charge is ~q, not ~C·q.
 - **Its limit.** It is singular where a column runs along a strongly tilted beam (J → 0, beam
@@ -223,7 +226,8 @@ How to read the table:
 - The C left after integration by parts is the 1D-like cancellation of λ′ ± lobes along z
   (it rises to 5–15 in the bunch head, where the wake crosses zero).
 - **Shear 20 is the one case not solved** (§6).
-- The past-exit difference, 4.9e-4, is larger than in the bend and has not been traced yet.
+- The past-exit difference, 4.9e-4, is the hard u edge of §4c: one snapshot has an edge density
+  of 2e-4. With `u_taper` on, the two forms agree to 4e-6 (§7a).
 - Transverse integrand, C over nodes (shipped form): median 1.18 in the bend, 11.7 past the
   exit, 28 at shear 20. The longitudinal wake is the main problem, but the transverse one is not
   free of it past the exit or at strong tilt. It is not analysed further here.
@@ -296,7 +300,7 @@ itself, which is the 1D-like λ′ sensitivity.
 So **reformulating the integral cannot reduce shot noise.** Only better density estimation can
 (Development Goal 1).
 
-### 4b. Quadrature: the shipped form needs ~128 x′ nodes per band (`C_quadrature.txt`)
+### 4b. Quadrature: the shipped form needs ~96–128 x′ nodes per band (`C_quadrature.txt`)
 
 ![quadrature](pyDFCSR_2D/test/benchmark_results/cancellation_effects/C_quadrature.png)
 
@@ -313,14 +317,15 @@ Relative L2 error of the dE cut against a 400-node reference:
 
 What the numbers show:
 - The trapezoid rule on a smooth, compactly supported integrand converges very fast once it
-  resolves the beam. That is the cliff between 64 and 128 nodes.
+  resolves the beam. That is the cliff between 64 and 128 nodes. §7b's finer scan puts it at
+  80–96: about 1e-4 at 96 and 2e-6 at 128.
 - Below the cliff, the shipped form's error is the per-lobe error × C, so it stays at 10–100 %.
   The by-parts form's error is the same per-node error × ~1.
 - **At the default 200 nodes both forms are converged.** The cancellation is affordable today
   only because of that node count. With the by-parts form, 16–24 nodes give 0.1–0.6 % in the bend and 0.7–1.4 % past the exit.
-- Accounting for the extra evaluations of the prototype (D needs two more density evaluations
-  per node), that is roughly 3× fewer density evaluations at 0.1 % accuracy. With analytic J and
-  D it would be ~8×. Not yet timed.
+- ~~3× fewer density evaluations at 0.1 % accuracy, ~8× with analytic J and D.~~ **Timed in §7b:
+  no speed gain.** The node count is not the cost; band location, s′ layout and the polar patch
+  are.
 
 ### 4c. Robustness: errors that do not integrate to zero across the beam are amplified by ~C
 
@@ -583,16 +588,160 @@ quadrature tolerance would have caught the BC20 bug and the B2/B3 spikes.
 At 200k particles it is ~1 %, at 1M ~0.5 %. Only density estimation can reduce it.
 
 **Recommendation.**
-1. Adopt M4 now (the u taper: done, §4e). Add the M1-vs-shipped agreement as a diagnostic (`CSR_integration.check_ibp`,
-   evaluated on a few mesh points per kick).
-2. Develop M1 into an option for the far and near regions with analytic J and D. Measure the
-   speed-up at matched accuracy, where the expected gain is a 5–10× reduction in x′ nodes.
+1. Adopt M4 now. The u taper is done (§4e). The M1-vs-shipped check is done as
+   `CSR_integration.ibp_check` (§7).
+2. Develop M1 into an option with analytic J and D. Done as `CSR_integration.ibp` (§7). The
+   expected 5–10× reduction in x′ nodes is real, but it buys **no time** (§7b).
 3. Keep the shipped form in the polar patch and wherever min|J| < J0.
 4. M2 only if strongly tilted bunches (|τ| ≳ 2) become a target.
 
 ---
 
-## 7. Files and reproduction
+## 7. Integration by parts in the code: `CSR_integration.ibp`, `ibp_check` (2026-11-12)
+
+**What was added.**
+- `interp3D.interpolate3D_comoving_ibp`: a copy of `interpolate3D_comoving_fields` that also
+  returns the two frame-motion coefficients A and B. The five fields come from the same
+  statements in the same order, so they are bit-identical. Along a column,
+
+  ```
+  d ρ_ret/dx′ = ρ_x (1 − A R_x) + B R_x                (exact for the interpolant)
+  ρ = F(u, w, t)/(σξ σz),   u = (x − p(z,t) − ξ̄)/σξ − g(w),   w = (z − z̄)/σz
+  A = −σξ (u_z − u_t)
+  B = [F_w (w_z − w_t) − F_t]/(σξ σz) + ρ · d ln(σξ σz)/dt
+  ```
+
+  - u_t, w_t: the time derivatives of the blended frame. For each `frame_blend` mode these are
+    the moments, the log-linear widths, and the curvature coefficients, all differentiated
+    through the blend weight a(t).
+  - F_t: the snapshot-to-snapshot change of F at fixed (u, w), times da/dt. Both are zero
+    outside the history, where the lookup clamps.
+  - B needs F_w and F_t, which come from the same 4×4 stencil, so D costs almost nothing extra.
+  - With `want_fields = False` the kernel skips the stencil and returns only A.
+- `CSR2D._integrate_xi_region` with `CSR_integration.ibp: true` (far, near and previous-bend
+  regions; the polar patch is unchanged). After the shipped integrand gz is computed:
+
+  ```
+  J   = 1 − A R_x;   χ = χ(J; ibp_j0);   G0 = h′ (v·n′) T(R)/R;   Q = (1 − χ) G0 / J
+  Q′  = [Q(x′+h) − Q(x′−h)] / 2h,   h = 1e-3 · min σξ (history)   # field-free kernel for A
+  node integrand = gz − (1 − χ) G0 ρ_x − Q′ ρ − Q B R_x
+  column integral = trapz(node integrand) + Q ρ|last − Q ρ|first
+  ```
+
+  The shipped total is accumulated on the side (`_last_wake_shipped`).
+- `CSR_integration.ibp_check: n` (with `ibp_check_xbins` 200, `ibp_check_tol` 1e-3): after each
+  kick, n points of the mesh's centre row are evaluated in both forms. The result is appended to
+  `CSR2D.ibp_check_log`, and a warning prints once if the relative L2 difference exceeds the
+  tolerance. It works whether or not `ibp` is the main mode. Under MPI, rank 0 runs it.
+- Defaults: `ibp: false`, `ibp_check: 0`. The shipped path is untouched: all 188 unit tests
+  pass, including the bit-identity golden test.
+
+### 7a. Acceptance: same integral, analytic coefficients right
+
+Mid-row z cut, 16 points, xbins 200, the §3 cases:
+
+| case | \|ibp − shipped\|/\|shipped\| | \|ibp − prototype (§2)\| |
+|---|---|---|
+| in bend | 2.3e-6 | 1.3e-7 |
+| thin beam | 7.6e-7 | 2.2e-7 |
+| past exit, hard edge | 4.9e-4 | 1.2e-6 |
+| past exit, `u_taper` 0.5 | **4.0e-6** | |
+| shear 0.5 | 4.8e-6 | 1.3e-7 |
+| shear 2 | 2.4e-5 | 6.7e-8 |
+| shear 20 (xlim 8) | 1.1e-2 | 1.6e-7 |
+
+How to read the table:
+- The analytic A and B reproduce the prototype's finite differences to ≤ 1.2e-6 in every case.
+- The shear-20 difference is the |J| < J0 partition's own resolution error (§6, M1); it is not
+  in the formulas.
+- The past-exit difference was the hard u edge, and disappears with the taper.
+
+### 7b. Convergence and cost: no speed gain
+
+Error against shipped at 400 nodes, and wall time per wake point (single process, numba
+warm). The pairs are error / ms:
+
+| xbins | 16 | 24 | 32 | 48 | 64 | 80 | 96 | 128 | 200 |
+|---|---|---|---|---|---|---|---|---|---|
+| bend, shipped | 1.8e-1 / 7 | 1.3e-1 / 8 | 1.7e-1 / 8 | 7.2e-2 / 9 | 1.8e-2 / 10 | 2.4e-3 / 10 | 8.1e-5 / 11 | 2.1e-6 / 12 | 4.6e-7 / 16 |
+| bend, by parts | 1.4e-3 / 9 | 1.2e-3 / 10 | 1.2e-3 / 11 | 3.0e-4 / 13 | 1.1e-4 / 14 | 1.2e-5 / 16 | 6.9e-6 / 18 | 1.5e-5 / 22 | 2.7e-6 / 31 |
+| thin, shipped | 1.1 / 8 | 1.1 / 8 | 0.92 / 9 | 0.49 / 9 | 0.11 / 10 | 4.9e-3 / 11 | 2.7e-4 / 12 | 7.4e-6 / 13 | 1.9e-7 / 17 |
+| thin, by parts | 5.7e-3 / 9 | 4.4e-3 / 10 | 4.9e-3 / 11 | 1.6e-3 / 13 | 2.0e-4 / 16 | 3.1e-5 / 18 | 3.8e-6 / 20 | 9.0e-7 / 24 | 9.1e-7 / 34 |
+| shear 0.5, shipped | 1.2e-1 / 8 | 7.0e-2 / 8 | 1.2e-1 / 9 | 5.2e-2 / 10 | 1.2e-2 / 10 | 1.1e-3 / 11 | 7.3e-5 / 12 | 2.8e-6 / 14 | 5.4e-7 / 17 |
+| shear 0.5, by parts | 2.2e-3 / 9 | 1.1e-3 / 10 | 7.7e-4 / 11 | 2.9e-4 / 14 | 5.4e-5 / 15 | 8.0e-6 / 18 | 4.3e-6 / 20 | 3.9e-6 / 24 | 4.8e-6 / 33 |
+
+What the numbers show:
+- **The x′ nodes are not where a wake point's time goes.** Cutting them from 200 to 16 saves
+  only ~55 %. The rest is band location (12 fixed-point iterations of Eq 4.24 per column), the
+  s′ layout with its causal-edge scan, and the 18 000-node polar patch.
+- **At matched accuracy the two forms cost the same or the shipped form wins.**
+  - 1e-3: ~10 ms for both (shipped at ~80–96 nodes, by parts at ~24–32).
+  - 1e-4: shipped 11–12 ms, by parts 14–16 ms.
+  - The default (shipped, 200 nodes, ~5e-7) is 16 ms.
+  - The by-parts form pays two field-free kernel calls and two geometry evaluations per node
+    for Q′.
+- §4b's 5–10× node reduction holds, but it buys no time. The case for `ibp` is **robustness**,
+  not speed:
+  - it is immune to a ρ/∂ρ inconsistency (§4c, §4e);
+  - it is the second form the check needs.
+
+### 7c. Full runs with the kicks applied (`K_full_runs.txt`)
+
+Setup:
+- dipole lattice, CSR applied (`step_control: auto`, 18 kicks);
+- 200k Hammersley particles;
+- wake mesh 5 × 40, xbins 200, `ibp_check: 3` (at 400 x′ nodes).
+
+⟨δ⟩ and σδ are in units of 1e-4 of P0:
+
+| u_taper | ibp | ⟨δ⟩ | σδ | εx (nm) | wall (s) |
+|---|---|---|---|---|---|
+| 0 | false | −2.83152 | 2.19456 | 5.62142 | 71 |
+| 0 | true | −2.83146 | 2.19460 | 5.62151 | 126 |
+| 0.5 | false | −2.83143 | 2.19458 | 5.62149 | 72 |
+| 0.5 | true | −2.83143 | 2.19458 | 5.62149 | 126 |
+
+**Same beam.** Per particle, the by-parts run differs from the shipped one by 3.9e-5 of the
+CSR-induced energy change with the hard edge, and by 1.1e-5 with the taper. The taper itself
+changes the shipped run by 3.4e-5. At 200 nodes the by-parts mode costs 1.75× the wall time;
+nobody should run it there, but no node count makes it faster (§7b).
+
+**The check, per kick** (relative L2 over 3 centre-row points):
+
+| s (m) | 0.033 | **0.100** | 0.162–0.406 | 0.531–1.171 | 1.292–1.551 | 1.600 |
+|---|---|---|---|---|---|---|
+| hard edge | 2.7e-7 | **5.7e-2** | 1.2e-5 – 1.1e-4 | 1.1e-6 – 2.9e-5 | 1.3e-5 – 8.2e-5 | 2.2e-4 |
+| taper | 9.2e-8 | 1.5e-5 | 1.7e-7 – 6.6e-7 | 1.5e-7 – 7.4e-6 | 1.2e-5 – 8.3e-5 | 2.2e-4 |
+
+What the check shows:
+- **It detects the edge inconsistency**:
+  - 20–200× above the clean level inside the bend;
+  - 5.7e-2 at the bend entrance, where the wake is still tiny and the first kick sees an edge
+    from the drift history.
+- With the taper, nothing exceeds the 1e-3 tolerance.
+- The drift values (≤ 2.2e-4, the same in both runs) are the by-parts form's own slower
+  convergence, not an inconsistency:
+  - the curved tails of the CSR-kicked bunch have a local slope above 1, so the partition zone
+    is active (its share of the main term's Σ|node| is 5e-6 – 2e-5 there);
+  - at 200 nodes the same points read 1.4e-4 – 2.0e-3, and converge as 2.2e-4 → 1.5e-5 from 400
+    to 800 nodes;
+  - a larger `ibp_j0` (0.5) does not fix it at 200 nodes (1.1e-3).
+
+  That is why `ibp_check_xbins` is 400. Two earlier versions of the check failed:
+  - at 200 nodes it warned falsely at s = 1.6 m (2.0e-3);
+  - skipping every point with any |J| < 2·J0 skipped every kick from mid-bend on.
+
+**Decisions.**
+- `ibp` stays off by default. It gives the same answer as the shipped form once ρ and ∂ρ are
+  consistent, and it is not faster.
+- Its value is robustness, and acting as the second form of the integral for the check.
+- `ibp_check` stays off by default too, until it has been run on the chicane and BC20, where
+  |τ| ≫ 1 raises its floor (shear 20: 1.1e-2).
+- Recommended for any new kind of beam or deposition setting: `ibp_check: 3`.
+
+---
+
+## 8. Files and reproduction
 
 ```bash
 conda activate pydfcsr
@@ -604,10 +753,15 @@ python cancellation_effects.py            # all sections; or e.g. `python cancel
   written under `benchmark_results/cancellation_effects/inputs/` with absolute paths), and the
   shipped quadrature opened node by node. The node sums are asserted equal to `get_CSR_wake`.
 - `test/cancellation_ibp.py`: the integration-by-parts prototype (§2).
-- `test/cancellation_effects.py`: sections A–J. Sections A–I pin `u_taper: 0`, the hard
-  edge they were run with (`cancellation_lib.write_inputs`); J compares both.
+- `test/cancellation_effects.py`: sections A–K. Sections A–I pin `u_taper: 0`, the hard
+  edge they were run with (`cancellation_lib.write_inputs`); J and K compare both. K is the
+  full-run test of §7c.
+- Code: `interp3D.interpolate3D_comoving_ibp`;
+  `CSR2D._comoving_fields_ibp`, `_ibp_Q`, `_ibp_integrand`, `_ibp_consistency_check`;
+  `Integration_params.ibp`, `ibp_j0`, `ibp_check`, `ibp_check_xbins`, `ibp_check_tol`,
+  `ibp_check_zone_max`.
 - `test/benchmark_results/cancellation_effects/`: `A_anatomy.txt`, `B_scaling.txt`/`.png`,
-  `H_collapse.txt`/`.png`, `I_edges.txt`, `J_u_taper.txt`,
+  `H_collapse.txt`/`.png`, `I_edges.txt`, `J_u_taper.txt`, `K_full_runs.txt`,
   `C_quadrature.txt`/`.png`, `D_shot_noise.txt`, `E_injected_noise.txt`,
   `F_clipped_charge.txt`, `G_integrand_map.png`.
 

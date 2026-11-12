@@ -14,6 +14,7 @@ G  figure of the integrand on the (x', s') nodes, both forms
 H  collapse: C at the bunch centre against sigma_z^(2/3)/sigma_xi, every case
 I  transverse (u) vs longitudinal (w) grid edges, rms and quantile frames
 J  the u edge taper (particle_deposition.u_taper): off vs on, clean, outlier and halo beams
+K  full runs with the kicks applied: u_taper x CSR_integration.ibp, with ibp_check on
 
 Writes benchmark_results/cancellation_effects/<section>.txt and figures.
 """
@@ -561,8 +562,53 @@ def section_J():
     log.close()
 
 
+def section_K():
+    """Track through the dipole with CSR applied, shipped vs by-parts form, hard edge vs taper."""
+    import time
+    log = Log('K_full_runs')
+    log('K. dipole_lattice (drift 0.1, R = 1 m bend 1 rad, drift 0.5), CSR applied (step_control auto),')
+    log('   200k Hammersley particles, wake mesh 5 x 40, CSR_integration xbins 200, ibp_check 3.')
+    log('   <dd> = mean energy change, sd = rms energy spread (both 1e-4 of P0), eps = x-px emittance.')
+    log('')
+    log(f'{"u_taper":>7s} {"ibp":>5s} {"<dd>":>10s} {"sd":>9s} {"eps nm":>9s} {"max check":>10s} '
+        f'{"skipped":>8s} {"wall s":>7s}')
+    logs = {}
+    off = L.build('K_off', s_stop=None, csr_on=False).beam.particle.pz.copy()
+    res = {}
+    for ut in (0.0, 0.5):
+        for ibp in (False, True):
+            t0 = time.time()
+            csr = L.build(f'K_{ut}_{int(ibp)}', s_stop=None, csr_on=True,
+                          extra_dep={'u_taper': ut},
+                          extra_int={'ibp': ibp, 'ibp_check': 3})
+            wall = time.time() - t0
+            p = csr.beam.particle
+            cxx = np.cov(np.vstack([p.x, p.px]))
+            eps = float(np.sqrt(np.linalg.det(cxx)))
+            lg = getattr(csr, 'ibp_check_log', [])
+            chk = np.nanmax([q[1] for q in lg]) if lg else np.nan
+            nskip = sum(q[3] for q in lg)
+            logs[(ut, ibp)] = lg
+            res[(ut, ibp)] = (np.mean(p.pz), np.std(p.pz), eps, p.pz.copy())
+            log(f'{ut:7.1f} {str(ibp):>5s} {np.mean(p.pz)*1e4:10.5f} {np.std(p.pz)*1e4:9.5f} '
+                f'{eps*1e9:9.5f} {chk:10.1e} {nskip:8d} {wall:7.0f}')
+    log('')
+    for ut in (0.0, 0.5):
+        a, b = res[(ut, False)], res[(ut, True)]
+        log(f'u_taper {ut}: by parts vs shipped, per particle: rms d(pz) / rms CSR-induced pz '
+            f'change = {np.std(b[3] - a[3]) / np.std(a[3] - off):.1e}')
+    a, b = res[(0.0, False)], res[(0.5, False)]
+    log(f'shipped form, taper vs hard edge: {np.std(b[3] - a[3]) / np.std(a[3] - off):.1e}')
+    log('')
+    log('ibp_check per kick (s: relative difference [points used/skipped]), shipped runs:')
+    for ut in (0.0, 0.5):
+        log(f'  u_taper {ut}: ' + '  '.join(f'{q[0]:.3f}:{q[1]:.1e}[{q[2]}/{q[3]}]'
+                                            for q in logs[(ut, False)]))
+    log.close()
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
-    which = sys.argv[1:] or list('ABCDEFGHIJ')
+    which = sys.argv[1:] or list('ABCDEFGHIJK')
     for w in which:
         globals()[f'section_{w}']()

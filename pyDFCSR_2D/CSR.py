@@ -13,7 +13,7 @@ from .deposit import DF_tracker
 from .deposit_smooth import DF_tracker_smooth, DF_tracker_comoving
 from .interp1D import interpolate1D
 from .interp3D import (interpolate3D, interpolate3D_transformed,
-                       interpolate3D_comoving_fields)
+                       interpolate3D_comoving_fields, interpolate3D_comoving_ibp)
 from .lattice import Lattice  # , get_referece_traj
 from .lookup import lookup_vec
 from .schedule import SCHEDULE_ELEMENT_KEYS
@@ -945,6 +945,7 @@ class CSR2D:
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
+        self._ibp_consistency_check()
 
     def calculate_2D_CSR_parallel(self):
         work_size= self.CSR_params.xbins * self.CSR_params.zbins
@@ -978,6 +979,8 @@ class CSR2D:
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
+        if rank == 0:
+            self._ibp_consistency_check()
 
     def _lattice_at(self, sval):
         """(X0, Y0, n_x, n_y) of the reference orbit at arc length(s) sval."""
@@ -1403,6 +1406,7 @@ class CSR2D:
         bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp, scale_bands=scale_bands))
         nx = self.integration_params.xbins
         frac = np.linspace(0.0, 1.0, nx)
+        ibp = self.integration_params.ibp and self.use_comoving
 
         dE = xk = 0.0
         meshes = []
@@ -1415,12 +1419,21 @@ class CSR2D:
             sp_mesh = np.broadcast_to(sp[None, :], xp_mesh.shape).copy()
             dxp = width / (nx - 1)
 
+            ex = {} if ibp else None
             gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
-                                            ignore_vx=ignore_vx, taper=taper)
+                                            ignore_vx=ignore_vx, taper=taper, extras=ex)
             # A zero-width column has dxp = 0 and contributes nothing. Select it out
             # rather than multiplying by zero, so a degenerate node that landed on
             # the 1/|r-r'| pole cannot turn the whole region into a nan.
             iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp, 0.0)
+            if ibp:
+                # the shipped total is kept for the consistency check (get_CSR_wake)
+                self._ibp_ship_acc += -self.CSR_scaling * np.trapz(y=iz, x=sp)
+                gz, bnd, am, zone = self._ibp_integrand(gz, ex, t, taper, xp_mesh.shape)
+                iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp + bnd, 0.0)
+                wcol = np.where(alive, dxp, 0.0) * np.gradient(sp)
+                self._ibp_gross_acc += float(np.sum(am.sum(axis=0) * wcol))
+                self._ibp_zone_acc += float(np.sum((am * zone).sum(axis=0) * wcol))
             ix = np.where(alive, np.trapz(y=gx, axis=0) * dxp, 0.0)
             dE += -self.CSR_scaling * np.trapz(y=iz, x=sp)
             xk += self.CSR_scaling * np.trapz(y=ix, x=sp)
@@ -1963,6 +1976,9 @@ class CSR2D:
         
         s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
 
+        self._ibp_ship_acc = 0.0
+        self._ibp_gross_acc = 0.0
+        self._ibp_zone_acc = 0.0
         if self.use_smooth_deposit and self.integration_params.xi_bands:
             # The transverse extents are replaced by the located ribbons, so the chirp
             # case's regions 3 and 4 (which tiled x' over the SAME s' range) merge into
@@ -2011,6 +2027,11 @@ class CSR2D:
                         'sp_mesh': [p[3] for p in parts],
                         'integrand_z': [p[4] for p in parts],
                         'integrand_x': [p[5] for p in parts]}
+            if self.integration_params.ibp and self.use_comoving:
+                # the shipped form's total: the regions' shipped sums plus the patch,
+                # which both forms share
+                self._last_wake_shipped = (self._ibp_ship_acc
+                                           + (parts[-1][0] if radii is not None else 0.0))
             return sum(p[0] for p in parts), sum(p[1] for p in parts)
 
         if chirp_band:
@@ -2097,6 +2118,138 @@ class CSR2D:
             tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
             tr.is_uniform, tr.curv_c2_arr, tr.curv_c3_arr, float(tr.curv_zlim))
 
+    def _comoving_fields_ibp(self, xval, zval, tval, want_fields=True):
+        """
+        _comoving_fields plus the by-parts coefficients (A, B); see
+        interp3D.interpolate3D_comoving_ibp. want_fields False returns only A (the rest 0).
+        """
+        tr = self.DF_tracker
+        return interpolate3D_comoving_ibp(
+            xval, zval, tval,
+            tr.data_density_interp, tr.data_density_u_interp,
+            tr.data_density_w_interp, tr.data_vx_interp, tr.data_vx_u_interp,
+            tr.poly_coeffs_interp, tr.xi_bar_arr, tr.sigma_xi_arr,
+            tr.z_bar_arr, tr.sigma_z_arr,
+            tr.u_start, tr.delta_u, tr.w_start, tr.delta_w,
+            tr.min_x, tr.delta_x,
+            tr.frame_blend_code, tr.var_z_arr, tr.cov_arr, tr.var_x_arr,
+            tr.x_bar_arr,
+            tr.t_arr, tr.bucket, tr.bucket_inv_h, tr.bucket_t0, tr.bucket_M,
+            tr.is_uniform, tr.curv_c2_arr, tr.curv_c3_arr, float(tr.curv_zlim),
+            bool(want_fields))
+
+    @staticmethod
+    def _radial_taper(R, taper):
+        """The near-patch partition weight of get_CSR_integrand (1 if taper is None)."""
+        if taper is None:
+            return np.ones_like(R)
+        R1, R2, keep_inner = taper
+        u = np.clip((R - R1) / (R2 - R1), 0.0, 1.0)
+        w = u * u * u * (u * (6.0 * u - 15.0) + 10.0)
+        return 1.0 - w if keep_inner else w
+
+    @staticmethod
+    def _ibp_chi(J, J0):
+        """Partition weight of the shipped form: 1 for |J| <= J0, 0 for |J| >= 2 J0, C2 between."""
+        if not J0:
+            return np.zeros_like(J)
+        u = np.clip((np.abs(J) - J0) / J0, 0.0, 1.0)
+        return 1.0 - u * u * u * (u * (6.0 * u - 15.0) + 10.0)
+
+    def _ibp_Q(self, ex, t, delta, taper, J0, A=None):
+        """
+        Q = (1 - chi(J)) G0 / J at the nodes shifted by delta in x', G0 = h' (v.n') T(R) / R.
+        Pure geometry and frame (A from the field-free kernel unless given), no density.
+        Returns (Q, J, chi, G0, R_x).
+        """
+        rx = ex['rx'] - delta * ex['nx']
+        ry = ex['ry'] - delta * ex['ny']
+        R = np.sqrt(rx * rx + ry * ry)
+        Rx = -(rx * ex['nx'] + ry * ex['ny']) / R
+        xp = ex['xp'] + delta
+        if A is None:
+            A = self._comoving_fields_ibp(xp, ex['sp'] - (t - R), t - R, want_fields=False)[5]
+        J = 1.0 - A * Rx
+        chi = self._ibp_chi(J, J0)
+        G0 = (1.0 + xp * ex['kappa']) * ex['vn'] * self._radial_taper(R, taper) / R
+        safe = np.where(chi < 1.0, J, 1.0)
+        Q = np.where(chi < 1.0, (1.0 - chi) * G0 / safe, 0.0)
+        return Q, J, chi, G0, Rx
+
+    def _ibp_integrand(self, gz, ex, t, taper, shape):
+        """
+        The longitudinal integrand with its main term integrated by parts along each column.
+
+        Node integrand  gz - (1 - chi) G0 rho_x - Q' rho - Q B R_x, and per column the boundary
+        term Q rho |last node - Q rho |first node. Their column integral equals that of gz up to
+        quadrature error (progress_cancellation.md §2). Q' is a central difference with step
+        1e-3 of the smallest sigma_xi in the history, on geometry and frame only.
+        """
+        J0 = self.integration_params.ibp_j0
+        h = 1e-3 * float(np.min(self.DF_tracker.sigma_xi_arr))
+        Q0, J, chi, G0, Rx = self._ibp_Q(ex, t, 0.0, taper, J0, A=ex['A'])
+        Qp = self._ibp_Q(ex, t, +h, taper, J0)[0]
+        Qm = self._ibp_Q(ex, t, -h, taper, J0)[0]
+        dQ = (Qp - Qm) / (2.0 * h)
+        rho = ex['rho']
+        main = G0 * ex['rho_x']
+        g = (gz.ravel() - (1.0 - chi) * main - dQ * rho - Q0 * ex['B'] * Rx)
+        Qr = (Q0 * rho).reshape(shape)
+        # |main term| per node, and its share inside the partition zone (chi > 0), for the
+        # consistency check: there the by-parts form needs more x' nodes than the shipped one
+        am = np.abs(main).reshape(shape)
+        zone = (chi > 0.0).reshape(shape)
+        return g.reshape(shape), Qr[-1] - Qr[0], am, zone
+
+    def _ibp_consistency_check(self):
+        """
+        Both forms at a few points of the mesh's centre row, at ibp_check_xbins x' nodes.
+        See Integration_params.ibp_check. Appends (s, relative L2 difference, points used,
+        points skipped, largest zone share) to ibp_check_log.
+
+        Also recorded per kick: the largest share of the main term's sum|node| in the |J| < 2 J0
+        partition zone. Points above ibp_check_zone_max are skipped (default 1: none). The zone
+        is where the by-parts form converges more slowly than the shipped one, which is why the
+        check runs at ibp_check_xbins = 400 (Integration_params).
+        """
+        ip = self.integration_params
+        n = ip.ibp_check
+        if n <= 0 or not self.use_comoving:
+            return
+        nz = self.CSR_params.zbins
+        ix = self.CSR_params.xbins // 2
+        js = np.unique(np.round(np.linspace(0, nz - 1, n + 2)[1:-1]).astype(int))
+        saved = (ip.ibp, ip.xbins)
+        ip.ibp, ip.xbins = True, ip.ibp_check_xbins
+        a, b, fz = [], [], []
+        skipped = 0
+        try:
+            for j in js:
+                k = ix * nz + j
+                dE, _ = self.get_CSR_wake(self.beam.position + self.CSR_zmesh[k], self.CSR_xmesh[k])
+                f = self._ibp_zone_acc / max(self._ibp_gross_acc, 1e-300)
+                fz.append(f)
+                if f > ip.ibp_check_zone_max:
+                    skipped += 1
+                    continue
+                a.append(self._last_wake_shipped)
+                b.append(dE)
+        finally:
+            ip.ibp, ip.xbins = saved
+        a, b = np.array(a), np.array(b)
+        d = (float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-300)) if len(a)
+             else float('nan'))
+        if not hasattr(self, 'ibp_check_log'):
+            self.ibp_check_log = []
+        self.ibp_check_log.append((float(self.beam.position), d, len(a), skipped, max(fz)))
+        if len(a) and d > ip.ibp_check_tol and not getattr(self, '_ibp_check_warned', False):
+            self._ibp_check_warned = True
+            print(f'  [CSR2D] warning: at s = {self.beam.position:.4f} the shipped and the '
+                  f'integrated-by-parts longitudinal wakes differ by {d:.1e} (relative L2, '
+                  f'{len(a)} points). They are the same integral: rho and d rho/dx are '
+                  f'inconsistent somewhere (grid edge, blending). '
+                  f'Further kicks are logged in ibp_check_log, not printed.')
+
     def _assert_history(self):
         """
         Refuse to evaluate a wake without a history to interpolate.
@@ -2114,12 +2267,16 @@ class CSR2D:
                 f'interpolate between. Set CSR_computation.compute_CSR = 1, or pass '
                 f'debug=True to run(), so that snapshots are recorded.')
 
-    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None):
+    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None, extras = None):
         """
         taper: (R1, R2, keep_inner) — multiply the integrands by a radial partition
         function of |r - r'|. With keep_inner False the weight rises 0 -> 1 across
         [R1, R2], removing the neighbourhood of the r' -> r singularity; with True
         it is the complement. The two pieces sum to the untapered integral exactly.
+
+        extras: a dict to fill with what the integrated-by-parts form needs (CSR_integration.ibp;
+        bspline_comoving only). The fields then come from interpolate3D_comoving_ibp, which is
+        bit-identical for them, so the returned integrands do not change.
         """
 
         self._assert_history()
@@ -2192,8 +2349,12 @@ class CSR2D:
             # The chain rule for d rho/dz is applied inside, with the time-blended
             # p', which the pre-baked per-snapshot version could not do.
             z_ret = sp_flat - t_ret
-            (density_ret, density_x_ret, density_z_ret,
-             vx_ret, vx_x_ret) = self._comoving_fields(xp_flat, z_ret, t_ret)
+            if extras is None:
+                (density_ret, density_x_ret, density_z_ret,
+                 vx_ret, vx_x_ret) = self._comoving_fields(xp_flat, z_ret, t_ret)
+            else:
+                (density_ret, density_x_ret, density_z_ret,
+                 vx_ret, vx_x_ret, A_ibp, B_ibp) = self._comoving_fields_ibp(xp_flat, z_ret, t_ret)
 
         elif self.use_smooth_deposit:
             # Use transformed interpolation — query in physical (x, z) frame,
@@ -2350,6 +2511,12 @@ class CSR2D:
 
         CSR_integrand_x = W1 + W2 + W3
         #CSR_integrand_x = W1
+
+        if extras is not None:
+            extras.update(rx=r_minus_rp_x, ry=r_minus_rp_y, nx=n_vec_sp_x, ny=n_vec_sp_y,
+                          xp=xp_flat, sp=sp_flat, kappa=rho_sp,
+                          vn=velocity_x * n_vec_sp_x + velocity_y * n_vec_sp_y,
+                          rho=density_ret, rho_x=density_x_ret, A=A_ibp, B=B_ibp)
 
         if taper is not None:
             R1, R2, keep_inner = taper

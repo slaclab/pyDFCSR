@@ -30,13 +30,15 @@ LATTICE = os.path.abspath(os.path.join(HERE, '..', 'example', 'input', 'dipole_l
 
 def write_inputs(tag, sigma_x_um=50.0, sigma_z_um=50.0, shear=0.0, n_particle=200000,
                  seed=None, dep_bins=200, smoothing_sigma=3.0, int_bins=200,
-                 n_formation_length=4.0, extra_dep=None, beam_h5=None):
+                 n_formation_length=4.0, extra_dep=None, beam_h5=None, csr_on=False,
+                 extra_int=None):
     """
     seed None: Hammersley (quasi-random, as Step 12); an int: pseudo-random with that seed.
     beam_h5: read the beam from this openPMD ParticleGroup file instead (the distgen file is
     still written, unused).
     """
     os.makedirs(INPUT_DIR, exist_ok=True)
+    os.makedirs(os.path.join(RESULT_DIR, 'output'), exist_ok=True)
     beam = {
         'n_particle': int(n_particle), 'species': 'electron',
         'px_dist': {'sigma_px': {'units': 'keV/c', 'value': 25.0}, 'type': 'gaussian'},
@@ -73,8 +75,9 @@ def write_inputs(tag, sigma_x_um=50.0, sigma_z_um=50.0, shear=0.0, n_particle=20
         'input_lattice': {'lattice_input_file': LATTICE},
         'particle_deposition': dep,
         'CSR_integration': dict(n_formation_length=float(n_formation_length),
-                                xbins=int(int_bins), zbins=int(int_bins)),
-        'CSR_computation': {'compute_CSR': 0, 'apply_CSR': 0, 'transverse_on': 1,
+                                xbins=int(int_bins), zbins=int(int_bins), **(extra_int or {})),
+        'CSR_computation': {'compute_CSR': int(csr_on), 'apply_CSR': int(csr_on),
+                            'transverse_on': 1,
                             'xbins': 5, 'zbins': 40, 'xlim': 3, 'zlim': 3,
                             'write_beam': [], 'write_wakes': False,
                             'write_name': 'cx', 'workdir': os.path.join(RESULT_DIR, 'output')},

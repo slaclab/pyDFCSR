@@ -1,0 +1,17 @@
+K. dipole_lattice (drift 0.1, R = 1 m bend 1 rad, drift 0.5), CSR applied (step_control auto),
+   200k Hammersley particles, wake mesh 5 x 40, CSR_integration xbins 200, ibp_check 3.
+   <dd> = mean energy change, sd = rms energy spread (both 1e-4 of P0), eps = x-px emittance.
+
+u_taper   ibp       <dd>        sd    eps nm  max check  skipped  wall s
+    0.0 False   -2.83152   2.19456   5.62142    5.7e-02        0      71
+    0.0  True   -2.83146   2.19460   5.62151    5.7e-02        0     126
+    0.5 False   -2.83143   2.19458   5.62149    2.2e-04        0      72
+    0.5  True   -2.83143   2.19458   5.62149    2.2e-04        0     126
+
+u_taper 0.0: by parts vs shipped, per particle: rms d(pz) / rms CSR-induced pz change = 3.9e-05
+u_taper 0.5: by parts vs shipped, per particle: rms d(pz) / rms CSR-induced pz change = 1.1e-05
+shipped form, taper vs hard edge: 3.4e-05
+
+ibp_check per kick (s: relative difference [points used/skipped]), shipped runs:
+  u_taper 0.0: 0.033:2.7e-07[3/0]  0.100:5.7e-02[3/0]  0.162:3.6e-05[3/0]  0.225:1.1e-04[3/0]  0.287:8.0e-05[3/0]  0.349:2.6e-05[3/0]  0.406:1.2e-05[3/0]  0.531:6.3e-06[3/0]  0.655:2.9e-05[3/0]  0.780:2.2e-06[3/0]  0.905:1.1e-06[3/0]  1.029:3.7e-06[3/0]  1.100:4.8e-06[3/0]  1.171:7.5e-06[3/0]  1.292:3.1e-05[3/0]  1.414:1.3e-05[3/0]  1.551:8.2e-05[3/0]  1.600:2.2e-04[3/0]
+  u_taper 0.5: 0.033:9.2e-08[3/0]  0.100:1.5e-05[3/0]  0.162:6.6e-07[3/0]  0.225:1.7e-07[3/0]  0.287:4.6e-07[3/0]  0.349:5.3e-07[3/0]  0.406:4.9e-07[3/0]  0.531:1.5e-07[3/0]  0.655:3.4e-07[3/0]  0.780:9.3e-07[3/0]  0.905:1.1e-06[3/0]  1.029:3.6e-06[3/0]  1.100:4.2e-06[3/0]  1.171:7.4e-06[3/0]  1.292:3.1e-05[3/0]  1.414:1.2e-05[3/0]  1.551:8.3e-05[3/0]  1.600:2.2e-04[3/0]

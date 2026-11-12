@@ -26,7 +26,9 @@ class Integration_params:
                          drift_cutoff = 0.0, tangent_bands = True,
                          drift_reach = True, drift_snap_thin = 0.01,
                          far_fine_max = 500, band_jacobian_min = 0.2,
-                         prev_bend_reach = True, prev_bend_grade = 0.02):
+                         prev_bend_reach = True, prev_bend_grade = 0.02,
+                         ibp = False, ibp_j0 = 0.25, ibp_check = 0, ibp_check_xbins = 400,
+                         ibp_check_tol = 1e-3, ibp_check_zone_max = 1.0):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -175,6 +177,36 @@ class Integration_params:
         self.prev_bend_reach = prev_bend_reach
         # log-grading ratio of that region's s' nodes (CSR2D._prev_region_nodes)
         self.prev_bend_grade = prev_bend_grade
+        # Longitudinal integrand integrated by parts along each s' column (bspline_comoving
+        # only; progress_cancellation.md §2, §7). The main term G0 * d rho/dx has +- lobes on
+        # the two sides of the beam that cancel by C ~ 188 sigma_z^(2/3)/sigma_xi (um, R = 1 m),
+        # 60-1000 in practice, so the shipped form needs >= 128 x' nodes per band and amplifies
+        # any rho / d rho inconsistency by ~C. Along a column the retarded point moves, and
+        #     d rho_ret/dx' = J rho_x + D,   J = 1 - A R_x,   D = B R_x
+        # (interp3D.interpolate3D_comoving_ibp), so
+        #     int G0 rho_x dx' = [Q rho] - int Q' rho dx' - int Q D dx',   Q = G0 / J.
+        # Same integral, no cancellation; the boundary term is ~0 because the bands are
+        # +-10 sigma_xi wide. The transverse kick and the polar patch are unchanged.
+        self.ibp = bool(ibp)
+        # J -> 0 where a column runs along a tilted beam's ridge (tilt |tau| > 1): there the
+        # shipped form is kept, through a C2 partition chi(J) = 1 for |J| <= ibp_j0, 0 beyond
+        # 2 ibp_j0, and only (1 - chi) G0 rho_x is integrated by parts.
+        self.ibp_j0 = float(ibp_j0)
+        # Consistency monitor: per kick, evaluate ibp_check points of the wake mesh's centre row
+        # in BOTH forms at ibp_check_xbins x' nodes and warn once if they differ by more than
+        # ibp_check_tol (relative L2). They are the same integral, so a difference is a rho /
+        # d rho/dx inconsistency that the shipped form amplifies by ~C. 400 nodes, not 200:
+        # where the curved tails or the tilt are steeper than 1 the partition zone is active and
+        # the by-parts form converges more slowly than the shipped one (dipole with CSR applied,
+        # 0.5 m past the exit: 2.0e-3 at 200 nodes, 2.2e-4 at 400, 1.5e-5 at 800; a larger
+        # ibp_j0 does not help). ibp_check_log also records the zone's share of the main term's
+        # sum|node|; a point whose share exceeds ibp_check_zone_max is skipped and counted
+        # (default 1: never). Under |tau| >> 1 the check's own floor rises (shear 20: 1.1e-2).
+        # 0 = off.
+        self.ibp_check = int(ibp_check)
+        self.ibp_check_xbins = int(ibp_check_xbins)
+        self.ibp_check_tol = float(ibp_check_tol)
+        self.ibp_check_zone_max = float(ibp_check_zone_max)
         self.far_cell = far_cell
         # Stop computing wakes once the beam is more than drift_cutoff * R*phi past the
         # bend it just left, in units of that bend's own R*phi. 0 disables the cutoff.
