@@ -81,7 +81,7 @@ LABEL = {'bend': 'in bend, s = 0.5 m', 'thin': 'in bend, sigma_x0 = 12.5 um',
 def section_A():
     log = Log('A_anatomy')
     log('A. Cancellation factor C = sum|node contributions| / |total|, shipped form vs the')
-    log('   column-integrated-by-parts form, on the SAME nodes. Mid-row z cut, 18 points.')
+    log('   column-integrated-by-parts form, on the SAME nodes. Mid-row z cut, 16 points.')
     log(f'   Partition of unity at |J| < {J0} (shipped form kept there).')
     log('')
     log(f'{"case":28s} {"sx um":>6s} {"sz um":>6s} {"tau":>6s} | {"C_ship mid":>10s} {"med":>6s} | '

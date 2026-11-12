@@ -11,6 +11,22 @@ beam is 5 GeV, 1 nC, σx0 = σz0 = 50 µm unless a row says otherwise, 200k part
 (Hammersley). Deposition is 200×200 over ±5σ with smoothing 3 cells; integration uses
 `xbins = zbins = 200` and `n_formation_length = 4`.
 
+**Wake grid (the observers).** `CSR_computation` sets `mesh_mode: uniform`, `xbins: 5`,
+`zbins: 40`, `xlim = zlim = 3`, and the grid is built by `get_CSR_mesh` at the stop position t:
+- z nodes: 40 evenly over z̄ ± 3σz, i.e. a spacing of 0.154σz. σz is the beam's rms at t.
+- x nodes: 5 evenly over ±3σ of x_transform = x − polyval(slope, z) − ridge, i.e. across the
+  tilt-removed beam. Each node is mapped back to lab x by adding the tilt fit and the
+  curvature ridge at its z, so the rows follow the tilted, curved beam.
+- Observer: s = t + z_node at x_node.
+
+All cuts here use the middle row (index 2, the beam axis):
+- A, D, E, F: every 2nd z node from 4 to 34 (16 points, z/σz = −2.38 … +2.23);
+- B: every 4th (8 points);
+- C: every 3rd (11 points).
+
+"Centre" means the node closest to z = 0, which is z/σz = +0.08. The L2 norms in C–F are over
+these cuts.
+
 ---
 
 ## 0. Short answer
@@ -177,7 +193,7 @@ polar patch: shipped form (its C is 1–3)
 
 ## 3. How large the cancellation is
 
-**Per case** (`A_anatomy.txt`; mid-row z cut, 18 points; τ = beam tilt dx/dz at s):
+**Per case** (`A_anatomy.txt`; mid-row z cut, 16 points (see the wake grid above); τ = beam tilt dx/dz at s):
 
 | case | σx µm | σz µm | τ | C shipped, centre / median | C by parts, centre / median | \|ship − ibp\|/\|ship\| | min\|J\| |
 |---|---|---|---|---|---|---|---|

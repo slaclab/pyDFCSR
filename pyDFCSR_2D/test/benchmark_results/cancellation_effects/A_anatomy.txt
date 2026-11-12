@@ -1,5 +1,5 @@
 A. Cancellation factor C = sum|node contributions| / |total|, shipped form vs the
-   column-integrated-by-parts form, on the SAME nodes. Mid-row z cut, 18 points.
+   column-integrated-by-parts form, on the SAME nodes. Mid-row z cut, 16 points.
    Partition of unity at |J| < 0.25 (shipped form kept there).
 
 case                          sx um  sz um    tau | C_ship mid    med | C_ibp mid   med   max | |ship-ibp|/|ship| | min|J|
