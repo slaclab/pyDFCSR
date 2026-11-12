@@ -1,0 +1,21 @@
+D. Shot noise: 4 pseudo-random seeds per particle count, in bend (s = 0.5 m).
+   scatter = ||std over seeds|| / ||mean||, over the mid-row dE cut.
+
+  N =   20000 seed 1: |ship - ibp| / |ship| = 1.2e-06
+  N =   20000 seed 2: |ship - ibp| / |ship| = 1.1e-06
+  N =   20000 seed 3: |ship - ibp| / |ship| = 2.8e-03
+  N =   20000 seed 4: |ship - ibp| / |ship| = 1.9e-06
+  N =   20000: scatter shipped 0.0261   integrated by parts 0.0261
+
+  N =  200000 seed 1: |ship - ibp| / |ship| = 1.2e-05
+  N =  200000 seed 2: |ship - ibp| / |ship| = 1.5e-04
+  N =  200000 seed 3: |ship - ibp| / |ship| = 5.5e-04
+  N =  200000 seed 4: |ship - ibp| / |ship| = 2.9e-04
+  N =  200000: scatter shipped 0.0106   integrated by parts 0.0106
+
+  N = 1000000 seed 1: |ship - ibp| / |ship| = 1.9e-04
+  N = 1000000 seed 2: |ship - ibp| / |ship| = 1.2e-04
+  N = 1000000 seed 3: |ship - ibp| / |ship| = 1.1e-04
+  N = 1000000 seed 4: |ship - ibp| / |ship| = 2.8e-04
+  N = 1000000: scatter shipped 0.0047   integrated by parts 0.0047
+

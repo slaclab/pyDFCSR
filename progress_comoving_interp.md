@@ -7613,6 +7613,11 @@ d = 0.6855 m, just past `R*phi = 0.5002 m`.
 
 ### Step 12 — The integrand cancellation: where it lives, and what it amplifies (2026-10-02) ✅ diagnosis
 
+> **Revised 2026-11-12 in [progress_cancellation.md](progress_cancellation.md) §5:** the noise-gain
+> conclusion (C) holds only for noise injected into ∂ρ/∂x alone; consistent shot noise has the same
+> gain in either form. Integration by parts along each s′ column does work (C 60 → 1.2). The σz
+> slope is +0.51, not +1.
+
 Branch `integrand_cancellation`. The integrand has a large positive band and a large negative band
 that nearly cancel; the concern is that this amplifies numerical noise. This step measures the
 structure rather than assuming it, because the structure decides which cure is even available.

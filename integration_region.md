@@ -379,7 +379,10 @@ Deposition (`particle_deposition`): `xlim = zlim = 5` sets the grid extent and t
     between adjacent nodes.
   - **Consequence:** noise in `∂ρ/∂x` reaches the wake with ~100× the gain of noise in `ρ`, and
     correlated noise is 5.7× worse than white.
-  - **Proposed fix:** a control variate, computing the fitted-Gaussian part of `∂ρ/∂x` analytically.
+  - **Revised 2026-11-12 (`progress_cancellation.md`):** the cancellation does not amplify shot
+    noise. It amplifies quadrature error (≥ 128 x′ nodes needed) and ρ/∂ρ inconsistencies (×C).
+    Integration by parts along each s′ column removes it for |τ| ≲ 1, and is preferred over
+    the control variate.
 - **Drift wakes: diagnosed 2026-11-03** (`test/d3_wake_diagnostic.py`; results in
   `test/benchmark_results/d3_diagnostic/`, written up in `progress.md`). The chicane's D3 far-drift
   failure is **two separate defects**, neither in the quadrature:

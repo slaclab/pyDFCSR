@@ -1,0 +1,24 @@
+C. x' quadrature: relative L2 error of the dE cut vs a 400-node reference (mean of the
+   two forms at 400, which agree to the number in brackets), as xbins (nodes per band) varies.
+   s' nodes unchanged.
+
+in bend, s = 0.5 m  [ship400 vs ibp400: 2.5e-06]
+   xbins        6        8       12       16       24       32       48       64      128      200      400
+   ship   6.1e-01  7.5e-01  1.4e-01  1.8e-01  1.3e-01  1.7e-01  7.2e-02  1.8e-02  1.1e-06  7.8e-07  1.2e-06
+   ibp    6.0e-01  2.0e-01  1.4e-02  1.4e-03  1.2e-03  1.2e-03  3.0e-04  1.1e-04  1.4e-05  2.0e-06  1.2e-06
+
+in bend, sigma_x0 = 12.5 um  [ship400 vs ibp400: 8.8e-07]
+   xbins        6        8       12       16       24       32       48       64      128      200      400
+   ship   2.8e+00  1.8e+00  2.1e+00  1.1e+00  1.1e+00  9.2e-01  4.9e-01  1.1e-01  7.4e-06  2.6e-07  4.4e-07
+   ibp    3.3e-01  1.2e-01  1.4e-02  5.7e-03  4.4e-03  4.9e-03  1.6e-03  2.0e-04  4.5e-07  4.5e-07  4.4e-07
+
+past exit, s = 1.2 m  [ship400 vs ibp400: 6.1e-04]
+   xbins        6        8       12       16       24       32       48       64      128      200      400
+   ship   2.5e+00  1.8e+00  1.3e-01  2.3e-01  2.8e-01  2.0e-01  6.1e-02  3.1e-02  2.6e-04  2.9e-04  3.0e-04
+   ibp    8.7e-01  8.4e-01  6.4e-02  1.4e-02  7.3e-03  4.4e-03  2.8e-03  5.9e-04  3.1e-04  3.0e-04  3.0e-04
+
+in bend, shear 0.5  [ship400 vs ibp400: 3.5e-06]
+   xbins        6        8       12       16       24       32       48       64      128      200      400
+   ship   6.5e-01  6.0e-01  1.3e-01  1.2e-01  7.0e-02  1.2e-01  5.2e-02  1.2e-02  1.4e-06  1.2e-06  1.7e-06
+   ibp    6.1e-01  2.1e-01  7.0e-03  2.2e-03  1.1e-03  7.7e-04  3.0e-04  5.4e-05  3.3e-06  3.2e-06  1.7e-06
+

@@ -1,0 +1,18 @@
+E. Gain = (relative L2 change of the dE cut) / eps, eps = 1e-3 of the array RMS,
+   white noise with variance ~ rho (like shot noise) passed through the deposition's
+   smooth_and_differentiate, 3 seeds.
+   rho: noise in rho only. rho_x: in d rho/du only (Step 12's test).
+   consistent: the same noise in rho, with its own derivative added to d rho/du, d rho/dw.
+
+in bend, s = 0.5 m: |dE|_L2 = 5.9078
+   injected into      gain shipped    gain by parts
+   rho                 0.01 +- 0.00      0.92 +- 0.24
+   rho_x               0.14 +- 0.04      0.00 +- 0.00
+   consistent          0.92 +- 0.24      0.92 +- 0.24
+
+in bend, shear 0.5: |dE|_L2 = 7.8663
+   injected into      gain shipped    gain by parts
+   rho                 0.02 +- 0.00      0.95 +- 0.11
+   rho_x               0.14 +- 0.02      0.00 +- 0.00
+   consistent          0.95 +- 0.11      0.95 +- 0.11
+
