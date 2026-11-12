@@ -39,7 +39,9 @@ COL = {'q': '#4a3aa7', 'old': '#1baf7a', '1d': '#eb6834'}
 LABEL = {'dfcsr_2d_q': '2D quantile frame', 'dfcsr_2d': '2D, old rms grids',
          'dfcsr_2d_qa': '2D quantile, adaptive smoothing (440 kicks)',
          'dfcsr_2d_qa_kp': '2D quantile, adaptive smoothing, 220 kicks',
-         'dfcsr_1d_pk20': '1D (peak 20/FWHM)', 'dfcsr_1d_pk20_k05': '1D (peak 20/FWHM), every snapshot'}
+         'dfcsr_1d_pk20': '1D (peak 20/FWHM)', 'dfcsr_1d_pk20_k05': '1D (peak 20/FWHM), every snapshot',
+         'dfcsr_2d_peak_1M': '2D peak frame, 1M particles', 'dfcsr_1d_1M': '1D, 1M particles',
+         'dfcsr_2d_peak_1M_sz6.5cap_m40_k115': '2D peak frame 1M, z smoothing 6.5 bins capped, 12x40 mesh, 116 kicks'}
 RUN, CMP, RUN1 = 'dfcsr_2d_q', 'dfcsr_2d', 'dfcsr_1d_pk20'
 UNIFORM_FRAC = 0.3
 # kicks to show: (target s [m], short label)
@@ -77,6 +79,7 @@ def load2d(run):
             wx = np.exp(-0.5 * ((xi - xi.mean()) / (np.ptp(xi) / 8)) ** 2)
         wx = wx / wx.sum()
         out.append(dict(s=float(g.attrs['position']), ele=str(g.attrs['element']), z=z, xi=xi, wx=wx,
+                        charge='x_axis_transformed' in g,
                         W=g['longitudinal/dE_dct'][()], F=g['transverse/xkicks'][()]))
     return out
 
@@ -124,8 +127,10 @@ def maps(R, key, label, fname, zoom=None, picks=PICK):
         ax.set_ylabel('ξ [µm]')
     for ax in axs[-1]:
         ax.set_xlabel('z − z_mid [µm]  (head at +z)')
+    mesh = ('mesh nodes follow the charge' if R[0].get('charge') else
+            'uniform mesh over +-4 rms')
     fig.suptitle(f'{label}, {LABEL.get(RUN, RUN)}\neach panel normalised to its own max |value| '
-                 f'(red > 0, blue < 0; range in MeV/m); mesh nodes follow the charge',
+                 f'(red > 0, blue < 0; range in MeV/m); {mesh}',
                  x=0.01, ha='left', fontsize=10, color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.94 if nr < 3 else 0.96), h_pad=0.5, w_pad=0.4)
     fig.savefig(os.path.join(RES, fname), dpi=130)

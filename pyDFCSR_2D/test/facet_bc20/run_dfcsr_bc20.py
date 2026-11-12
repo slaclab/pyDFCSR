@@ -61,6 +61,34 @@ Q_DEP_AD = dict(Q_DEP, smoothing_adaptive=True, smoothing_min_particles=100, smo
 RUNS['dfcsr_2d_qa'] = dict(cls='2d', transverse=1, dep=Q_DEP_AD, csr=Q_MESH)
 RUNS['dfcsr_2d_qa_kp'] = dict(cls='2d', transverse=1, dep=Q_DEP_AD, csr=Q_MESH,
                               sc=dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5))
+RUNS['dfcsr_2d_qa_kp_1M'] = dict(cls='2d', transverse=1, dep=Q_DEP_AD, csr=Q_MESH,
+                                 beam='input/facet_bc20_beam_1000000.txt',
+                                 sc=dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5))
+# peak frame (window around the current peak, the pedestal dropped as a source), 1M particles; the
+# window is ~ +-5 FWHM at the end, so 300 z bins give ~25 bins per FWHM
+P_DEP = dict(PIN_2D_DEP, frame='peak', frame_quantile=0.005, frame_margin=0.1, peak_halfwidth=3.0,
+             peak_taper=2.0, xbins=100, zbins=300, smoothing_sigma=2.0)
+RUNS['dfcsr_2d_peak_1M'] = dict(cls='2d', transverse=1, dep=P_DEP, csr=Q_MESH,
+                                beam='input/facet_bc20_beam_1000000.txt',
+                                sc=dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5))
+# the peak frame with more z smoothing (smoothing_sigma_z bins; at the first kick a bin is 2.1 um, so 6.5
+# bins = the old rms grid's ~14 um effective) and the wake mesh at 12 x 40, to remove the narrow wake of the
+# input beam's hard tail edge and of the frozen 20k shot noise (progress_facet_bc20.md 9i)
+for _sz in (2, 4, 6.5, 10):
+    RUNS[f'dfcsr_2d_peak_1M_sz{_sz:g}_m40'] = dict(cls='2d', transverse=1, dep=dict(P_DEP, smoothing_sigma_z=float(_sz)),
+                                                  csr=dict(Q_MESH, zbins=40), beam='input/facet_bc20_beam_1000000.txt',
+                                                  sc=dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5))
+# 6.5-bin z smoothing capped at 0.1 FWHM of the peak (smoothing_res_fwhm), the 12 x 40 charge mesh
+# with its x axis on the 0.2% quantiles (mesh_x_quantile), and ~115 kicks (tol 0.02, h 0.75 m)
+RUNS['dfcsr_2d_peak_1M_sz6.5cap_m40_k115'] = dict(
+    cls='2d', transverse=1, dep=dict(P_DEP, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1),
+    csr=dict(Q_MESH, zbins=40, mesh_x_quantile=0.002), beam='input/facet_bc20_beam_1000000.txt',
+    sc=dict(kick_placement='csr1d', kick_tol=0.02, kick_h_max=0.75))
+# the same 1M runs at coarser deposition grids (x 200, z 600 and 300)
+for _nz in (600, 300):
+    RUNS[f'dfcsr_2d_qa_kp_1M_z{_nz}'] = dict(cls='2d', transverse=1, dep=dict(Q_DEP_AD, xbins=200, zbins=_nz),
+                                            csr=Q_MESH, beam='input/facet_bc20_beam_1000000.txt',
+                                            sc=dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5))
 # 1D with coarser z bins (bins span the beam's full z extent: 209 um at ENDBC20), to see how much
 # of the 1D-vs-2D difference a 2D-like z resolution makes (2D wake mesh dz is ~11 um after B2RE)
 for _nb in (1200, 600, 150, 80, 40, 20):
@@ -82,6 +110,16 @@ for _tol in (0.04, 0.02, 0.01, 0.005):
     for _hk in (1.0, 0.5, 0.25):
         RUNS[f'dfcsr_1d_pk20_kp{_tol:g}_h{_hk:g}'] = dict(
             cls='1d', csr1d=PK20, sc=dict(kick_placement='csr1d', kick_tol=_tol, kick_h_max=_hk))
+# ~110-kick candidates between the grid above (tol 0.02 / h 1 m gives 101, tol 0.04 / h 0.5 m 130)
+for _tol, _hk in ((0.02, 0.75), (0.03, 0.75), (0.03, 1.0), (0.015, 1.0)):
+    RUNS[f'dfcsr_1d_pk20_kp{_tol:g}_h{_hk:g}'] = dict(
+        cls='1d', csr1d=PK20, sc=dict(kick_placement='csr1d', kick_tol=_tol, kick_h_max=_hk))
+# the 20 000-particle beam upsampled to 1M (upsample_beam.py): CSR off, 1D and 2D on the same
+# CSR-guided 220-kick schedule as dfcsr_1d_pk20_kp0.005_h0.5 and dfcsr_2d_qa_kp
+B1M = 'input/facet_bc20_beam_1000000.txt'
+KP = dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5)
+RUNS['nocsr_1M'] = dict(cls='1d', beam=B1M, csr=dict(compute_CSR=0, apply_CSR=0), sc=KP, csr1d=PK20)
+RUNS['dfcsr_1d_1M'] = dict(cls='1d', beam=B1M, sc=KP, csr1d=PK20)
 RUNS['dfcsr_1d_recheck'] = dict(cls='1d')       # dfcsr_1d again: the default must be unchanged
 # shot-noise check: a random half of the particles (A, or the complementary B), same total charge
 for _h in ('A', 'B'):
@@ -101,7 +139,7 @@ def half_indices(h):
 def config(name):
     r = RUNS[name]
     cfg = yaml.safe_load(open(BASE))
-    cfg['input_beam']['beamfile'] = os.path.join(ROOT, 'example', cfg['input_beam']['beamfile'])
+    cfg['input_beam']['beamfile'] = os.path.join(ROOT, 'example', r.get('beam', cfg['input_beam']['beamfile']))
     cfg['input_lattice']['lattice_input_file'] = os.path.join(
         ROOT, 'example', cfg['input_lattice']['lattice_input_file'])
     if r.get('half'):
@@ -152,13 +190,26 @@ def main(name):
     keys = [k for k in sim.lattice.lattice_config if k != 'step_size']
     rec = {}
     upd = sim.update_statistics
+    # beyond 200k particles the beam at every element exit would be GBs: keep the moments there
+    # (mean, 6x6 covariance, peak current and FWHM on 0.5 um bins) and the final beam only
+    big = sim.beam.particle.x.size > 200_000
 
     def update_statistics(step):
         upd(step)
         k = int(np.argmin(np.abs(ends - sim.beam.position)))
         if abs(ends[k] - sim.beam.position) < 1e-9:
             p = sim.beam.particle
-            rec[k] = np.array([p.x, p.px, p.y, p.py, p.z, p.pz])
+            c = np.array([p.x, p.px, p.y, p.py, p.z, p.pz])
+            if not big:
+                rec[k] = c
+            else:
+                from scipy.ndimage import gaussian_filter1d
+                h, _ = np.histogram(c[4], bins=np.arange(c[4].min(), c[4].max() + 0.5e-6, 0.5e-6))
+                I = gaussian_filter1d(h.astype(float), 1.0) * sim.beam.charge / c.shape[1] / (0.5e-6 / 299792458.0)
+                half = np.flatnonzero(I > I.max() / 2)
+                rec[k] = (c.mean(1), np.cov(c), I.max(), (half[-1] - half[0] + 1) * 0.5e-6)
+                if k == len(keys) - 1:
+                    rec['end'] = c
     sim.update_statistics = update_statistics
 
     t0 = time.time()
@@ -169,9 +220,16 @@ def main(name):
     assert not missing, f'no node at the exit of {missing}'
     st = {k: v for k, v in sim.statistics.items() if not isinstance(v, dict)}
     tw = {f'twiss_{k}': v for k, v in sim.statistics['twiss'].items()}
-    np.savez(os.path.join(OUT, f'{name}.npz'), coords=np.stack([rec[k] for k in range(len(keys))]),
-             names=np.array(keys), s=ends, p0c=sim.beam.init_energy, step_s=np.array(sim.lattice.steps_record),
-             runtime=time.time() - t0, prefix=sim.prefix, **st, **tw)
+    if big:
+        beam = dict(coords_end=rec['end'], exit_mean=np.stack([rec[k][0] for k in range(len(keys))]),
+                    exit_cov=np.stack([rec[k][1] for k in range(len(keys))]),
+                    exit_ipk=np.array([rec[k][2] for k in range(len(keys))]),
+                    exit_fwhm=np.array([rec[k][3] for k in range(len(keys))]))
+    else:
+        beam = dict(coords=np.stack([rec[k] for k in range(len(keys))]))
+    np.savez(os.path.join(OUT, f'{name}.npz'), names=np.array(keys), s=ends, p0c=sim.beam.init_energy,
+             step_s=np.array(sim.lattice.steps_record), runtime=time.time() - t0, prefix=sim.prefix,
+             n_kicks=sim.lattice.schedule.n_kick, **beam, **st, **tw)
     print(f'{name}: done in {(time.time() - t0) / 60:.1f} min', flush=True)
 
 

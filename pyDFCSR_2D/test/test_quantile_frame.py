@@ -117,7 +117,8 @@ def test_quantile_window_holds_the_peaks(kind, capsys):
     x, z, px = _beam(kind)
     tr = _tracker()
     tr.get_DF(x, z, px, 0.0)
-    lo, hi, margin = tr.window
+    lo, hi, margin, margin_hi = tr.window
+    assert margin_hi == margin
     T = tr.window_weight(z)
     peaks = (40e-6,) if kind == 'spike' else (-75e-6, 75e-6)
     # every horn is (essentially) fully weighted, even at the very edge of the flat top,
@@ -185,8 +186,8 @@ def test_quantile_charge_run():
     far = sim._mesh_ridge(np.array([tr.z_bar - 100 * tr.sigma_z, tr.z_bar + 100 * tr.sigma_z]))
     assert np.array_equal(edge, far)
     q = np.array(sim.quantile_log)
-    assert q.shape[1] == 10 and len(q) > 0 and np.all((q[:, 4] > 0.98) & (q[:, 4] <= 1.0))
-    assert np.all(np.isfinite(q[:, 8:]))
+    assert q.shape[1] == 11 and len(q) > 0 and np.all((q[:, 5] > 0.98) & (q[:, 5] <= 1.0))
+    assert np.all(np.isfinite(q[:, 9:]))
 
 
 # ---------------------------------------------------------------- 5. kick placement from a CSR profile
@@ -263,3 +264,136 @@ def test_adaptive_smoothing_spike_and_pedestal():
     assert out['adaptive'][0] > 0.97 * out['fine'][0]          # spike peak kept
     assert out['adaptive'][1] < 0.3 * out['fine'][1]           # pedestal derivative noise cut
     assert out['adaptive'][2] == pytest.approx(out['fine'][2], rel=0.05)   # finest width at the peak
+
+
+# ---------------------------------------------------------------- 7. peak frame
+
+def test_peak_frame_long_bunch_is_the_quantile_frame():
+    """With no spike, the peak window covers more than the quantile window: identical frame."""
+    x, z, px = _beam('gauss')
+    a = _tracker(frame='quantile', zbins=300)
+    b = _tracker(frame='peak', zbins=300)
+    a.get_DF(x, z, px, 0.0)
+    b.get_DF(x, z, px, 0.0)
+    assert np.allclose(a.window[:3], b.window[:3], rtol=0, atol=1e-15) and b.window[3] == b.window[2]
+    assert abs(a.z_bar - b.z_bar) < 1e-15 and abs(a.sigma_z / b.sigma_z - 1) < 1e-12
+    assert np.allclose(a.density, b.density, rtol=1e-9, atol=1e-12)
+
+
+def test_peak_frame_keeps_the_spike_drops_the_pedestal():
+    x, z, px = _beam('spike')                      # 1.2 um spike at +40 um, flat pedestal behind
+    tr = _tracker(frame='peak', zbins=300)
+    tr.get_DF(x, z, px, 0.0)
+    lo, hi, m_lo, m_hi = tr.window
+    T = tr.window_weight(z)
+    assert np.all(T[np.abs(z - 40e-6) < 3e-6] == 1.0)              # the spike: full weight
+    assert np.all(T[z < 40e-6 - 15e-6] == 0.0)                     # the pedestal far behind: dropped
+    fw = 2.3548 * 1.2e-6
+    assert abs((40e-6 - lo) / (3 * fw) - 1) < 0.15 and abs(m_lo / (2 * fw) - 1) < 0.15
+    # the spike's 45% plus the pedestal under the window (its +-~14 um of the 200 um flat top)
+    assert 0.44 < tr.f_window < 0.53
+    assert tr.delta_z_phys < 0.2e-6                                # 300 bins resolve the spike
+
+
+def test_peak_frame_rate_limited_and_continuous():
+    """The window half-width changes by at most exp(peak_rate) per snapshot, and the centre
+    follows a rigid shift continuously."""
+    rng = np.random.default_rng(4)
+    n = 100_000
+    x, px = rng.normal(0, 20e-6, n), rng.normal(0, 1e-6, n)
+    ped = rng.uniform(-150e-6, 50e-6, n // 2)
+    tr = _tracker(frame='peak', zbins=300, peak_rate=0.2)
+    Hs = []
+    for sig in (40e-6, 10e-6, 3e-6, 1.2e-6, 1.2e-6, 1.2e-6):   # a spike sharpening fast
+        z = np.concatenate([ped, rng.normal(40e-6, sig, n - n // 2)])
+        tr.get_DF(x, z, px, 0.0)
+        Hs.append(tr._peak_prev[1])
+    r = np.array(Hs[1:]) / np.array(Hs[:-1])
+    assert np.all(r >= np.exp(-0.2) - 1e-12) and np.all(r <= np.exp(0.2) + 1e-12)
+    zs = np.concatenate([ped, rng.normal(40e-6, 1.2e-6, n - n // 2)])
+    tr = _tracker(frame='peak', zbins=300)
+    cs = []
+    for d in np.linspace(0, 0.5e-6, 6):
+        tr.get_DF(x, zs + d, px, 0.0)
+        cs.append(tr._peak_prev[0])
+    assert np.allclose(np.diff(cs), 0.1e-6, atol=0.02e-6)
+
+
+def test_peak_frame_follows_one_of_two_equal_horns():
+    """Two horns of equal height: the window must stay on the one it started with, not drift."""
+    rng = np.random.default_rng(5)
+    n = 200_000
+    x, px = rng.normal(0, 20e-6, n), rng.normal(0, 1e-6, n)
+    tr = _tracker(frame='peak', zbins=300)
+    cs = []
+    for _ in range(12):                                     # a fresh sample every snapshot
+        k = n // 4
+        z = np.concatenate([rng.uniform(-80e-6, 80e-6, n - 2 * k),
+                            rng.normal(-75e-6, 1.5e-6, k), rng.normal(75e-6, 1.5e-6, k)])
+        tr.get_DF(x, z, px, 0.0)
+        cs.append(tr._peak_prev[0])
+    cs = np.array(cs)
+    assert np.all(np.abs(np.abs(cs) - 75e-6) < 1.0e-6) and np.all(np.sign(cs) == np.sign(cs[0]))
+
+
+# ---------------------------------------------------------------- 8. physical z-smoothing cap, clipped x mesh
+
+@pytest.mark.parametrize('frame', ['quantile', 'peak'])
+def test_smoothing_res_fwhm_caps_the_spike_only(frame):
+    """smoothing_res_fwhm caps the z smoothing in physical length on a narrow spike, and leaves a
+    long Gaussian bunch (whose FWHM is large) at the configured width."""
+    x, z, px = _beam('spike')
+    tr = _tracker(frame=frame, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1)
+    tr.get_DF(x, z, px, 0.0)
+    fw = tr._peak_fw if frame == 'peak' else peak_fwhm(z[tr.window_weight(z) > 0])
+    floor = tr.delta_z_phys * np.sqrt(0.25 + 2.0 / 3.0)        # the 0.5-bin floor
+    assert tr.sz_used < 6.5 and tr.res_z <= max(0.1 * fw, floor) * (1 + 1e-9)
+    xg = np.random.default_rng(3).normal(0, 20e-6, 200000)
+    zg = np.random.default_rng(4).normal(0, 50e-6, 200000)
+    tg = _tracker(frame=frame, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1)
+    tg.get_DF(xg, zg, np.zeros_like(zg), 0.0)
+    assert tg.sz_used == 6.5
+    # no cap: unchanged fields
+    t0, t1 = _tracker(frame=frame, smoothing_sigma_z=2.0), _tracker(frame=frame, smoothing_sigma_z=2.0,
+                                                                     smoothing_res_fwhm=None)
+    t0.get_DF(x, z, px, 0.0)
+    t1.get_DF(x, z, px, 0.0)
+    assert np.array_equal(t0.density, t1.density) and t1.sz_used == 2.0
+
+
+def test_mesh_x_quantile_clips_axis_and_clamps_kick():
+    """mesh_x_quantile: the charge mesh's x axis stays within the quantile span (so the core gets
+    the rows), and particles beyond it get the edge row's kick instead of 0."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    runs = {}
+    for q in (None, 0.01):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = make_golden_2d.config(tmp, {'frame': 'quantile', 'zbins': 128, 'smoothing_sigma_z': 1.0},
+                                      {'mesh_mode': 'charge', 'write_wakes': False, 'mesh_x_quantile': q})
+            with contextlib.redirect_stdout(io.StringIO()):
+                sim = CSR2D(input_file=f)
+                sim.run()
+        runs[q] = sim
+    full, clip = runs[None], runs[0.01]
+    xr_full, xr = np.asarray(full.CSR_xrange_transformed), np.asarray(clip.CSR_xrange_transformed)
+    assert np.ptp(xr) < np.ptp(xr_full)
+    assert np.diff(xr).min() < np.diff(xr_full).min()
+    # Beam.apply_wakes with a uniform unit wake: with clamp_x every particle gets the same kick,
+    # without it the particles beyond the clipped x axis get none
+    b = clip.beam
+    xt = b.x_transform - clip._mesh_ridge(b.z)
+    outside = (xt < xr[0]) | (xt > xr[-1])
+    assert outside.any()
+    ones = np.ones((len(xr), len(clip.CSR_zrange)))
+    dpz = {}
+    for clamp in (False, True):
+        pz0 = b.particle.pz.copy()
+        b.apply_wakes(ones, ones, xr, clip.CSR_zrange, 1.0, 0, x_shift=clip._mesh_ridge(b.z), clamp_x=clamp)
+        dpz[clamp] = b.particle.pz - pz0
+    unit = 1e6 / b.init_energy
+    assert np.allclose(dpz[True], unit, rtol=1e-12)
+    assert np.all(dpz[False][outside] == 0.0) and np.allclose(dpz[False][~outside], unit, rtol=1e-12)

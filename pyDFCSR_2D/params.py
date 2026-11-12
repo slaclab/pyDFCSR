@@ -323,13 +323,18 @@ class CSR_params:
     def configure_params(self, workdir = '.', apply_CSR = 1, compute_CSR = 1,
                          transverse_on = 1, xbins = 20, zbins = 30, xlim = 5, zlim = 5, write_beam = None, write_wakes = True, write_name = '',
                          mesh_mode = 'uniform', mesh_uniform_frac = 0.3, mesh_max_ratio = 1.5,
-                         mesh_smooth = 3.0, mesh_pad = 0.02, pedestal_warn = 0.05):
+                         mesh_smooth = 3.0, mesh_pad = 0.02, pedestal_warn = 0.05,
+                         mesh_x_quantile = None):
         # mesh_mode 'uniform': xbins x zbins evenly over +-xlim, +-zlim rms (the original mesh).
         # mesh_mode 'charge': the same node counts, each axis equidistributing
         #   mesh_uniform_frac / L + (1 - mesh_uniform_frac) * (projected charge, smoothed over
         #   mesh_smooth deposition resolution lengths), over every particle widened by mesh_pad
         #   of the span, neighbouring spacings within mesh_max_ratio (peakfind.charge_nodes).
         #   Every horn or spike gets nodes in proportion to its charge; xlim/zlim are unused.
+        # mesh_x_quantile (mesh_mode 'charge'): the x axis spans [x_q, x_(1-q)] of the transformed x
+        #   instead of every particle, and particles outside get the kick of the edge row (clamped,
+        #   not 0). A beam with sparse transverse tails (BC20: to +-12 sigma) otherwise puts most
+        #   of a 12-row mesh in the tails, 4 rows within +-2.5 sigma. None: every particle.
         # pedestal_warn: with particle_deposition.frame 'quantile', warn when the 1D estimate
         #   of the dropped tails' wake exceeds this fraction of the full wake.
         if mesh_mode not in ('uniform', 'charge'):
@@ -343,6 +348,9 @@ class CSR_params:
         self.mesh_max_ratio = float(mesh_max_ratio)
         self.mesh_smooth = float(mesh_smooth)
         self.mesh_pad = float(mesh_pad)
+        if mesh_x_quantile is not None and not 0.0 < float(mesh_x_quantile) < 0.5:
+            raise ValueError(f'CSR_computation.mesh_x_quantile must be in (0, 0.5), got {mesh_x_quantile}')
+        self.mesh_x_quantile = None if mesh_x_quantile is None else float(mesh_x_quantile)
         self.pedestal_warn = float(pedestal_warn)
         self.compute_CSR = compute_CSR
         self.apply_CSR = apply_CSR

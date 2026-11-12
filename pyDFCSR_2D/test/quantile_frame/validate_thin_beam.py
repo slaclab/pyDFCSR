@@ -51,6 +51,10 @@ VARIANTS = {
     'quantile_20k': dict(n=20000, dep=dict(BASE_DEP, zbins=1200, frame='quantile', smoothing_sigma_z=1.0)),
     'quantile_adapt_20k': dict(n=20000, dep=dict(BASE_DEP, zbins=1200, frame='quantile',
                                                  smoothing_sigma_z=1.0, smoothing_adaptive=True)),
+    # peak frame (window around the highest current peak), 300 z bins
+    'peak': dict(dep=dict(BASE_DEP, zbins=300, frame='peak')),
+    'peak_20k': dict(n=20000, dep=dict(BASE_DEP, zbins=300, frame='peak')),
+    'peak_adapt_20k': dict(n=20000, dep=dict(BASE_DEP, zbins=300, frame='peak', smoothing_adaptive=True)),
     'quantile_int2x': dict(dep=dict(BASE_DEP, zbins=1200, frame='quantile', smoothing_sigma_z=1.0),
                            integ=dict(xbins=400, zbins=400, far_zbins=400, near_patch_nr=200,
                                       near_patch_nphi=360)),
@@ -158,7 +162,8 @@ def plot(kind, res, variants, tag=''):
     INK, INK2, GRID, SURF = '#0b0b0b', '#52514e', '#e4e3df', '#fcfcfb'
     col = {'rms': '#eb6834', 'quantile': '#1baf7a', 'quantile_z2400': '#4a3aa7',
            'quantile_z600': '#eda100', 'quantile_int2x': '#e87ba4', 'quantile_adapt': '#008300',
-           'quantile_20k': '#eda100', 'quantile_adapt_20k': '#4a3aa7'}
+           'quantile_20k': '#eda100', 'quantile_adapt_20k': '#4a3aa7', 'peak': '#e34948',
+           'peak_20k': '#e87ba4', 'peak_adapt_20k': '#008300'}
     z = res['zobs'] * 1e6
     fig, ax = plt.subplots(1, 1, figsize=(9, 4), facecolor=SURF)
     ax.set_facecolor(SURF)

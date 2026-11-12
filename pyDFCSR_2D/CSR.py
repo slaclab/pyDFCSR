@@ -680,7 +680,8 @@ class CSR2D:
                             self.beam.apply_wakes(self.dE_dct, self.x_kick,
                                               self.CSR_xrange_transformed, self.CSR_zrange, L_kick,
                                                   self.CSR_params.transverse_on,
-                                                  x_shift=self._mesh_ridge(self.beam.z))
+                                                  x_shift=self._mesh_ridge(self.beam.z),
+                                                  clamp_x=self.CSR_params.mesh_x_quantile is not None)
                             self._s_last_kick = self.beam.position
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
@@ -733,7 +734,7 @@ class CSR2D:
             return np.zeros_like(np.asarray(z, dtype=float))
         from .deposit_smooth import _curv_g_vec
         w = (np.asarray(z, dtype=float) - tr.z_bar) / tr.sigma_z
-        if getattr(tr, 'frame', 'rms') == 'quantile':
+        if getattr(tr, 'frame', 'rms') in ('quantile', 'peak'):
             # tail particles lie outside the window; continuing g linearly there would
             # throw mesh rows (and the kick lookup) far off the beam. Hold it at the edge.
             w = np.clip(w, tr.w_start, tr.w_end)
@@ -773,7 +774,11 @@ class CSR2D:
             zrange = charge_nodes(self.beam.z, zbins, cp.mesh_uniform_frac,
                                   smooth=cp.mesh_smooth * res_z, pad=cp.mesh_pad,
                                   max_ratio=cp.mesh_max_ratio)
-            xrange = charge_nodes(x_transform, xbins, cp.mesh_uniform_frac,
+            xq = x_transform
+            if cp.mesh_x_quantile is not None:
+                xq = np.clip(x_transform, *np.quantile(x_transform, [cp.mesh_x_quantile,
+                                                                     1.0 - cp.mesh_x_quantile]))
+            xrange = charge_nodes(xq, xbins, cp.mesh_uniform_frac,
                                   smooth=cp.mesh_smooth * res_x, pad=cp.mesh_pad,
                                   max_ratio=cp.mesh_max_ratio)
         else:
@@ -796,7 +801,8 @@ class CSR2D:
             self._fit_beam_vx()
 
     def _quantile_frame(self):
-        return self.use_comoving and getattr(self.DF_tracker, 'frame', 'rms') == 'quantile'
+        # frames 'quantile' and 'peak' share the windowed machinery (taper, mesh, observer vx, log)
+        return self.use_comoving and getattr(self.DF_tracker, 'frame', 'rms') in ('quantile', 'peak')
 
     def _deposition_resolution(self):
         """
@@ -808,6 +814,7 @@ class CSR2D:
             return 0.0, 0.0
         sx = tr.smoothing_sigma
         sz = sx if getattr(tr, 'smoothing_sigma_z', None) is None else tr.smoothing_sigma_z
+        sz = getattr(tr, 'sz_used', sz)      # after the smoothing_res_fwhm cap, if any
         return (tr.delta_w * tr.sigma_z * np.sqrt(sz * sz + 2.0 / 3.0),
                 tr.delta_u * tr.sigma_xi * np.sqrt(sx * sx + 2.0 / 3.0))
 
@@ -870,7 +877,7 @@ class CSR2D:
         h_mesh = np.diff(zr)
         # mesh spacing where the charge is densest (the finest local spacing it reaches)
         h_at_peak = float(h_mesh.min()) if h_mesh.size else np.inf
-        self.quantile_log.append((self.beam.position, tr.window[0], tr.window[1], tr.window[2],
+        self.quantile_log.append((self.beam.position, tr.window[0], tr.window[1], tr.window[2], tr.window[3],
                                   tr.f_window, res_z, fwhm, h_at_peak, frac_loss, frac_field))
         cp = self.CSR_params
         if max(abs(frac_loss), frac_field) > cp.pedestal_warn and not getattr(self, '_warned_ped', False):
@@ -2486,7 +2493,7 @@ class CSR2D:
                 # one row per kick: s, window lo, hi, margin, f_window, res_z, peak FWHM,
                 # finest mesh z spacing, dropped-tail fraction of the 1D loss and field
                 q = hf.create_group('quantile_frame')
-                cols = ('s', 'window_lo', 'window_hi', 'window_margin', 'f_window', 'res_z',
+                cols = ('s', 'window_lo', 'window_hi', 'window_margin', 'window_margin_hi', 'f_window', 'res_z',
                         'peak_fwhm', 'mesh_dz_min', 'dropped_loss_frac', 'dropped_field_frac')
                 arr = np.array(self.quantile_log)
                 for k, c in enumerate(cols):

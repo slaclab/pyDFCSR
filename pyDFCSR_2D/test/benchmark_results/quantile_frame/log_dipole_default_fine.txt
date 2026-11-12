@@ -1,0 +1,1 @@
+default_fine: 18 kicks, 349 s

@@ -1,0 +1,1 @@
+quantile_q0005: 18 kicks, 118 s

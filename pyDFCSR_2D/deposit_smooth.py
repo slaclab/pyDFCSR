@@ -468,7 +468,8 @@ class DF_tracker_comoving:
                          curvature=True, curv_zlim=4.0, smoothing_sigma_z=None,
                          frame='rms', frame_quantile=0.005, frame_margin=0.1,
                          smoothing_adaptive=False, smoothing_min_particles=100,
-                         smoothing_sigma_z_max=16.0):
+                         smoothing_sigma_z_max=16.0, peak_halfwidth=3.0, peak_taper=2.0,
+                         peak_rate=0.2, peak_shift=0.25, smoothing_res_fwhm=None):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
@@ -478,6 +479,14 @@ class DF_tracker_comoving:
         # z smoothing in bins, if it should differ from x (None: smoothing_sigma). With
         # frame 'quantile' and many z bins, z can be smoothed over ~1 bin while x keeps 3.
         self.smoothing_sigma_z = None if smoothing_sigma_z is None else float(smoothing_sigma_z)
+        # frames 'quantile'/'peak': cap the z smoothing in physical length, so that the effective
+        # z resolution (cell * sqrt(sz^2 + 2/3)) stays <= smoothing_res_fwhm * FWHM of the highest
+        # current peak (floor 0.5 bins). The smoothing is in bins and the bins follow the window,
+        # so without a cap a smoothing chosen for the long bunch (BC20 entrance, 2 um bins) is
+        # a few bins of a 0.1 um grid once the window has shrunk onto a spike -- harmless -- but
+        # one chosen to remove the long bunch's fine structure (6.5 bins = 14 um there) is 0.6-1 um
+        # on the spike, comparable to its rms. None: no cap.
+        self.smoothing_res_fwhm = None if smoothing_res_fwhm is None else float(smoothing_res_fwhm)
         # Which normalized frame the fixed (u, w) grid is laid in, per snapshot:
         # 'rms'       w = (z - mean)/std over all particles (the original frame)
         # 'quantile'  the grid spans [z_q, z_(1-q)] widened by frame_margin*span on each side,
@@ -487,8 +496,22 @@ class DF_tracker_comoving:
         #             (BC20: full span 208 um against +-5 rms = 515 um) gets bins fitted to
         #             where its charge is, and quantiles are continuous in the particle
         #             coordinates, so the frame does not jitter or jump between horns.
-        if frame not in ('rms', 'quantile'):
-            raise ValueError(f"frame must be 'rms' or 'quantile', got {frame!r}")
+        # 'peak'      the quantile window, narrowed to the highest current peak: full weight over
+        #             centre +- peak_halfwidth * FWHM, a taper over peak_taper * FWHM, never wider
+        #             than the quantile window. A long bunch gets exactly the quantile frame; once a
+        #             spike forms, the low-current pedestal behind it is dropped as a source (its
+        #             CSR is small; CSR2D reports its 1D share per kick and warns above
+        #             CSR_computation.pedestal_warn, which also catches a second peak outside the
+        #             window). Centre and FWHM from peakfind.peak_center_fwhm, rate-limited between
+        #             snapshots (|d ln H| <= peak_rate, |d centre| <= peak_shift * H), because the
+        #             history lookup blends neighbouring snapshots' frames.
+        if frame not in ('rms', 'quantile', 'peak'):
+            raise ValueError(f"frame must be 'rms', 'quantile' or 'peak', got {frame!r}")
+        self.peak_halfwidth = float(peak_halfwidth)
+        self.peak_taper = float(peak_taper)
+        self.peak_rate = float(peak_rate)
+        self.peak_shift = float(peak_shift)
+        self._peak_prev = None       # (centre, half-width) of the previous snapshot, frame peak
         if not 0.0 < float(frame_quantile) < 0.5:
             raise ValueError(f'frame_quantile must be in (0, 0.5), got {frame_quantile}')
         if not float(frame_margin) > 0.0:
@@ -503,11 +526,11 @@ class DF_tracker_comoving:
         self.smoothing_adaptive = bool(smoothing_adaptive)
         self.smoothing_min_particles = float(smoothing_min_particles)
         self.smoothing_sigma_z_max = float(smoothing_sigma_z_max)
-        if self.smoothing_adaptive and frame != 'quantile':
-            raise ValueError("smoothing_adaptive needs frame 'quantile'")
+        if self.smoothing_adaptive and frame == 'rms':
+            raise ValueError("smoothing_adaptive needs frame 'quantile' or 'peak'")
         self.frame_quantile = float(frame_quantile)
         self.frame_margin = float(frame_margin)
-        self.window = None           # (lo, hi, margin) of the newest snapshot, frame quantile
+        self.window = None           # (lo, hi, margin_lo, margin_hi) of the newest snapshot
         self.f_window = 1.0          # sum(T)/N of the newest snapshot
         self.res_z = None            # effective z resolution of the newest snapshot [m]
         self.res_log = []            # frame quantile: (t, fwhm of the highest peak, res_z, f_window)
@@ -591,7 +614,7 @@ class DF_tracker_comoving:
         self.curv_zlim = float(fit_zlim if curv_zlim is None else curv_zlim)
 
     def get_DF(self, x, z, px, t):
-        if self.frame == 'quantile':
+        if self.frame in ('quantile', 'peak'):
             return self._get_DF_quantile(x, z, px, t)
         zmean = np.mean(z)
         zstd = np.std(z)
@@ -716,7 +739,8 @@ class DF_tracker_comoving:
         if self.window is None:
             return np.ones_like(np.asarray(z, dtype=float))
         from .peakfind import window_weight
-        return window_weight(z, *self.window)
+        lo, hi, m_lo, m_hi = self.window
+        return window_weight(z, lo, hi, m_lo, m_hi)
 
     def _adaptive_weights(self, density, npart, s0):
         """
@@ -759,6 +783,26 @@ class DF_tracker_comoving:
         i_pk = np.unravel_index(np.argmax(pilot), pilot.shape)
         return levels, W, float(s0 * 2.0 ** lev[i_pk])
 
+    def _peak_window(self, z, lo_q, hi_q, m_q):
+        """
+        Frame 'peak': (lo, hi, margin_lo, margin_hi) of the window around the highest current
+        peak, intersected with the quantile window [lo_q, hi_q] (margin m_q). A side cut by the
+        peak window is tapered over peak_taper * FWHM, a side cut by the quantile keeps m_q.
+        """
+        from .peakfind import peak_center_fwhm
+        c, fw = peak_center_fwhm(z, prev=self._peak_prev)
+        H = self.peak_halfwidth * fw
+        if self._peak_prev is not None:
+            cp, Hp = self._peak_prev
+            H = float(np.clip(H, Hp * np.exp(-self.peak_rate), Hp * np.exp(self.peak_rate)))
+            c = float(np.clip(c, cp - self.peak_shift * Hp, cp + self.peak_shift * Hp))
+        self._peak_prev = (c, H)
+        self._peak_fw = H / self.peak_halfwidth      # the rate-limited FWHM, for smoothing_res_fwhm
+        tap = self.peak_taper * H / self.peak_halfwidth
+        lo, m_lo = (c - H, tap) if c - H > lo_q else (lo_q, m_q)
+        hi, m_hi = (c + H, tap) if c + H < hi_q else (hi_q, m_q)
+        return lo, hi, m_lo, m_hi
+
     def _get_DF_quantile(self, x, z, px, t):
         """
         get_DF in frame 'quantile' (see configure_params). The same steps as the rms path,
@@ -770,14 +814,21 @@ class DF_tracker_comoving:
         npart = len(z)
         lo, hi = np.quantile(z, [self.frame_quantile, 1.0 - self.frame_quantile])
         margin = self.frame_margin * (hi - lo)
-        T = window_weight(z, lo, hi, margin)
+        if self.frame == 'peak':
+            lo, hi, m_lo, m_hi = self._peak_window(z, lo, hi, margin)
+            T = window_weight(z, lo, hi, m_lo, m_hi)
+            # frame: centred on the grid span [lo - m_lo, hi + m_hi], which the +-zlim grid spans
+            z_bar = 0.5 * ((lo - m_lo) + (hi + m_hi))
+            sigma_z = 0.5 * ((hi + m_hi) - (lo - m_lo)) / float(self.zlim)
+        else:
+            m_lo = m_hi = margin
+            T = window_weight(z, lo, hi, margin)
+            # frame: centred on the window, scaled so the fixed +-zlim grid spans it exactly
+            z_bar = 0.5 * (lo + hi)
+            sigma_z = (0.5 * (hi - lo) + margin) / float(self.zlim)
         sel = T > 0.0
         Ts = T[sel]
         sw = np.sqrt(Ts)
-
-        # frame: centred on the window, scaled so the fixed +-zlim grid spans it exactly
-        z_bar = 0.5 * (lo + hi)
-        sigma_z = (0.5 * (hi - lo) + margin) / float(self.zlim)
 
         # tilt, fitted with weights T over the window
         poly_coeffs = np.polyfit(z[sel], x[sel], deg=self.poly_degree, w=sw)
@@ -787,8 +838,8 @@ class DF_tracker_comoving:
 
         u = (xi - xi_bar) / sigma_xi
         w = (z - z_bar) / sigma_z
-        # the vx cubic and its clip use the quantile span, where T = 1
-        w_clip = 0.5 * (hi - lo) / sigma_z
+        # the vx cubic and its clip use the window span [lo, hi], where T = 1
+        w_lo, w_hi = (lo - z_bar) / sigma_z, (hi - z_bar) / sigma_z
 
         c2 = c3 = 0.0
         if self.curvature:
@@ -804,7 +855,7 @@ class DF_tracker_comoving:
             q1=u, q2=w, w=T,
             nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
             nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
-        wq = np.clip(w, -w_clip, w_clip)
+        wq = np.clip(w, w_lo, w_hi)
         if self.vx_model == 'affine':
             wc = wq[sel]
             A = np.column_stack([np.ones(wc.size), u[sel], wc, wc ** 2, wc ** 3])
@@ -831,6 +882,12 @@ class DF_tracker_comoving:
                   f'charge fell outside the +-{self.xlim} sigma_xi grid at t = {t:.4f}')
 
         sz = self.smoothing_sigma if self.smoothing_sigma_z is None else self.smoothing_sigma_z
+        fw_pk = peak_fwhm(z[sel])
+        if self.smoothing_res_fwhm:
+            fw = self._peak_fw if self.frame == 'peak' else fw_pk
+            r = self.smoothing_res_fwhm * fw / (self.delta_w * sigma_z)
+            sz = min(sz, max(np.sqrt(max(r * r - 2.0 / 3.0, 0.0)), 0.5))
+        self.sz_used = sz
         # the floor scales with the windowed charge, so eps / peak density stays as in the
         # rms frame; f_window is smooth in time, unlike a per-snapshot peak
         epsilon = f_window * (1.0 / (2.0 * np.pi)) / self.velocity_threhold
@@ -855,7 +912,7 @@ class DF_tracker_comoving:
                 vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
         vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
         if self.vx_model == 'affine':
-            wg = np.clip(self.w_grids, -w_clip, w_clip)[None, :]
+            wg = np.clip(self.w_grids, w_lo, w_hi)[None, :]
             vx_smooth = vx_smooth + (vx_coef[0] + vx_coef[1] * self.u_grids[:, None]
                                      + vx_coef[2] * wg + vx_coef[3] * wg ** 2
                                      + vx_coef[4] * wg ** 3)
@@ -876,13 +933,13 @@ class DF_tracker_comoving:
         self.delta_xi_phys = self.delta_u * sigma_xi
         self.delta_z_phys = self.delta_w * sigma_z
 
-        self.window = (float(lo), float(hi), float(margin))
+        self.window = (float(lo), float(hi), float(m_lo), float(m_hi))
         self.f_window = f_window
         # effective z resolution: B-spline deposit + B-spline evaluation (variance 2/3 cell^2)
         # and the Gaussian smoothing (sz cells; with smoothing_adaptive, the width used at the
         # density peak, i.e. the finest the run resolves)
         self.res_z = self.delta_z_phys * np.sqrt(sz_peak * sz_peak + 2.0 / 3.0)
-        self.res_log.append((t, peak_fwhm(z[sel]), self.res_z, f_window))
+        self.res_log.append((t, fw_pk, self.res_z, f_window))
 
     NFIELD = 5      # density, density_u, density_w, vx, vx_u
 

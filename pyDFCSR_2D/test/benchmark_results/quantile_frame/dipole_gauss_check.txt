@@ -1,0 +1,14 @@
+Standard Gaussian dipole case (dipole_chirp0_config.yaml), the new 2D options against the default.
+dE = mean energy change vs CSR off; core slice sigma_E = mean over the 4 central final-z slices;
+wake rel. diff = L2 over z of the particle-averaged wake vs default at the nearest kick, median over kicks.
+             variant kicks  time s   dE keV sigma_E keV core sE keV eps_n um sigma_z um  W rel  F rel
+             default    18     117  -1378.6      1041.0       726.3  26.0023    64.0283  0.000  0.000
+                 off    18      12      0.0       500.0       486.3   2.4462    67.2953  0.000  0.000
+            quantile    18     124  -1411.1      1084.8       744.4  26.4263    63.8751  0.038  0.019
+      quantile_adapt    18     124  -1406.9      1084.3       744.2  26.4270    63.8790  0.038  0.019
+   quantile_adapt_kp    68     347  -1402.8      1086.7       747.5  26.1827    63.7425  0.044  0.019
+        default_fine    18     349  -1416.6      1100.3       754.9  26.7024    63.8821  0.048  0.030
+       quantile_fine    18     340  -1428.1      1113.0       757.8  26.7904    63.8114  0.060  0.037
+      quantile_q0005    18     118  -1401.3      1066.4       735.6  26.2198    63.9280  0.023  0.011
+                peak    18     103  -1411.1      1084.8       744.4  26.4263    63.8751  0.038  0.019
+             bc20set    68     991  -1429.4      1123.5       765.1  26.5862    63.6520  0.089  0.040

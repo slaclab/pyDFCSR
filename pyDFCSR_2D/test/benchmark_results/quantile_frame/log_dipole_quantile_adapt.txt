@@ -1,0 +1,1 @@
+quantile_adapt: 18 kicks, 124 s

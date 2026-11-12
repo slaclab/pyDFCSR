@@ -5,8 +5,10 @@ and scipy only), so csr1d (which imports CSR) and CSR/deposit_smooth can both im
   peak_fwhm      FWHM of the highest current peak. 1D: CSR_1D.bin_mode 'peak' sets the bin
                  width from it. 2D: only a resolution WARNING, never the frame -- with a double
                  horn the "highest" peak can switch between horns from step to step.
-  window_weight  the taper T(z) of the 2D quantile frame: 1 on [lo, hi], C2 smootherstep to 0
-                 across `margin` on each side.
+  window_weight  the taper T(z) of the 2D quantile/peak frames: 1 on [lo, hi], C2 smootherstep
+                 to 0 across a margin on each side (the two sides may differ).
+  peak_center_fwhm  centre (centroid-refined) and FWHM of the highest current peak, for the
+                 2D peak frame.
   equidistribute nodes on [a, b] with equal integral of a monitor M between neighbours, M
                  graded so neighbouring spacings differ by at most max_ratio. The 2D wake mesh
                  in mesh_mode 'charge' uses it with M = uniform floor + smoothed current, so
@@ -41,12 +43,61 @@ def _smootherstep(t):
     return t * t * t * (t * (6.0 * t - 15.0) + 10.0)
 
 
-def window_weight(z, lo, hi, margin):
-    """T(z): 1 on [lo, hi], C2 smootherstep down to 0 at lo - margin and hi + margin."""
+def window_weight(z, lo, hi, margin, margin_hi=None):
+    """
+    T(z): 1 on [lo, hi], C2 smootherstep down to 0 at lo - margin and hi + margin_hi
+    (margin_hi defaults to margin).
+    """
     z = np.asarray(z, dtype=np.float64)
-    if margin <= 0:
-        return ((z >= lo) & (z <= hi)).astype(np.float64)
-    return _smootherstep((z - (lo - margin)) / margin) * _smootherstep(((hi + margin) - z) / margin)
+    m_hi = margin if margin_hi is None else margin_hi
+    if margin <= 0 or m_hi <= 0:
+        return ((z >= lo - max(margin, 0)) & (z <= hi + max(m_hi, 0))).astype(np.float64)
+    return _smootherstep((z - (lo - margin)) / margin) * _smootherstep(((hi + m_hi) - z) / m_hi)
+
+
+def peak_center_fwhm(z, n_hist=2000, n_shift=3, prev=None, switch=1.3):
+    """
+    Centre and FWHM of the highest current peak, for the 2D peak frame. The histogram arg-max
+    (n_hist bins over the central 99.8%, smoothed over 2 bins) only starts the search: the FWHM
+    uses linearly interpolated half-maximum crossings, and the centre is then refined as the
+    centroid of the particles within +-FWHM/2 (n_shift passes), which is continuous in the particle
+    coordinates and not pulled from bin to bin by sub-peaks of similar height.
+
+    prev = (centre, half-width) of the peak followed so far: the search is then restricted to
+    within 2 half-widths of it, and moves to another peak only if that one is `switch` times
+    higher. Without this, two horns of equal height make the arg-max flip between them from
+    snapshot to snapshot.
+    """
+    from scipy.ndimage import gaussian_filter1d
+    z = np.asarray(z, dtype=np.float64)
+    lo, hi = np.quantile(z, [0.001, 0.999])
+    h, e = np.histogram(z, bins=n_hist, range=(lo, hi))
+    h = gaussian_filter1d(h.astype(np.float64), 2.0)
+    c = 0.5 * (e[1:] + e[:-1])
+    k = int(np.argmax(h))
+    if prev is not None:
+        near = np.flatnonzero(np.abs(c - prev[0]) <= 2.0 * prev[1])
+        if near.size:
+            kl = int(near[np.argmax(h[near])])
+            if h[k] < switch * h[kl]:
+                k = kl
+    half = 0.5 * h[k]
+    a = k
+    while a > 0 and h[a - 1] >= half:
+        a -= 1
+    b = k
+    while b < h.size - 1 and h[b + 1] >= half:
+        b += 1
+    za = c[a] if a == 0 else np.interp(half, [h[a - 1], h[a]], [c[a - 1], c[a]])
+    zb = c[b] if b == h.size - 1 else np.interp(half, [h[b + 1], h[b]], [c[b + 1], c[b]])
+    fwhm = max(zb - za, 2.0 * (e[1] - e[0]))
+    zc = c[k]
+    for _ in range(n_shift):
+        m = np.abs(z - zc) < 0.5 * fwhm
+        if m.sum() < 10:
+            break
+        zc = float(z[m].mean())
+    return zc, float(fwhm)
 
 
 def grade_monitor(g, m, n, max_ratio):

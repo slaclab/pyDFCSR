@@ -105,11 +105,16 @@ class Beam():
             self.step += 1
         self.update_status()
   #  @profile
-    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on, x_shift=None):
+    def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on, x_shift=None,
+                    clamp_x=False):
         # Todo: add options for transverse or longitudinal kick only
         # x_shift: per-particle offset subtracted from x_transform, matching a wake mesh
         # that follows a curved ridge (CSR2D._mesh_ridge); None = the straight mesh
+        # clamp_x: particles beyond the mesh's x span get the edge row's kick instead of 0
+        # (CSR_computation.mesh_x_quantile, whose x axis does not span every particle)
         xt = self.x_transform if x_shift is None else self.x_transform - x_shift
+        if clamp_x:
+            xt = np.clip(xt, xrange[0], xrange[-1])
         dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV
         interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
         dE_Es = interp(np.array([xt, self.z]).T)
