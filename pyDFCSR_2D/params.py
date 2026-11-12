@@ -321,7 +321,29 @@ class CSR_params:
         self.configure_params(**input_dic)
 
     def configure_params(self, workdir = '.', apply_CSR = 1, compute_CSR = 1,
-                         transverse_on = 1, xbins = 20, zbins = 30, xlim = 5, zlim = 5, write_beam = None, write_wakes = True, write_name = ''):
+                         transverse_on = 1, xbins = 20, zbins = 30, xlim = 5, zlim = 5, write_beam = None, write_wakes = True, write_name = '',
+                         mesh_mode = 'uniform', mesh_uniform_frac = 0.3, mesh_max_ratio = 1.5,
+                         mesh_smooth = 3.0, mesh_pad = 0.02, pedestal_warn = 0.05):
+        # mesh_mode 'uniform': xbins x zbins evenly over +-xlim, +-zlim rms (the original mesh).
+        # mesh_mode 'charge': the same node counts, each axis equidistributing
+        #   mesh_uniform_frac / L + (1 - mesh_uniform_frac) * (projected charge, smoothed over
+        #   mesh_smooth deposition resolution lengths), over every particle widened by mesh_pad
+        #   of the span, neighbouring spacings within mesh_max_ratio (peakfind.charge_nodes).
+        #   Every horn or spike gets nodes in proportion to its charge; xlim/zlim are unused.
+        # pedestal_warn: with particle_deposition.frame 'quantile', warn when the 1D estimate
+        #   of the dropped tails' wake exceeds this fraction of the full wake.
+        if mesh_mode not in ('uniform', 'charge'):
+            raise ValueError(f"CSR_computation.mesh_mode must be 'uniform' or 'charge', got {mesh_mode!r}")
+        if not 0.0 <= float(mesh_uniform_frac) <= 1.0:
+            raise ValueError(f'CSR_computation.mesh_uniform_frac must be in [0, 1], got {mesh_uniform_frac}')
+        if not float(mesh_max_ratio) > 1.0:
+            raise ValueError(f'CSR_computation.mesh_max_ratio must be > 1, got {mesh_max_ratio}')
+        self.mesh_mode = mesh_mode
+        self.mesh_uniform_frac = float(mesh_uniform_frac)
+        self.mesh_max_ratio = float(mesh_max_ratio)
+        self.mesh_smooth = float(mesh_smooth)
+        self.mesh_pad = float(mesh_pad)
+        self.pedestal_warn = float(pedestal_warn)
         self.compute_CSR = compute_CSR
         self.apply_CSR = apply_CSR
         self.transverse_on = transverse_on

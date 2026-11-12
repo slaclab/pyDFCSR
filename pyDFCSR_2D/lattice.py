@@ -234,7 +234,9 @@ class Lattice():
                 kappa=cfg.get('kappa'), h_min=cfg.get('h_min'), h_max=cfg.get('h_max'),
                 r_floor=cfg.get('r_floor'),
                 dyadic=cfg.get('dyadic'),
-                force_nodes=cfg.get('force_nodes'))
+                force_nodes=cfg.get('force_nodes'),
+                kick_profile=cfg.get('kick_profile'),
+                kick_tol=cfg.get('kick_tol', 0.01), kick_h_max=cfg.get('kick_h_max', 1.0))
         elif mode == 'manual':
             self.schedule = build_manual(
                 self.lattice_config, self.distance, self.lattice_length, self.Nelement,

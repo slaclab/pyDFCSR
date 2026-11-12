@@ -29,7 +29,7 @@ from scipy.integrate import quad
 from scipy.optimize import brentq
 
 from pyDFCSR_2D.csr1d import (AMP_BEND, AMP_DRIFT, CSR1D, CSR1D_params, CSR1DGeometry,
-                              line_density, retarded_angle, wake_after_bend, wake_in_bend)
+                              bin_width, line_density, retarded_angle, wake_after_bend, wake_in_bend)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.join(HERE, 'csr1d', 'fixtures')
@@ -307,6 +307,33 @@ def test_line_density_normalisation():
         assert lam[0] == 0 and lam[-1] == 0                     # padded edges
 
 
+def test_line_density_given_ds():
+    """ds=extent/nbins reproduces the default grid bit for bit; any ds keeps charge and coverage."""
+    z = np.random.default_rng(2).normal(0, SZ, 100_000)
+    ref = line_density(z, 300, N_E, nsmooth=2)
+    got = line_density(z, 0, N_E, nsmooth=2, ds=bin_width(z, 300, 'extent'))
+    assert all(np.array_equal(a, b) for a, b in zip(ref, got))
+    for ds in (SZ / 7.3, SZ / 41.0):
+        S, d, lam, dl = line_density(z, 0, N_E, nsmooth=2, ds=ds)
+        assert d == ds and abs(lam.sum() * ds / N_E - 1) < 1e-12
+        assert S[0] < z.min() and S[-1] > z.max() and lam[0] == 0 and lam[-1] == 0
+
+
+def test_bin_width_modes():
+    """quantile ignores a far outlier; peak resolves a short spike on a long pedestal."""
+    rng = np.random.default_rng(3)
+    ped = rng.uniform(-100e-6, 100e-6, 60_000)
+    spike = rng.normal(40e-6, 2e-6, 40_000)                      # FWHM 4.71 um
+    z = np.concatenate([ped, spike, [5e-3]])                     # one particle 5 mm away
+    assert bin_width(z, 300, 'extent') > 15e-6                   # the outlier sets it
+    q = bin_width(z, 300, 'quantile', quantile=0.05)
+    assert abs(q - (np.quantile(z, 0.95) - np.quantile(z, 0.05)) / 300) < 1e-18 and q < 1e-6
+    p = bin_width(z, 300, 'peak', bins_per_fwhm=20)
+    assert abs(p * 20 / (2 * np.sqrt(2 * np.log(2)) * 2e-6) - 1) < 0.1
+    with pytest.raises(ValueError):
+        bin_width(z, 300, 'median')
+
+
 # ---------------------------------------------------------------- geometry
 
 LAT = {'step_size': 0.1,
@@ -440,3 +467,7 @@ def test_params():
         CSR1D_params({'kick_interp': 'nearest'})
     with pytest.raises(ValueError):
         CSR1D_params({'nbins': 3})
+    assert (p.bin_mode, p.bin_quantile, p.bins_per_fwhm, p.max_bins) == ('extent', 0.05, 20, 20000)
+    for bad in ({'bin_mode': 'fwhm'}, {'bin_quantile': 0.5}, {'bins_per_fwhm': 0}):
+        with pytest.raises(ValueError):
+            CSR1D_params(bad)

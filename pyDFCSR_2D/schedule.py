@@ -658,9 +658,45 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
                        d_edge=d_edge, L_f_edge=L_f_edge, r_edge=r_edge, r_wake=r_wake)
 
 
+def kicks_from_profile(s_nodes, forced, prof_s, prof_r, tol=0.01, h_kick_max=1.0):
+    """
+    Kick nodes chosen from a CSR strength profile r(s) >= 0 (step_control kick_placement 'csr1d':
+    r = rms over the bunch of the 1D wake, from a pre-pass with a kick at every snapshot).
+
+    Kick density, integrated along s and placed at every integer of its running integral:
+        n(s) = r / (tol R)  +  (|r''| / (24 tol R))^(1/3)  +  1 / h_kick_max,     R = int r ds
+    The first term caps each kick's share of the total CSR at ~tol; the second bounds the midpoint
+    rule's local error h^3 |r''| / 24 by the same budget; the third caps the spacing where there is
+    no CSR. Nodes in `forced` (the dipole edges, where W jumps) are always kicks. Kicks are a
+    subset of s_nodes, as the schedule requires.
+    """
+    from scipy.ndimage import gaussian_filter1d
+    s_nodes = np.asarray(s_nodes, float)
+    ps = np.asarray(prof_s, float)
+    pr = np.maximum(np.asarray(prof_r, float), 0.0)
+    R = float(np.trapz(pr, ps))
+    n = np.full(s_nodes.size, 1.0 / h_kick_max)
+    if R > 0 and ps.size > 4:
+        r = np.interp(s_nodes, ps, pr)
+        # r'' on the node grid, lightly smoothed so shot noise in the 1D pre-pass does not count
+        d2 = np.gradient(np.gradient(gaussian_filter1d(r, 1.5), s_nodes), s_nodes)
+        n = n + r / (tol * R) + np.cbrt(np.abs(d2) / (24.0 * tol * R))
+    phi = np.concatenate([[0.0], np.cumsum(0.5 * (n[1:] + n[:-1]) * np.diff(s_nodes))])
+    is_kick = np.zeros(s_nodes.size, bool)
+    forced = np.asarray(forced, float)
+    nxt = 1.0
+    for i in range(1, s_nodes.size):
+        if phi[i] >= nxt or (forced.size and np.any(np.abs(forced - s_nodes[i]) < 1e-9)):
+            is_kick[i] = True
+            nxt = phi[i] + 1.0
+    is_kick[-1] = True
+    return is_kick
+
+
 def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_scan,
                rho_scan, L_f_scan, step_size=None, kick_interval='trailing', nsep=None,
-               sxi_scan=None, tau_scan=None, sx_scan=None, force_nodes=None, **overrides):
+               sxi_scan=None, tau_scan=None, sx_scan=None, force_nodes=None, kick_profile=None,
+               kick_tol=0.01, kick_h_max=1.0, **overrides):
     """
     Build a schedule by equidistributing 1/h_eff, so element boundaries land exactly.
 
@@ -739,18 +775,26 @@ def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_s
     is_step[0] = False
     is_snap = is_step.copy()
 
-    # kicks: coarser than snapshots by kappa, snapped to snapshot nodes, forced at every boundary
-    is_kick = np.zeros(s_nodes.size, bool)
-    kick_h = opts['kappa'] * np.interp(s_nodes, s_scan, h_eff)
-    nxt = s_nodes[0]
-    for i in range(1, s_nodes.size):
-        if s_nodes[i] >= nxt or np.any(np.abs(distance - s_nodes[i]) < 1e-12):
-            is_kick[i] = True
-            nxt = s_nodes[i] + kick_h[i]
+    clip_at = distance
+    if kick_profile is not None:
+        # kicks where the CSR is (kicks_from_profile); forced only at the dipole edges, the one
+        # place W jumps, and midpoint intervals clipped only there
+        is_kick = kicks_from_profile(s_nodes, bend_edges, kick_profile[0], kick_profile[1],
+                                     tol=kick_tol, h_kick_max=kick_h_max)
+        clip_at = np.asarray(bend_edges, float)
+    else:
+        # kicks: coarser than snapshots by kappa, snapped to snapshot nodes, forced at every boundary
+        is_kick = np.zeros(s_nodes.size, bool)
+        kick_h = opts['kappa'] * np.interp(s_nodes, s_scan, h_eff)
+        nxt = s_nodes[0]
+        for i in range(1, s_nodes.size):
+            if s_nodes[i] >= nxt or np.any(np.abs(distance - s_nodes[i]) < 1e-12):
+                is_kick[i] = True
+                nxt = s_nodes[i] + kick_h[i]
 
     if kick_interval == 'midpoint':
         kick_lo, kick_hi = midpoint_intervals(s_nodes, np.flatnonzero(is_kick),
-                                              distance, lattice_length)
+                                              clip_at, lattice_length)
     else:
         kick_lo = np.zeros(s_nodes.size)
         kick_hi = np.zeros(s_nodes.size)

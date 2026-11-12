@@ -26,7 +26,17 @@ was cheap:
 YAML: the same file as for CSR2D, plus an optional block
 
     CSR_1D:
-      nbins: 300            # bins across the beam's z extent
+      nbins: 300            # bins across the beam's z extent (bin_mode extent) or its central
+                            # 1 - 2*bin_quantile of charge (bin_mode quantile)
+      bin_mode: extent      # how the bin width ds is set at each kick:
+                            #   extent    ds = (max z - min z) / nbins
+                            #   quantile  ds = (z(1-q) - z(q)) / nbins, q = bin_quantile: tails
+                            #             and outliers do not widen the bins
+                            #   peak      ds = FWHM of the highest current peak / bins_per_fwhm
+                            # the grid always covers every particle, at most max_bins bins
+      bin_quantile: 0.05
+      bins_per_fwhm: 20
+      max_bins: 20000
       nsmooth: 2            # Savitzky-Golay half-window in bins; <= 1 disables smoothing
       kick_interp: spline   # 'spline' (not-a-knot cubic, as MATLAB interp1 'spline') or 'linear'
       drift_cutoff: 0.0     # stop computing CSR this many |R*phi| past a bend exit; 0 = never
@@ -47,6 +57,7 @@ from .lattice import Lattice
 from .params import CSR_params
 from .physical_constants import MC2, e as E_CHARGE
 from .tools import full_path, isotime
+from .peakfind import peak_fwhm
 from .waist import sigma_from_coords
 from .yaml_parser import parse_yaml
 
@@ -60,19 +71,41 @@ AMP_DRIFT = -5.763848158950925e-09
 # kernel: pure functions on a uniform grid S with spacing ds
 # ---------------------------------------------------------------------------------------------
 
-def line_density(z, nbins, n_electrons, nsmooth=2):
+def bin_width(z, nbins, mode='extent', quantile=0.05, bins_per_fwhm=20):
+    """
+    Bin width ds for line_density, from the bin_mode of the CSR_1D block (see the module doc).
+
+    'peak' finds the highest peak of a 1000-bin histogram of the central 99.8% of the charge,
+    smoothed over 2 bins, and measures its full width at half maximum there (at least 2 bins).
+    """
+    z = np.asarray(z, dtype=np.float64)
+    if mode == 'extent':
+        return (z.max() - z.min()) / nbins
+    if mode == 'quantile':
+        lo, hi = np.quantile(z, [quantile, 1.0 - quantile])
+        return (hi - lo) / nbins
+    if mode == 'peak':
+        return peak_fwhm(z) / bins_per_fwhm
+    raise ValueError(f'bin_width: unknown mode {mode!r}')
+
+
+def line_density(z, nbins, n_electrons, nsmooth=2, ds=None):
     """
     Bin z into a line density lambda(S) [electrons/m] and its derivative.
 
     `nbins` bins span [min z, max z]; nsmooth + 2 empty bins are added on each side so that the
     smoothing window and the derivative see lambda fall to zero instead of a grid edge.
+    With `ds` given, the bins have that width instead and nbins = ceil((max z - min z) / ds).
     Returns S (bin centres), ds, lambda, dlambda/ds.
     """
     z = np.asarray(z, dtype=np.float64)
     zmin, zmax = z.min(), z.max()
     if not zmax > zmin:
         raise ValueError('line_density: all particles at the same z')
-    ds = (zmax - zmin) / nbins
+    if ds is None:
+        ds = (zmax - zmin) / nbins
+    else:
+        nbins = max(int(np.ceil((zmax - zmin) / ds - 1e-9)), 1)
     pad = max(int(nsmooth), 0) + 2
     edges = zmin + ds * np.arange(-pad, nbins + pad + 1)
     counts, _ = np.histogram(z, bins=edges)
@@ -248,17 +281,74 @@ class CSR1DGeometry:
 # driver
 # ---------------------------------------------------------------------------------------------
 
+def _plain(o):
+    """OrderedDict trees from parse_yaml -> plain dicts/lists, for yaml.safe_dump."""
+    if isinstance(o, dict):
+        return {k: _plain(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_plain(v) for v in o]
+    return o
+
+
+def csr1d_kick_profile(cfg, csr1d_opts=None):
+    """
+    CSR strength profile for step_control kick_placement 'csr1d' (schedule.kicks_from_profile).
+
+    Runs CSR1D on the same beam, lattice and auto schedule with a kick at EVERY snapshot
+    (kappa 1), CSR applied so the bunch compresses as it will, peak-mode bins (20 per FWHM unless
+    csr1d_opts says otherwise), output to a temporary directory. Returns (s, r): the kick
+    positions and r = rms of the 1D wake over the bunch's line density [eV/m]; 0 where there is
+    no CSR (before the first bend). Seconds for BC20 (2062 kicks).
+    """
+    import contextlib
+    import io
+    import tempfile
+    import yaml
+    c = _plain(cfg)
+    sc = dict(c.get('step_control') or {})
+    for k in ('kick_placement', 'kick_profile', 'kick_tol', 'kick_h_max', 'kick_profile_1d'):
+        sc.pop(k, None)
+    sc.update(mode='auto', kappa=1.0)
+    sc.setdefault('kick_interval', 'midpoint')
+    c['step_control'] = sc
+    with tempfile.TemporaryDirectory() as tmp:
+        cc = dict(c.get('CSR_computation') or {})
+        cc.update(compute_CSR=1, apply_CSR=1, write_wakes=False, write_beam=None, workdir=tmp,
+                  write_name='kick_profile')
+        c['CSR_computation'] = cc
+        c['CSR_1D'] = dict(dict(bin_mode='peak', bins_per_fwhm=20), **(csr1d_opts or {}), record=True)
+        stream = io.StringIO(yaml.safe_dump(c, sort_keys=False))
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR1D(input_file=stream)
+            sim.run()
+    s = np.array([k['position'] for k in sim.kicks])
+    r = np.array([np.sqrt(np.sum(k['lam'] * k['W'] ** 2) / max(np.sum(k['lam']), 1e-300))
+                  for k in sim.kicks])
+    return s, r
+
+
 class CSR1D_params:
     def __init__(self, input_dic=None):
         self.configure_params(**(input_dic or {}))
 
     def configure_params(self, nbins=300, nsmooth=2, kick_interp='spline', drift_cutoff=0.0,
-                         record=False):
+                         record=False, bin_mode='extent', bin_quantile=0.05, bins_per_fwhm=20,
+                         max_bins=20000):
         if kick_interp not in ('spline', 'linear'):
             raise ValueError(f"CSR_1D.kick_interp must be 'spline' or 'linear', got {kick_interp!r}")
         if int(nbins) < 10:
             raise ValueError(f'CSR_1D.nbins must be >= 10, got {nbins}')
+        if bin_mode not in ('extent', 'quantile', 'peak'):
+            raise ValueError(f"CSR_1D.bin_mode must be 'extent', 'quantile' or 'peak', got {bin_mode!r}")
+        if not 0.0 < float(bin_quantile) < 0.5:
+            raise ValueError(f'CSR_1D.bin_quantile must be in (0, 0.5), got {bin_quantile}')
+        if not float(bins_per_fwhm) > 0:
+            raise ValueError(f'CSR_1D.bins_per_fwhm must be > 0, got {bins_per_fwhm}')
         self.nbins = int(nbins)
+        self.bin_mode = bin_mode
+        self.bin_quantile = float(bin_quantile)
+        self.bins_per_fwhm = float(bins_per_fwhm)
+        self.max_bins = int(max_bins)
         self.nsmooth = int(nsmooth)
         self.kick_interp = kick_interp
         self.drift_cutoff = float(drift_cutoff)
@@ -312,6 +402,8 @@ class CSR1D:
         if sc.get('mode') == 'auto':
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py, b.z, b.pz)
+        if sc.get('kick_placement') == 'csr1d':
+            sc['kick_profile'] = csr1d_kick_profile(cfg, sc.get('kick_profile_1d'))
         self.lattice = Lattice(cfg['input_lattice'], step_control=sc, sigma0=sigma0)
         self.CSR_params = CSR_params(cfg['CSR_computation']) if 'CSR_computation' in cfg else CSR_params()
         self.params = CSR1D_params(cfg.get('CSR_1D'))
@@ -322,7 +414,19 @@ class CSR1D:
     def calculate_1D_CSR(self, element_name):
         p = self.params
         geom = self.geometry.at(self.beam.position, element_name)
-        S, ds, lam, dlam = line_density(self.beam.z, p.nbins, self.n_electrons, p.nsmooth)
+        if p.bin_mode == 'extent':
+            ds = None
+        else:
+            z = self.beam.z
+            ds = bin_width(z, p.nbins, p.bin_mode, p.bin_quantile, p.bins_per_fwhm)
+            ds_min = (z.max() - z.min()) / p.max_bins
+            if ds < ds_min:
+                if not getattr(self, '_warned_max_bins', False):
+                    self._warned_max_bins = True
+                    print(f'  [CSR1D] WARNING: bin_mode {p.bin_mode} wants ds = {ds:.3e} m, more than '
+                          f'max_bins = {p.max_bins} across the beam; using ds = {ds_min:.3e} m')
+                ds = ds_min
+        S, ds, lam, dlam = line_density(self.beam.z, p.nbins, self.n_electrons, p.nsmooth, ds=ds)
         W = wake_1d(S, ds, lam, dlam, geom)
         if geom['case'] != 'none' and not getattr(self, '_warned_ds', False):
             gam = self.beam.init_energy / MC2

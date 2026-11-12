@@ -39,6 +39,7 @@ class CSR2D:
     def __init__(self, input_file=None, parallel = False):
 
         self.timestamp = isotime()
+        self._parallel_requested = bool(parallel)
         if input_file:
             self.parse_input(input_file)
             self.input_file = input_file
@@ -68,6 +69,22 @@ class CSR2D:
         if sc.get('mode') == 'auto':
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py, b.z, b.pz)
+        if sc.get('kick_placement') == 'csr1d':
+            # kicks where the CSR is: a 1D pre-pass (seconds) gives the wake strength along s,
+            # schedule.kicks_from_profile places the 2D kicks on it. Rank 0 runs it, all share it.
+            if sc.get('mode') != 'auto':
+                raise ValueError("step_control kick_placement 'csr1d' needs mode 'auto'")
+            from .csr1d import csr1d_kick_profile
+            par = getattr(self, '_parallel_requested', False) and MPI.COMM_WORLD.Get_size() > 1
+            prof = None
+            if (not par) or MPI.COMM_WORLD.Get_rank() == 0:
+                prof = csr1d_kick_profile(input, sc.get('kick_profile_1d'))
+            if par:
+                prof = MPI.COMM_WORLD.bcast(prof, root=0)
+            sc['kick_profile'] = prof
+        elif sc.get('kick_placement', 'kappa') != 'kappa':
+            raise ValueError(f"step_control kick_placement must be 'kappa' or 'csr1d', got "
+                             f"{sc.get('kick_placement')!r}")
         self.lattice = Lattice(input['input_lattice'], step_control=sc, sigma0=sigma0)
 
         if 'particle_deposition' in input:
@@ -630,6 +647,8 @@ class CSR2D:
                             self.calculate_2D_CSR_parallel()
                         else:
                             self.calculate_2D_CSR()
+                        if self._quantile_frame() and ((not self.parallel) or self.rank == 0):
+                            self._quantile_diagnostics()
                         # Apply CSR kick to the beam
                         if self.CSR_params.apply_CSR:
                             # The kick is a rectangle-rule quadrature of int(W ds), so the
@@ -714,6 +733,10 @@ class CSR2D:
             return np.zeros_like(np.asarray(z, dtype=float))
         from .deposit_smooth import _curv_g_vec
         w = (np.asarray(z, dtype=float) - tr.z_bar) / tr.sigma_z
+        if getattr(tr, 'frame', 'rms') == 'quantile':
+            # tail particles lie outside the window; continuing g linearly there would
+            # throw mesh rows (and the kick lookup) far off the beam. Hold it at the edge.
+            w = np.clip(w, tr.w_start, tr.w_end)
         return tr.sigma_xi * _curv_g_vec(tr.curv_c2, tr.curv_c3, w, tr.curv_zlim)
 
     def get_CSR_mesh(self):
@@ -740,8 +763,22 @@ class CSR2D:
         xbins = self.CSR_params.xbins
         zbins = self.CSR_params.zbins
 
-        zrange = np.linspace(mean_z - zlim * sig_z, mean_z + zlim * sig_z, zbins)
-        xrange = np.linspace(mean_x - xlim * sig_x, mean_x + xlim * sig_x, xbins)
+        if self.CSR_params.mesh_mode == 'charge':
+            # node density follows the projected charge (peakfind.charge_nodes), smoothed
+            # over mesh_smooth deposition resolution lengths so the field just outside a
+            # spike is covered too; the axes span every particle
+            from .peakfind import charge_nodes
+            cp = self.CSR_params
+            res_z, res_x = self._deposition_resolution()
+            zrange = charge_nodes(self.beam.z, zbins, cp.mesh_uniform_frac,
+                                  smooth=cp.mesh_smooth * res_z, pad=cp.mesh_pad,
+                                  max_ratio=cp.mesh_max_ratio)
+            xrange = charge_nodes(x_transform, xbins, cp.mesh_uniform_frac,
+                                  smooth=cp.mesh_smooth * res_x, pad=cp.mesh_pad,
+                                  max_ratio=cp.mesh_max_ratio)
+        else:
+            zrange = np.linspace(mean_z - zlim * sig_z, mean_z + zlim * sig_z, zbins)
+            xrange = np.linspace(mean_x - xlim * sig_x, mean_x + xlim * sig_x, xbins)
 
         # Todo: check the order
         xmesh_transform, zmesh = np.meshgrid(xrange, zrange, indexing='ij')
@@ -755,6 +792,116 @@ class CSR2D:
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
+        if self._quantile_frame():
+            self._fit_beam_vx()
+
+    def _quantile_frame(self):
+        return self.use_comoving and getattr(self.DF_tracker, 'frame', 'rms') == 'quantile'
+
+    def _deposition_resolution(self):
+        """
+        (z, x) effective resolution of the newest density snapshot [m]: cell times
+        sqrt(smoothing^2 + 2/3), the B-spline deposit and evaluation adding 1/3 cell^2 each.
+        """
+        tr = self.DF_tracker
+        if not self.use_comoving or tr.sigma_z is None:
+            return 0.0, 0.0
+        sx = tr.smoothing_sigma
+        sz = sx if getattr(tr, 'smoothing_sigma_z', None) is None else tr.smoothing_sigma_z
+        return (tr.delta_w * tr.sigma_z * np.sqrt(sz * sz + 2.0 / 3.0),
+                tr.delta_u * tr.sigma_xi * np.sqrt(sx * sx + 2.0 / 3.0))
+
+    def _fit_beam_vx(self):
+        """
+        Beam-wide fit px ~ c0 + b x_t + cubic in (z - mean)/sigma_z, over ALL particles, for
+        the observer velocity outside the quantile window (get_CSR_integrand), where the
+        windowed source density -- and so its vx -- is zero.
+        """
+        b = self.beam
+        w = (b.z - b.mean_z) / b.sigma_z
+        wq = np.clip(w, -3.0, 3.0)
+        A = np.column_stack([np.ones(w.size), b.x_transform, wq, wq ** 2, wq ** 3])
+        self._beam_vx = (np.linalg.lstsq(A, b.px, rcond=None)[0], b.mean_z, b.sigma_z,
+                         np.array(b.slope))
+
+    def _quantile_diagnostics(self):
+        """
+        Frame 'quantile', once per kick, rank 0. Logs to self.quantile_log and warns once each:
+
+        * dropped tails: the 1D wake (csr1d kernels, current geometry) of the charge outside
+          the window, (1 - T) * lambda, against that of the full beam. Both are binned on the
+          same grid and smoothed linearly, so W_full = W_window + W_dropped exactly.
+          Reported: <W_drop> / <W_full> over all particles (the mean energy loss), and
+          max|W_drop| / max|W_full| inside the window (the field on the source).
+        * resolution: FWHM of the highest current peak against the deposition's effective
+          z resolution (warn below 5) and against the local wake-mesh spacing (below 3).
+          A WARNING only; nothing here moves the frame.
+        """
+        from scipy.signal import savgol_filter
+        from .csr1d import CSR1DGeometry, bin_width, wake_1d
+        from .peakfind import peak_fwhm
+        tr = self.DF_tracker
+        z = np.asarray(self.beam.z, dtype=float)
+        T = tr.window_weight(z)
+        if not hasattr(self, '_geom1d'):
+            self._geom1d = CSR1DGeometry(self.lattice.lattice_config, self.lattice.distance)
+            self.quantile_log = []
+        geom = self._geom1d.at(self.beam.position, self.lattice.current_element)
+        fwhm = peak_fwhm(z)
+        ds = max(bin_width(z, 300, 'peak', bins_per_fwhm=20), np.ptp(z) / 20000)
+        nb = int(np.ceil(np.ptp(z) / ds)) + 1
+        edges = z.min() - 2 * ds + ds * np.arange(nb + 5)
+        S = 0.5 * (edges[1:] + edges[:-1])
+        frac_loss = frac_field = 0.0
+        if geom['case'] != 'none':
+            lam = []
+            for wgt in (np.ones_like(z), 1.0 - T):
+                h, _ = np.histogram(z, bins=edges, weights=wgt)
+                lam.append(savgol_filter(h / (z.size * ds), 5, 2, mode='constant'))
+            W = [wake_1d(S, ds, l, np.gradient(l, ds), geom) for l in lam]
+            Wf, Wd = (np.interp(z, S, w) for w in W)
+            if abs(Wf.mean()) > 0:
+                frac_loss = float(Wd.mean() / Wf.mean())
+            inw = T > 0.5
+            if inw.any() and np.abs(Wf[inw]).max() > 0:
+                frac_field = float(np.abs(Wd[inw]).max() / np.abs(Wf[inw]).max())
+        res_z, _ = self._deposition_resolution()
+        zr = np.asarray(self.CSR_zrange)
+        h_mesh = np.diff(zr)
+        # mesh spacing where the charge is densest (the finest local spacing it reaches)
+        h_at_peak = float(h_mesh.min()) if h_mesh.size else np.inf
+        self.quantile_log.append((self.beam.position, tr.window[0], tr.window[1], tr.window[2],
+                                  tr.f_window, res_z, fwhm, h_at_peak, frac_loss, frac_field))
+        cp = self.CSR_params
+        if max(abs(frac_loss), frac_field) > cp.pedestal_warn and not getattr(self, '_warned_ped', False):
+            self._warned_ped = True
+            print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the dropped '
+                  f'{100 * (1 - tr.f_window):.2f}% of the charge carries {100 * frac_loss:.1f}% of '
+                  f'the 1D energy loss and {100 * frac_field:.1f}% of the 1D field on the window '
+                  f'(pedestal_warn {cp.pedestal_warn:g}). Lower particle_deposition.frame_quantile.')
+        if res_z > 0 and fwhm / res_z < 5 and not getattr(self, '_warned_res', False):
+            self._warned_res = True
+            print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the highest '
+                  f'current peak (FWHM {fwhm*1e6:.3g} um) is only {fwhm/res_z:.1f}x the '
+                  f'deposition z resolution ({res_z*1e6:.3g} um). Raise zbins or lower '
+                  f'smoothing_sigma_z.')
+        if fwhm / h_at_peak < 3 and not getattr(self, '_warned_mesh', False):
+            self._warned_mesh = True
+            print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the finest '
+                  f'wake-mesh z spacing ({h_at_peak*1e6:.3g} um) is coarser than FWHM/3 of the '
+                  f'highest current peak ({fwhm*1e6:.3g} um). Raise CSR_computation.zbins.')
+
+    def _observer_vx(self, x, zobs, vx_src):
+        """vx at the observer: T * (windowed source vx) + (1 - T) * (beam-wide fit)."""
+        tr = self.DF_tracker
+        T = float(tr.window_weight(np.array([zobs]))[0])
+        if T >= 1.0:
+            return vx_src
+        c, mz, sz, p = self._beam_vx
+        wq = min(max((zobs - mz) / sz, -3.0), 3.0)
+        xt = x - np.polyval(p, zobs)
+        vb = c[0] + c[1] * xt + c[2] * wq + c[3] * wq ** 2 + c[4] * wq ** 3
+        return T * vx_src + (1.0 - T) * vb
     
 #    @profile
     def calculate_2D_CSR(self):
@@ -1963,6 +2110,8 @@ class CSR2D:
         if self.use_comoving:
             vx = self._comoving_fields(np.array([x]), np.array([s - t]),
                                        np.array([t]))[3][0]
+            if self._quantile_frame():
+                vx = self._observer_vx(x, s - t, vx)
         elif self.use_smooth_deposit:
             vx = interpolate3D_transformed(
                 xval=np.array([x]), zval=np.array([s - t]), tval=np.array([t]),
@@ -2252,6 +2401,10 @@ class CSR2D:
             g2.create_dataset('x_grids', data = self.CSR_xmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('z_grids', data = self.CSR_zmesh.reshape(self.dE_dct.shape))
             g2.create_dataset('xkicks', data = self.x_kick)
+            if self.CSR_params.mesh_mode != 'uniform':
+                g.attrs['mesh_mode'] = self.CSR_params.mesh_mode
+                g.create_dataset('x_axis_transformed', data=np.asarray(self.CSR_xrange_transformed))
+                g.create_dataset('z_axis', data=np.asarray(self.CSR_zrange))
 #    @profile
     def update_statistics(self, step):
         twiss = self.beam.twiss
@@ -2329,6 +2482,15 @@ class CSR2D:
             hf.create_dataset(name='n_vec', data=self.lattice.n_vec)
             hf.create_dataset(name='tau_vec', data=self.lattice.tau_vec)
             dict2hdf5(hf, self.statistics)
+            if getattr(self, 'quantile_log', None):
+                # one row per kick: s, window lo, hi, margin, f_window, res_z, peak FWHM,
+                # finest mesh z spacing, dropped-tail fraction of the 1D loss and field
+                q = hf.create_group('quantile_frame')
+                cols = ('s', 'window_lo', 'window_hi', 'window_margin', 'f_window', 'res_z',
+                        'peak_fwhm', 'mesh_dz_min', 'dropped_loss_frac', 'dropped_field_frac')
+                arr = np.array(self.quantile_log)
+                for k, c in enumerate(cols):
+                    q.create_dataset(c, data=arr[:, k])
 
 
 

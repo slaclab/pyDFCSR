@@ -78,7 +78,7 @@ def _curv_g_vec(c2, c3, w, wl):
     return g + d * (w - wc)
 
 
-def smooth_and_differentiate(field, dx, dz, sigma_smooth):
+def smooth_and_differentiate(field, dx, dz, sigma_smooth, sigma_smooth_z=None):
     """
     Apply FFT Gaussian smoothing and compute spectral derivatives.
     Uses zero-padding to avoid Gibbs ringing from periodicity assumption.
@@ -88,6 +88,7 @@ def smooth_and_differentiate(field, dx, dz, sigma_smooth):
         dx: grid spacing in xi direction
         dz: grid spacing in z direction
         sigma_smooth: smoothing kernel width in grid spacings
+        sigma_smooth_z: the same along z, if it differs (None: sigma_smooth)
 
     Returns:
         field_smooth: smoothed field
@@ -109,7 +110,7 @@ def smooth_and_differentiate(field, dx, dz, sigma_smooth):
 
     # Gaussian smoothing kernel in Fourier space
     sigma_x_phys = sigma_smooth * dx
-    sigma_z_phys = sigma_smooth * dz
+    sigma_z_phys = (sigma_smooth if sigma_smooth_z is None else sigma_smooth_z) * dz
     gaussian_filter = np.exp(-0.5 * (KXI ** 2 * sigma_x_phys ** 2 + KZ ** 2 * sigma_z_phys ** 2))
 
     # FFT of padded field
@@ -127,6 +128,40 @@ def smooth_and_differentiate(field, dx, dz, sigma_smooth):
     dfield_dz = dfield_dz_padded[pad_xi:pad_xi + nxi, pad_z:pad_z + nz]
 
     return field_smooth, dfield_dx, dfield_dz
+
+
+def smooth_levels(field, dx, dz, sigma_x, sigma_z_levels, weights, want=(True, True, True)):
+    """
+    Spatially varying z smoothing: the field smoothed at every z width in sigma_z_levels (x width
+    sigma_x for all), sharing one forward FFT, blended cell by cell with weights
+    (n_levels, nx, nz) that sum to 1. The derivatives are those of the BLEND (spectral, on the
+    blended field), so the returned field and its derivatives are consistent with each other --
+    blending the levels' own derivatives instead leaves them off by sum_k f_k grad(w_k), and the
+    CSR integrand, whose terms cancel against each other near the observer, turns that into a
+    spurious field. Returns (smooth, d/dx, d/dz), None where `want` is False.
+    """
+    nxi, nz = field.shape
+    pad_xi, pad_z = nxi // 2, nz // 2
+    fp = np.pad(field, ((pad_xi, pad_xi), (pad_z, pad_z)), mode='constant', constant_values=0)
+    F = np.fft.fft2(fp)
+    kxi = np.fft.fftfreq(fp.shape[0], d=dx) * 2 * np.pi
+    kz = np.fft.fftfreq(fp.shape[1], d=dz) * 2 * np.pi
+    KXI, KZ = np.meshgrid(kxi, kz, indexing='ij')
+    gx = np.exp(-0.5 * KXI ** 2 * (sigma_x * dx) ** 2)
+    crop = lambda a: np.real(a)[pad_xi:pad_xi + nxi, pad_z:pad_z + nz]
+    blend = np.zeros_like(field)
+    for k, sz in enumerate(sigma_z_levels):
+        wk = weights[k]
+        if np.any(wk):
+            blend += wk * crop(np.fft.ifft2(F * gx * np.exp(-0.5 * KZ ** 2 * (sz * dz) ** 2)))
+    out = [blend if want[0] else None, None, None]
+    if want[1] or want[2]:
+        B = np.fft.fft2(np.pad(blend, ((pad_xi, pad_xi), (pad_z, pad_z)), mode='constant'))
+        if want[1]:
+            out[1] = crop(np.fft.ifft2(B * (1j * KXI)))
+        if want[2]:
+            out[2] = crop(np.fft.ifft2(B * (1j * KZ)))
+    return tuple(out)
 
 
 class DF_tracker_smooth:
@@ -430,13 +465,52 @@ class DF_tracker_comoving:
                          velocity_threhold=5, upper_limit=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
                          clip_warn=1e-3, frame_blend='orient', vx_model='affine',
-                         curvature=True, curv_zlim=4.0):
+                         curvature=True, curv_zlim=4.0, smoothing_sigma_z=None,
+                         frame='rms', frame_quantile=0.005, frame_margin=0.1,
+                         smoothing_adaptive=False, smoothing_min_particles=100,
+                         smoothing_sigma_z_max=16.0):
         self.method = method
         self.xbins = xbins
         self.zbins = zbins
         self.xlim = xlim
         self.zlim = zlim
         self.smoothing_sigma = smoothing_sigma
+        # z smoothing in bins, if it should differ from x (None: smoothing_sigma). With
+        # frame 'quantile' and many z bins, z can be smoothed over ~1 bin while x keeps 3.
+        self.smoothing_sigma_z = None if smoothing_sigma_z is None else float(smoothing_sigma_z)
+        # Which normalized frame the fixed (u, w) grid is laid in, per snapshot:
+        # 'rms'       w = (z - mean)/std over all particles (the original frame)
+        # 'quantile'  the grid spans [z_q, z_(1-q)] widened by frame_margin*span on each side,
+        #             q = frame_quantile; particles are weighted by T(z), 1 on [z_q, z_(1-q)] and
+        #             a C2 smootherstep to 0 across the margin, so the far tails are dropped as
+        #             a source smoothly instead of being clipped. A short or non-Gaussian bunch
+        #             (BC20: full span 208 um against +-5 rms = 515 um) gets bins fitted to
+        #             where its charge is, and quantiles are continuous in the particle
+        #             coordinates, so the frame does not jitter or jump between horns.
+        if frame not in ('rms', 'quantile'):
+            raise ValueError(f"frame must be 'rms' or 'quantile', got {frame!r}")
+        if not 0.0 < float(frame_quantile) < 0.5:
+            raise ValueError(f'frame_quantile must be in (0, 0.5), got {frame_quantile}')
+        if not float(frame_margin) > 0.0:
+            raise ValueError(f'frame_margin must be > 0, got {frame_margin}')
+        self.frame = frame
+        # frame 'quantile' only: density-adaptive z smoothing. Each cell's z smoothing width is
+        # the smallest of smoothing_sigma_z * 2^k (up to smoothing_sigma_z_max bins) whose kernel
+        # holds at least smoothing_min_particles particles of a smooth pilot density, blended
+        # between neighbouring widths in log2. Dense spikes keep the fine width, the sparse
+        # pedestal and a long early bunch get wide ones, so the bins can stay fine everywhere
+        # without their shot noise (smooth_levels).
+        self.smoothing_adaptive = bool(smoothing_adaptive)
+        self.smoothing_min_particles = float(smoothing_min_particles)
+        self.smoothing_sigma_z_max = float(smoothing_sigma_z_max)
+        if self.smoothing_adaptive and frame != 'quantile':
+            raise ValueError("smoothing_adaptive needs frame 'quantile'")
+        self.frame_quantile = float(frame_quantile)
+        self.frame_margin = float(frame_margin)
+        self.window = None           # (lo, hi, margin) of the newest snapshot, frame quantile
+        self.f_window = 1.0          # sum(T)/N of the newest snapshot
+        self.res_z = None            # effective z resolution of the newest snapshot [m]
+        self.res_log = []            # frame quantile: (t, fwhm of the highest peak, res_z, f_window)
         # deg 1 by default: a higher-degree fit is extrapolated to +-zlim*sigma_z
         # where there are no particles, and p(z), p'(z) blow up in the z tails.
         # Degree 1 also matches the transform the wake mesh and the integration
@@ -517,6 +591,8 @@ class DF_tracker_comoving:
         self.curv_zlim = float(fit_zlim if curv_zlim is None else curv_zlim)
 
     def get_DF(self, x, z, px, t):
+        if self.frame == 'quantile':
+            return self._get_DF_quantile(x, z, px, t)
         zmean = np.mean(z)
         zstd = np.std(z)
 
@@ -590,10 +666,10 @@ class DF_tracker_comoving:
 
         # --- smoothing and derivatives, in the NORMALIZED frame ---
         density_smooth, density_du, density_dw = smooth_and_differentiate(
-            density, self.delta_u, self.delta_w, self.smoothing_sigma)
+            density, self.delta_u, self.delta_w, self.smoothing_sigma, self.smoothing_sigma_z)
 
         rho_vx_smooth, _, _ = smooth_and_differentiate(
-            vx_weighted, self.delta_u, self.delta_w, self.smoothing_sigma)
+            vx_weighted, self.delta_u, self.delta_w, self.smoothing_sigma, self.smoothing_sigma_z)
 
         # snapshot-independent velocity floor: scale by the peak of a normalized
         # Gaussian on this grid, a fixed number, instead of this snapshot's own
@@ -604,7 +680,7 @@ class DF_tracker_comoving:
         vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
 
         _, vx_du, _ = smooth_and_differentiate(
-            vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma)
+            vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, self.smoothing_sigma_z)
         vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
 
         if self.vx_model == 'affine':
@@ -634,6 +710,179 @@ class DF_tracker_comoving:
         # support of this snapshot
         self.delta_xi_phys = self.delta_u * sigma_xi
         self.delta_z_phys = self.delta_w * sigma_z
+
+    def window_weight(self, z):
+        """T(z) of the newest snapshot's quantile window; 1 everywhere in frame 'rms'."""
+        if self.window is None:
+            return np.ones_like(np.asarray(z, dtype=float))
+        from .peakfind import window_weight
+        return window_weight(z, *self.window)
+
+    def _adaptive_weights(self, density, npart, s0):
+        """
+        Level widths and per-cell blend weights for smoothing_adaptive. The required z width at a
+        cell, in bins, so that a Gaussian kernel of x width smoothing_sigma holds
+        smoothing_min_particles particles of the pilot density rho_p (normalised: integral over
+        (u, w) is f_window, so a cell holds npart * rho_p * du * dw particles):
+            sigma_z = N_min / (npart * rho_p * 2 pi * sigma_x * du * dw),
+        clipped to [s0, smoothing_sigma_z_max] and blended linearly in log2 between the levels
+        s0 * 2^k. Returns (levels, weights, width used at the density peak).
+        """
+        from scipy.ndimage import gaussian_filter
+        sx = self.smoothing_sigma
+        smax = max(self.smoothing_sigma_z_max, s0)
+        nlev = int(np.ceil(np.log2(smax / s0))) + 1
+        levels = s0 * 2.0 ** np.arange(nlev)
+        cell = npart * self.delta_u * self.delta_w
+
+        def weights(pilot):
+            need = self.smoothing_min_particles / (np.maximum(pilot, 1e-300) * cell * 2 * np.pi * sx)
+            lev = np.clip(np.log2(np.clip(need, s0, levels[-1]) / s0), 0.0, nlev - 1)
+            # the blend weights must vary slowly, or grad(w) puts structure into the field
+            lev = np.clip(gaussian_filter(lev, (sx, 2.0 * s0), mode='nearest'), 0.0, nlev - 1)
+            lo = np.floor(lev).astype(int)
+            frac = lev - lo
+            W = np.zeros((nlev,) + density.shape)
+            for k in range(nlev):
+                W[k] += np.where(lo == k, 1.0 - frac, 0.0)
+                W[k] += np.where(lo + 1 == k, frac, 0.0)
+            return W, lev
+
+        # two passes: the widest level is a noise-free but blurred pilot (it would understate a
+        # spike's density and over-smooth it), so the pilot is then re-estimated with the
+        # adaptive smoothing it implies
+        pilot = smooth_and_differentiate(density, self.delta_u, self.delta_w, sx, levels[-1])[0]
+        W, lev = weights(pilot)
+        pilot = smooth_levels(density, self.delta_u, self.delta_w, sx, levels, W,
+                              want=(True, False, False))[0]
+        W, lev = weights(pilot)
+        i_pk = np.unravel_index(np.argmax(pilot), pilot.shape)
+        return levels, W, float(s0 * 2.0 ** lev[i_pk])
+
+    def _get_DF_quantile(self, x, z, px, t):
+        """
+        get_DF in frame 'quantile' (see configure_params). The same steps as the rms path,
+        with every fit and the deposit weighted by T(z), so the dropped tails do not lever
+        the frame either. The density is still normalised by the TOTAL particle count:
+        it integrates to f_window = sum(T)/N, the dropped charge is simply absent.
+        """
+        from .peakfind import peak_fwhm, window_weight
+        npart = len(z)
+        lo, hi = np.quantile(z, [self.frame_quantile, 1.0 - self.frame_quantile])
+        margin = self.frame_margin * (hi - lo)
+        T = window_weight(z, lo, hi, margin)
+        sel = T > 0.0
+        Ts = T[sel]
+        sw = np.sqrt(Ts)
+
+        # frame: centred on the window, scaled so the fixed +-zlim grid spans it exactly
+        z_bar = 0.5 * (lo + hi)
+        sigma_z = (0.5 * (hi - lo) + margin) / float(self.zlim)
+
+        # tilt, fitted with weights T over the window
+        poly_coeffs = np.polyfit(z[sel], x[sel], deg=self.poly_degree, w=sw)
+        xi = x - np.polyval(poly_coeffs, z)
+        xi_bar = np.average(xi[sel], weights=Ts)
+        sigma_xi = np.sqrt(np.average((xi[sel] - xi_bar) ** 2, weights=Ts))
+
+        u = (xi - xi_bar) / sigma_xi
+        w = (z - z_bar) / sigma_z
+        # the vx cubic and its clip use the quantile span, where T = 1
+        w_clip = 0.5 * (hi - lo) / sigma_z
+
+        c2 = c3 = 0.0
+        if self.curvature:
+            cw = sel & (np.abs(w) < self.curv_zlim)
+            wc, uc, sc = w[cw], u[cw], np.sqrt(T[cw])
+            A = np.column_stack([wc * wc - 1.0, wc ** 3, np.ones(wc.size), wc])
+            coef = np.linalg.lstsq(A * sc[:, None], uc * sc, rcond=None)[0]
+            c2, c3 = float(coef[0]), float(coef[1])
+            u = u - _curv_g_vec(c2, c3, w, self.curv_zlim)
+        self.curv_c2, self.curv_c3 = c2, c3
+
+        density = histogram_bspline_2d(
+            q1=u, q2=w, w=T,
+            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
+            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        wq = np.clip(w, -w_clip, w_clip)
+        if self.vx_model == 'affine':
+            wc = wq[sel]
+            A = np.column_stack([np.ones(wc.size), u[sel], wc, wc ** 2, wc ** 3])
+            vx_coef = np.linalg.lstsq(A * sw[:, None], px[sel] * sw, rcond=None)[0]
+        else:
+            vx_coef = np.zeros(5)
+        vx_fit = (vx_coef[0] + vx_coef[1] * u + vx_coef[2] * wq
+                  + vx_coef[3] * wq ** 2 + vx_coef[4] * wq ** 3)
+        vx_weighted = histogram_bspline_2d(
+            q1=u, q2=w, w=T * (px - vx_fit if self.vx_model == 'affine' else px),
+            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
+            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+
+        norm = npart * self.delta_u * self.delta_w
+        density /= norm
+        vx_weighted /= norm
+        f_window = float(T.sum()) / npart
+        captured = density.sum() * self.delta_u * self.delta_w
+        # clipped = charge INSIDE the window that missed the grid (should be ~0: T vanishes
+        # at the grid edge); the window's own taper is reported as f_window, not as clipping
+        self.clipped = 1.0 - captured / f_window
+        if self.clipped > self.clip_warn:
+            print(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the windowed '
+                  f'charge fell outside the +-{self.xlim} sigma_xi grid at t = {t:.4f}')
+
+        sz = self.smoothing_sigma if self.smoothing_sigma_z is None else self.smoothing_sigma_z
+        # the floor scales with the windowed charge, so eps / peak density stays as in the
+        # rms frame; f_window is smooth in time, unlike a per-snapshot peak
+        epsilon = f_window * (1.0 / (2.0 * np.pi)) / self.velocity_threhold
+        if self.smoothing_adaptive:
+            levels, W, sz_peak = self._adaptive_weights(density, npart, sz)
+            sx = self.smoothing_sigma
+            density_smooth, density_du, density_dw = smooth_levels(
+                density, self.delta_u, self.delta_w, sx, levels, W)
+            rho_vx_smooth = smooth_levels(vx_weighted, self.delta_u, self.delta_w, sx, levels, W,
+                                          want=(True, False, False))[0]
+            vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+            vx_du = smooth_levels(vx_smooth, self.delta_u, self.delta_w, sx, levels, W,
+                                  want=(False, True, False))[1]
+        else:
+            sz_peak = sz
+            density_smooth, density_du, density_dw = smooth_and_differentiate(
+                density, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
+            rho_vx_smooth, _, _ = smooth_and_differentiate(
+                vx_weighted, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
+            vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+            _, vx_du, _ = smooth_and_differentiate(
+                vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
+        vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+        if self.vx_model == 'affine':
+            wg = np.clip(self.w_grids, -w_clip, w_clip)[None, :]
+            vx_smooth = vx_smooth + (vx_coef[0] + vx_coef[1] * self.u_grids[:, None]
+                                     + vx_coef[2] * wg + vx_coef[3] * wg ** 2
+                                     + vx_coef[4] * wg ** 3)
+            vx_du = vx_du + vx_coef[1]
+        self.vx_coef = vx_coef
+
+        self.density = density_smooth
+        self.density_u = density_du
+        self.density_w = density_dw
+        self.vx = vx_smooth
+        self.vx_u = vx_du
+        self.poly_coeffs = poly_coeffs
+        self.xi_bar = xi_bar
+        self.z_bar = z_bar
+        self.sigma_xi = sigma_xi
+        self.sigma_z = sigma_z
+        self.t = t
+        self.delta_xi_phys = self.delta_u * sigma_xi
+        self.delta_z_phys = self.delta_w * sigma_z
+
+        self.window = (float(lo), float(hi), float(margin))
+        self.f_window = f_window
+        # effective z resolution: B-spline deposit + B-spline evaluation (variance 2/3 cell^2)
+        # and the Gaussian smoothing (sz cells; with smoothing_adaptive, the width used at the
+        # density peak, i.e. the finest the run resolves)
+        self.res_z = self.delta_z_phys * np.sqrt(sz_peak * sz_peak + 2.0 / 3.0)
+        self.res_log.append((t, peak_fwhm(z[sel]), self.res_z, f_window))
 
     NFIELD = 5      # density, density_u, density_w, vx, vx_u
 
