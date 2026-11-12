@@ -368,6 +368,55 @@ These connect to known defects:
 shipped total by more than the quadrature error, ρ and ∂ρ/∂x are inconsistent somewhere and C
 is amplifying it.
 
+
+### 4d. Which edges matter: transverse (u) edges, not longitudinal (w) edges (`I_edges.txt`)
+
+**The question.** Do the `quantile` and `peak` frames, which taper the deposit smoothly to zero
+in z, protect against §4c?
+
+**The argument.** The taper is a function of z only, T(z). A cut or taper in z multiplies ρ by a
+function of z, so ∂ρ/∂x of the cut field is exactly T(z)·∂ρ/∂x. That is still the x-derivative
+of the field actually stored, still integrates to zero across the beam, and still cancels. The
+shipped form therefore computes, correctly, the wake of the cut density.
+
+The edge that ∂ρ/∂x cannot represent is a **transverse** one: an edge in u, where the grid ends
+at ±xlim·σξ. The quantile and peak frames leave that edge exactly as the rms frame does. Their
+taper acts only in z, and `mesh_x_quantile` clips the observer mesh, not the deposit.
+
+**Measured** (bend, s = 0.5 m; the fields are zeroed beyond the cut in every snapshot):
+
+| frame | cut | q (charge removed) | shipped moves | by parts moves | shipped vs by parts |
+|---|---|---|---|---|---|
+| rms | \|u\| > 3 | 0.30 % | 3.0 % | 0.19 % | **2.9e-2** |
+| rms | \|w\| > 2.5 | 1.3 % | 1.37 % | 1.37 % | 8.9e-6 |
+| rms | \|w\| > 2 | 4.8 % | 11.0 % | 11.0 % | 2.6e-5 |
+| quantile | \|u\| > 3 | 0.30 % | 3.0 % | 0.19 % | **2.9e-2** |
+| quantile | \|w\| > 3.5 | 2.7 % | 9.7 % | 9.7 % | 1.2e-4 |
+| quantile | \|w\| > 3 | 6.1 % | 19.1 % | 19.1 % | 1.8e-4 |
+
+What the table shows:
+- A z-cut leaves the two forms agreeing (1e-5–1e-4), so it is not amplified.
+- The wake still moves, by about 1–3× q. That is real: a hard cut in z is a step in the current,
+  and a step in λ radiates (λ′ has a delta). Both forms see it, because that is what the formula
+  says the cut density does.
+- The quantile and peak taper exist to soften exactly that physical artefact. They make the cut
+  a smooth ramp instead of a step. So they **do** help the longitudinal wake, but through the
+  physics of the cut, not through the cancellation.
+- A u-cut of a tenth of the charge moves the shipped wake 2× more than the w-cut does, and the
+  two forms disagree by 3 %. **This is the §4c inconsistency, and the quantile and peak frames
+  leave it unchanged** (identical rows).
+- Uncut, the u-edge density in the quantile frame is 8e-5 of the peak (rms: 5e-5). The w-edge
+  density is 5e-4, because the taper reaches 0 at the grid edge and the smoothing spreads it
+  over the edge. That does not matter for the longitudinal cancellation.
+- **Not checked:** the transverse wake. Its integrand uses ∂ρ/∂z through ∂ρ/∂t, so there a
+  w-edge is the inconsistent one and a smooth z taper should help. That case has not been
+  measured.
+
+**For the clean-up (§6, M4):** the analogue of the z taper is needed in u. Weight the particles
+by a smooth function of u that reaches zero before ±xlim, and differentiate after weighting. Or
+make the grid wide enough that the u-edge density is negligible. Then warn on the u-edge
+density per snapshot.
+
 ---
 
 ## 5. Revisions to Step 12 (`progress_comoving_interp.md`)
@@ -472,9 +521,9 @@ python cancellation_effects.py            # all sections; or e.g. `python cancel
   written under `benchmark_results/cancellation_effects/inputs/` with absolute paths), and the
   shipped quadrature opened node by node. The node sums are asserted equal to `get_CSR_wake`.
 - `test/cancellation_ibp.py`: the integration-by-parts prototype (§2).
-- `test/cancellation_effects.py`: sections A–H.
+- `test/cancellation_effects.py`: sections A–I.
 - `test/benchmark_results/cancellation_effects/`: `A_anatomy.txt`, `B_scaling.txt`/`.png`,
-  `H_collapse.txt`/`.png`,
+  `H_collapse.txt`/`.png`, `I_edges.txt`,
   `C_quadrature.txt`/`.png`, `D_shot_noise.txt`, `E_injected_noise.txt`,
   `F_clipped_charge.txt`, `G_integrand_map.png`.
 

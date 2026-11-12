@@ -12,6 +12,7 @@ E  injected noise: rho only, rho_x only, both consistently
 F  clipped charge: zero the stored fields beyond |u| > u_c
 G  figure of the integrand on the (x', s') nodes, both forms
 H  collapse: C at the bunch centre against sigma_z^(2/3)/sigma_xi, every case
+I  transverse (u) vs longitudinal (w) grid edges, rms and quantile frames
 
 Writes benchmark_results/cancellation_effects/<section>.txt and figures.
 """
@@ -460,8 +461,63 @@ def section_H():
     fig.savefig(os.path.join(OUT, 'H_collapse.png'), dpi=140)
 
 
+def section_I():
+    """
+    Does a hard edge in w (longitudinal) break the cancellation the way one in u does?
+
+    The quantile/peak frames taper the deposit in z, not in u. A cut in w multiplies rho by a
+    function of z only, so d rho/dx of the cut field is exactly (cut) * d rho/dx: still a
+    derivative in x, still cancelling. The shipped and by-parts forms should then agree, while
+    a cut in u leaves rho with an edge that d rho/dx does not contain.
+    """
+    log = Log('I_edges')
+    log('I. Zero the stored fields beyond |u| > c or |w| > c (every snapshot), in bend s = 0.5 m.')
+    log('   q = charge removed. Both forms should move by the same amount if the cut is consistent.')
+    log('')
+
+    def edges(tr):
+        r = tr.data_density_interp
+        eu = max(max(np.abs(a[0]).max(), np.abs(a[-1]).max()) / a.max() for a in r)
+        ew = max(max(np.abs(a[:, 0]).max(), np.abs(a[:, -1]).max()) / a.max() for a in r)
+        return eu, ew
+
+    for frame, cuts in (('rms', ((1, 3.0), (2, 2.5), (2, 2.0))),
+                        ('quantile', ((1, 3.0), (2, 3.5), (2, 3.0)))):
+        kw = {} if frame == 'rms' else {'extra_dep': {'frame': 'quantile'}}
+        csr = L.build(f'I_{frame}', s_stop=0.5, **kw)
+        tr = csr.DF_tracker
+        pts = cut_points(csr)
+        base = both(csr, pts)
+        eu, ew = edges(tr)
+        log(f'frame {frame}: grid edge density / peak: u {eu:.1e}, w {ew:.1e}; '
+            f'|ship - ibp|/|ship| uncut {rel(base[:,2], base[:,1]):.1e}')
+        log(f'   {"cut":>9s} {"q":>9s} {"shipped moves":>14s} {"by parts moves":>15s} '
+            f'{"ship vs by parts":>17s}')
+        arrs = (tr.data_density_interp, tr.data_density_u_interp, tr.data_density_w_interp)
+        for axis, c in cuts:
+            saved = [a.copy() for a in arrs]
+            n = arrs[0].shape[axis]
+            st, d = (tr.u_start, tr.delta_u) if axis == 1 else (tr.w_start, tr.delta_w)
+            m = np.abs(st + (np.arange(n) + 0.5) * d) > c
+            last = saved[0][-1]
+            q = (last[m, :].sum() if axis == 1 else last[:, m].sum()) / last.sum()
+            try:
+                for a in arrs:
+                    if axis == 1:
+                        a[:, m, :] = 0.0
+                    else:
+                        a[:, :, m] = 0.0
+                r = both(csr, pts)
+            finally:
+                _restore(csr, saved)
+            log(f'   |{"u" if axis == 1 else "w"}| > {c:3.1f} {q:9.2e} {rel(r[:,1], base[:,1]):14.2e} '
+                f'{rel(r[:,2], base[:,2]):15.2e} {rel(r[:,2], r[:,1]):17.1e}')
+        log('')
+    log.close()
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
-    which = sys.argv[1:] or list('ABCDEFGH')
+    which = sys.argv[1:] or list('ABCDEFGHI')
     for w in which:
         globals()[f'section_{w}']()

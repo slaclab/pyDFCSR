@@ -1,0 +1,15 @@
+I. Zero the stored fields beyond |u| > c or |w| > c (every snapshot), in bend s = 0.5 m.
+   q = charge removed. Both forms should move by the same amount if the cut is consistent.
+
+frame rms: grid edge density / peak: u 5.1e-05, w 5.8e-06; |ship - ibp|/|ship| uncut 2.3e-06
+         cut         q  shipped moves  by parts moves  ship vs by parts
+   |u| > 3.0  3.03e-03       3.00e-02        1.91e-03           2.9e-02
+   |w| > 2.5  1.34e-02       1.37e-02        1.37e-02           8.9e-06
+   |w| > 2.0  4.80e-02       1.10e-01        1.10e-01           2.6e-05
+
+frame quantile: grid edge density / peak: u 8.2e-05, w 5.4e-04; |ship - ibp|/|ship| uncut 2.5e-06
+         cut         q  shipped moves  by parts moves  ship vs by parts
+   |u| > 3.0  3.04e-03       3.04e-02        1.91e-03           2.9e-02
+   |w| > 3.5  2.66e-02       9.71e-02        9.70e-02           1.2e-04
+   |w| > 3.0  6.05e-02       1.91e-01        1.91e-01           1.8e-04
+
