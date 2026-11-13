@@ -2183,7 +2183,8 @@ class CSR2D:
         Node integrand  gz - (1 - chi) G0 rho_x - Q' rho - Q B R_x, and per column the boundary
         term Q rho |last node - Q rho |first node. Their column integral equals that of gz up to
         quadrature error (progress_cancellation.md §2). Q' is a central difference with step
-        1e-3 of the smallest sigma_xi in the history, on geometry and frame only.
+        1e-3 of the smallest sigma_xi in the history, on geometry and frame only. Columns where
+        |J| <= 2 J0 on a node with charge keep gz (see below).
         """
         J0 = self.integration_params.ibp_j0
         h = 1e-3 * float(np.min(self.DF_tracker.sigma_xi_arr))
@@ -2193,13 +2194,36 @@ class CSR2D:
         dQ = (Qp - Qm) / (2.0 * h)
         rho = ex['rho']
         main = G0 * ex['rho_x']
-        g = (gz.ravel() - (1.0 - chi) * main - dQ * rho - Q0 * ex['B'] * Rx)
+        g = (gz.ravel() - (1.0 - chi) * main - dQ * rho - Q0 * ex['B'] * Rx).reshape(shape)
         Qr = (Q0 * rho).reshape(shape)
-        # |main term| per node, and its share inside the partition zone (chi > 0), for the
-        # consistency check: there the by-parts form needs more x' nodes than the shipped one
+        bnd = Qr[-1] - Qr[0]
+        # Column-wise choice of form. The identity holds column by column, so a column can keep
+        # the shipped form without any boundary term. Where J gets small on a node that carries
+        # charge, the chi partition inside the column becomes a steep ramp in x' (J changes at
+        # A (1 - R_x^2)/R near the observer, A ~ the beam tilt) whose chi and 1 - chi pieces
+        # cancel each other, so the by-parts column is far less converged than the shipped one.
+        # Measured on the chicane, frozen at B3 (tau = -30) and D3 (tau = -49): with the
+        # partition alone the by-parts wake was off by up to 30x at 3200 nodes. So a column uses
+        # the by-parts form only if |J| > 2 J0 at every node with charge; chi then vanishes there
+        # except on empty nodes, where it only guards the 1/J.
+        #
+        # J must also keep ONE SIGN over the whole column. Along a column R_x is monotonic and A
+        # varies slowly, so J crosses zero at most once, but at high tilt it can do so between
+        # two nodes: chicane D3 (tau = -49), a column 40 um from the observer has J from -20 to
+        # +20, its 200 nodes miss the crossing (smallest sampled |J| 3.0), and the 1/J pole
+        # between them made that one column 100x too large. A sign test sees it at any node count.
+        live = (rho > 1e-6 * max(float(rho.max()), 1e-300)).reshape(shape)
+        Jr = J.reshape(shape)
+        Jc = np.where(live, np.abs(Jr), np.inf).min(axis=0)
+        one_sign = np.all(Jr > 0.0, axis=0) | np.all(Jr < 0.0, axis=0)
+        col = (Jc > 2.0 * J0) & one_sign
+        g = np.where(col[None, :], g, gz)
+        bnd = np.where(col, bnd, 0.0)
+        # |main term| per node, and the part of it in columns kept in the shipped form, for
+        # the consistency check (the share where the cancellation is still being summed)
         am = np.abs(main).reshape(shape)
-        zone = (chi > 0.0).reshape(shape)
-        return g.reshape(shape), Qr[-1] - Qr[0], am, zone
+        zone = np.broadcast_to(~col[None, :], shape)
+        return g, bnd, am, zone
 
     def _ibp_consistency_check(self):
         """
@@ -2207,10 +2231,10 @@ class CSR2D:
         See Integration_params.ibp_check. Appends (s, relative L2 difference, points used,
         points skipped, largest zone share) to ibp_check_log.
 
-        Also recorded per kick: the largest share of the main term's sum|node| in the |J| < 2 J0
-        partition zone. Points above ibp_check_zone_max are skipped (default 1: none). The zone
-        is where the by-parts form converges more slowly than the shipped one, which is why the
-        check runs at ibp_check_xbins = 400 (Integration_params).
+        Also recorded per kick: the largest share of the main term's sum|node| in columns that
+        keep the shipped form (|J| <= 2 J0 on a node with charge). There the two forms coincide,
+        so a share near 1 means the check sees little. Points above ibp_check_zone_max are
+        skipped (default 1: none).
         """
         ip = self.integration_params
         n = ip.ibp_check

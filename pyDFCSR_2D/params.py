@@ -188,9 +188,12 @@ class Integration_params:
         # Same integral, no cancellation; the boundary term is ~0 because the bands are
         # +-10 sigma_xi wide. The transverse kick and the polar patch are unchanged.
         self.ibp = bool(ibp)
-        # J -> 0 where a column runs along a tilted beam's ridge (tilt |tau| > 1): there the
-        # shipped form is kept, through a C2 partition chi(J) = 1 for |J| <= ibp_j0, 0 beyond
-        # 2 ibp_j0, and only (1 - chi) G0 rho_x is integrated by parts.
+        # J -> 0 where a column runs along a tilted beam's ridge (tilt |tau| > 1, or curved
+        # tails steeper than 1). A column keeps the shipped form whole if |J| <= 2 ibp_j0 on any
+        # node with charge (exact: the identity holds per column). A partition inside the column
+        # (chi(J) = 1 for |J| <= ibp_j0, 0 beyond 2 ibp_j0) was tried first and fails at high
+        # tilt: its ramp is too steep in x' (chicane B3/D3, progress_cancellation.md §8); chi now
+        # only guards 1/J on empty nodes.
         self.ibp_j0 = float(ibp_j0)
         # Consistency monitor: per kick, evaluate ibp_check points of the wake mesh's centre row
         # in BOTH forms at ibp_check_xbins x' nodes and warn once if they differ by more than
@@ -200,7 +203,8 @@ class Integration_params:
         # the by-parts form converges more slowly than the shipped one (dipole with CSR applied,
         # 0.5 m past the exit: 2.0e-3 at 200 nodes, 2.2e-4 at 400, 1.5e-5 at 800; a larger
         # ibp_j0 does not help). ibp_check_log also records the zone's share of the main term's
-        # sum|node|; a point whose share exceeds ibp_check_zone_max is skipped and counted
+        # sum|node| in columns kept in the shipped form; a point whose share exceeds
+        # ibp_check_zone_max is skipped and counted
         # (default 1: never). Under |tau| >> 1 the check's own floor rises (shear 20: 1.1e-2).
         # 0 = off.
         self.ibp_check = int(ibp_check)
