@@ -399,3 +399,44 @@ def test_mesh_x_quantile_clips_axis_and_clamps_kick():
     unit = 1e6 / b.init_energy
     assert np.allclose(dpz[True], unit, rtol=1e-12)
     assert np.all(dpz[False][outside] == 0.0) and np.allclose(dpz[False][~outside], unit, rtol=1e-12)
+
+
+# ---------------------------------------------------------------- 9. adaptive near-region nodes
+
+def test_near_adapt_gaussian_close_to_fixed():
+    """CSR_integration.near_adapt on the golden Gaussian case: the run completes, the adaptive node
+    set is at least as fine as the fixed layout, well formed (increasing, ends and observer included),
+    and the wake barely changes, because the fixed layout already resolves a Gaussian source."""
+    import contextlib
+    import io
+    import tempfile
+    import yaml
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    res = {}
+    for adapt in (False, True):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = make_golden_2d.config(tmp, None, {'write_wakes': False})
+            cfg = yaml.safe_load(open(f))
+            cfg['CSR_integration']['near_adapt'] = adapt
+            yaml.safe_dump(cfg, open(f, 'w'), sort_keys=False)
+            with contextlib.redirect_stdout(io.StringIO()):
+                sim = CSR2D(input_file=f)
+                sim.run()
+            res[adapt] = sim
+    s0, s1 = res[False], res[True]
+    assert np.isfinite(s1.dE_dct).all() and np.isfinite(s1.x_kick).all()
+    assert np.linalg.norm(s1.dE_dct - s0.dE_dct) < 2e-2 * np.linalg.norm(s0.dE_dct)
+    assert np.linalg.norm(s1.x_kick - s0.x_kick) < 5e-2 * np.linalg.norm(s0.x_kick)
+    # the node sets at a central mesh point of the final kick
+    t = s1.beam.position
+    i = s1.CSR_zmesh.size // 2
+    s, x = t + s1.CSR_zmesh[i], s1.CSR_xmesh[i]
+    (_, s3), (_, s4) = s1._layout_bounds(s, x)
+    s1.integration_params.near_adapt = False
+    base = s1._near_region_nodes(s, s3, s4, x=x, t=t)
+    s1.integration_params.near_adapt = True
+    nodes = s1._near_region_nodes(s, s3, s4, x=x, t=t)
+    assert nodes.size >= base.size and np.all(np.diff(nodes) > 0)
+    assert nodes[0] == s3 and nodes[-1] == s4 and np.any(np.isclose(nodes, s, rtol=0, atol=1e-12))
+    assert s1._last_adapt['scan'] >= base.size

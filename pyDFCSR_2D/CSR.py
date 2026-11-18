@@ -1793,7 +1793,7 @@ class CSR2D:
         self._last_region_nodes = counts
         return counts
 
-    def _near_region_nodes(self, s, a, b):
+    def _near_region_nodes(self, s, a, b, x=None, t=None):
         """
         s' nodes for the near region, graded so the cell grows with |s - s'|.
 
@@ -1817,7 +1817,10 @@ class CSR2D:
         floor = ip.near_cell * self.beam._sigma_x_transform
         g = ip.near_grade
         if not ip.near_cell or not g or floor <= 0.0:
-            return np.linspace(a, b, self._region_node_counts(((a, b),))[-1])
+            base = np.linspace(a, b, self._region_node_counts(((a, b),))[-1])
+            if ip.near_adapt and x is not None:
+                return self._near_adapt_nodes(s, x, t, a, b, base)
+            return base
 
         ustar = floor / g                      # where relative spacing takes over
 
@@ -1836,7 +1839,131 @@ class CSR2D:
         self._last_region_nodes = list(getattr(self, '_last_region_nodes',
                                                [ip.far_zbins] * 2))
         self._last_region_nodes[-1] = len(sp)
-        return np.unique(sp)
+        sp = np.unique(sp)
+        if ip.near_adapt and x is not None:
+            return self._near_adapt_nodes(s, x, t, a, b, sp)
+        return sp
+
+    def _column_scan(self, s, x, t, sp):
+        """
+        The retarded source seen by the column at each s': (z_ret, rho) at the located band's
+        axis point, the larger of the two Eq 4.24 branches. rho is 0 where no branch is live.
+        """
+        self._retarded_xi_bands(s, x, t, sp)
+        diag = getattr(self, '_branch_diag', None)
+        zr = np.full(sp.shape, np.nan)
+        rho = np.zeros(sp.shape)
+        if diag is None or diag['sp'] is not sp:
+            return zr, rho
+        for br in diag['branches']:
+            live = br['live']
+            if not live.any():
+                continue
+            t_ret = t - br['r'][live]
+            z_ret = sp[live] - t_ret
+            r_b = self._comoving_fields(br['xp'][live], z_ret, t_ret)[0]
+            take = np.zeros(sp.shape, dtype=bool)
+            take[live] = r_b >= rho[live]
+            rho[take] = r_b[take[live]]
+            zr[take] = z_ret[take[live]]
+        return zr, rho
+
+    def _near_adapt_nodes(self, s, x, t, a, b, base):
+        """
+        Near-region s' nodes adapted to the retarded density along the column (Integration_params
+        near_adapt). Starts from the fixed layout `base`, scans z_ret and rho along the column and
+        bisects every interval whose z_ret still moves by more than near_adapt_scan_dz * res_z
+        inside the history's z support, then equidistributes the monitor
+            m(s') = 1 / h_fixed(s') + |d(rho / rho_max) / ds'| / near_adapt_eps,
+        graded so neighbouring cells differ by at most near_adapt_max_ratio. The first term keeps
+        every cell at least as fine as the fixed layout; the second puts ~2/eps nodes across each
+        full-height rise and fall of the source, wherever it is and however many there are.
+        Returns `base` unchanged when the column sees no charge.
+        """
+        ip = self.integration_params
+        tr = self.DF_tracker
+        if not self.use_comoving or getattr(tr, 'poly_degree', None) != 1 or base.size < 3:
+            return base
+        res_z = self._deposition_resolution()[0]
+        if not res_z > 0:
+            return base
+        delta = ip.near_adapt_scan_dz * res_z
+        n_hist = len(tr.time_log)
+        zb, sz = np.asarray(tr.z_bar_arr)[:n_hist], np.asarray(tr.sigma_z_arr)[:n_hist]
+        z_lo, z_hi = float(np.min(zb + tr.w_start * sz)), float(np.max(zb + tr.w_end * sz))
+
+        sp = np.asarray(base, dtype=float)
+        zr, rho = self._column_scan(s, x, t, sp)
+        # Each round splits every interval that still needs it into ceil(|dz_ret| / delta) pieces
+        # at once (z_ret is close to linear within an interval), so 2-3 rounds suffice; a round is
+        # one band solve, ~4 ms of Python overhead whatever its size.
+        for _ in range(4):
+            ds = np.diff(sp)
+            dz = np.abs(np.diff(zr))
+            lo = np.fmin(zr[:-1], zr[1:])
+            hi = np.fmax(zr[:-1], zr[1:])
+            # a dead end (nan) next to a live one: the support edge lies inside; locate it to delta
+            edge = (np.isnan(zr[:-1]) != np.isnan(zr[1:])) & (ds > delta)
+            need = ((dz > delta) & (hi > z_lo) & (lo < z_hi)) | edge
+            if not need.any() or sp.size >= ip.near_adapt_max_scan:
+                break
+            k = np.where(edge, 2, np.minimum(np.ceil(np.nan_to_num(dz, nan=0.0) / delta), 64)).astype(int)[need]
+            room = max(ip.near_adapt_max_scan - sp.size, 0)
+            if (k - 1).sum() > room:
+                k = np.maximum(1, np.floor(k * room / max((k - 1).sum(), 1))).astype(int)
+            a0, a1 = sp[:-1][need], sp[1:][need]
+            new = np.concatenate([a0[i] + (a1[i] - a0[i]) * np.arange(1, k[i]) / k[i]
+                                  for i in range(need.sum())]) if need.any() else np.zeros(0)
+            if new.size == 0:
+                break
+            zm, rm = self._column_scan(s, x, t, new)
+            order = np.argsort(np.concatenate([sp, new]), kind='stable')
+            sp = np.concatenate([sp, new])[order]
+            zr = np.concatenate([zr, zm])[order]
+            rho = np.concatenate([rho, rm])[order]
+        if sp.size >= ip.near_adapt_max_scan and not getattr(self, '_warned_adapt_scan', False):
+            self._warned_adapt_scan = True
+            if (not self.parallel) or self.rank == 0:
+                print(f'  [near_adapt] WARNING at s = {t:.4f} m: the column scan hit '
+                      f'near_adapt_max_scan = {ip.near_adapt_max_scan} points before resolving '
+                      f'{delta*1e6:.3g} um of retarded z per interval.')
+        rho_max = rho.max()
+        if not rho_max > 0:
+            return base
+
+        floor = ip.near_cell * self.beam._sigma_x_transform
+        g = ip.near_grade
+        if ip.near_cell and g and floor > 0.0:
+            h_fixed = np.maximum(floor, g * np.abs(sp - s))
+        else:
+            h_fixed = np.full(sp.shape, (b - a) / max(base.size - 1, 1))
+        m = 1.0 / h_fixed + np.abs(np.gradient(rho / rho_max, sp)) / ip.near_adapt_eps
+        # grading on the non-uniform scan grid: with h = 1/m, |d ln m| per cell <= ln(max_ratio)
+        lr = np.log(ip.near_adapt_max_ratio)
+        dg = np.diff(sp)
+        lm = np.log(m)
+        for _ in range(2):
+            for i in range(1, lm.size):
+                lm[i] = max(lm[i], lm[i - 1] - lr * dg[i - 1] * np.exp(lm[i - 1]))
+            for i in range(lm.size - 2, -1, -1):
+                lm[i] = max(lm[i], lm[i + 1] - lr * dg[i] * np.exp(lm[i + 1]))
+        m = np.exp(lm)
+        F = np.concatenate([[0.0], np.cumsum(0.5 * (m[1:] + m[:-1]) * dg)])
+        n = int(np.ceil(F[-1])) + 1
+        if n > ip.near_adapt_max_nodes:
+            if not getattr(self, '_warned_adapt_nodes', False):
+                self._warned_adapt_nodes = True
+                if (not self.parallel) or self.rank == 0:
+                    print(f'  [near_adapt] WARNING at s = {t:.4f} m: {n} near-region nodes wanted, '
+                          f'capped at near_adapt_max_nodes = {ip.near_adapt_max_nodes}.')
+            n = ip.near_adapt_max_nodes
+        nodes = np.interp(np.linspace(0.0, F[-1], max(n, base.size)), F, sp)
+        nodes = np.unique(np.concatenate([nodes, [a, s, b]]))
+        nodes = nodes[(nodes >= a) & (nodes <= b)]
+        self._last_region_nodes = list(getattr(self, '_last_region_nodes', [ip.far_zbins] * 2))
+        self._last_region_nodes[-1] = len(nodes)
+        self._last_adapt = dict(scan=sp.size, nodes=len(nodes), base=base.size)
+        return nodes
 
     def _near_patch_radii(self, s, s3, s4):
         """
@@ -1993,7 +2120,7 @@ class CSR2D:
             # far region: causal-clipped, fine over the contributing band, graded above
             # near region: graded about s' = s
             sps = [self._far_region_nodes(s, x, t, s1, s3),
-                   self._near_region_nodes(s, s3, s4)]
+                   self._near_region_nodes(s, s3, s4, x=x, t=t)]
 
             # Only the last region straddles s' = s, so only it owns the 1/|r-r'|
             # singularity and gets the polar patch.
@@ -2533,8 +2660,10 @@ class CSR2D:
         W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
         W3 = -scale_term * part2 / r_minus_rp * partial_density
 
-        CSR_integrand_x = W1 + W2 + W3
-        #CSR_integrand_x = W1
+        if getattr(self.integration_params, 'transverse_terms', 'all') == 'W1':
+            CSR_integrand_x = W1
+        else:
+            CSR_integrand_x = W1 + W2 + W3
 
         if extras is not None:
             extras.update(rx=r_minus_rp_x, ry=r_minus_rp_y, nx=n_vec_sp_x, ny=n_vec_sp_y,

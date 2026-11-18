@@ -49,6 +49,11 @@ VARIANTS = {
     'quantile_fine': dict(dep=dict(Q_DEP, xbins=200, zbins=200), csr=dict(mesh_mode='charge', xbins=20, zbins=60)),
     'quantile_q0005': dict(dep=dict(Q_DEP, frame_quantile=0.0005), csr=dict(mesh_mode='charge')),
     'peak': dict(dep=dict(Q_DEP, frame='peak'), csr=dict(mesh_mode='charge')),
+    # transverse force from W1 only (CSR_integration.transverse_terms); the run also computes the
+    # three-term force at every kick at the same beam state and stores both mesh maps (decomp)
+    'W1': dict(integ=dict(transverse_terms='W1'), decomp=True),
+    'adapt': dict(integ=dict(near_adapt=True)),
+    'allterms_decomp': dict(decomp=True),
     'bc20set': dict(dep=dict(Q_DEP, xbins=150, zbins=1200, smoothing_sigma=3.0, smoothing_sigma_z=1.0,
                              smoothing_adaptive=True),
                     csr=dict(mesh_mode='charge', xbins=12, zbins=80),
@@ -64,6 +69,7 @@ def config(name):
                                 **v.get('csr', {}))
     if 'sc' in v:
         c['step_control'] = dict(dict(mode='auto', kick_interval='midpoint'), **v['sc'])
+    c.setdefault('CSR_integration', {}).update(v.get('integ', {}))
     f = os.path.join('input', f'dgc_{name}.yaml')
     yaml.safe_dump(c, open(f, 'w'), sort_keys=False)
     return f
@@ -77,7 +83,7 @@ def run(name):
     kicks = {'s': [], 'zc': [], 'W': [], 'F': []}
     apply0 = sim.beam.apply_wakes
 
-    def apply_wakes(dE_dct, x_kick, xrange, zrange, L, transverse_on, x_shift=None):
+    def apply_wakes(dE_dct, x_kick, xrange, zrange, L, transverse_on, x_shift=None, **kw):
         b = sim.beam
         xt = b.x_transform if x_shift is None else b.x_transform - x_shift
         pts = np.array([xt, b.z]).T
@@ -92,8 +98,29 @@ def run(name):
         kicks['zc'].append(0.5 * (e[1:] + e[:-1]))
         kicks['W'].append(np.bincount(k[ok], W[ok], NZB) / n)
         kicks['F'].append(np.bincount(k[ok], F[ok], NZB) / n)
-        return apply0(dE_dct, x_kick, xrange, zrange, L, transverse_on, x_shift=x_shift)
+        return apply0(dE_dct, x_kick, xrange, zrange, L, transverse_on, x_shift=x_shift, **kw)
     sim.beam.apply_wakes = apply_wakes
+    maps = {'s': [], 'z': [], 'xi': [], 'W': [], 'F_all': [], 'F_W1': []}
+    if VARIANTS[name].get('decomp'):
+        calc0 = sim.calculate_2D_CSR
+        ip = sim.integration_params
+        want = ip.transverse_terms
+
+        def calc():
+            out = {}
+            for terms in ('all', 'W1'):
+                ip.transverse_terms = terms
+                calc0()
+                out[terms] = (sim.dE_dct.copy(), sim.x_kick.copy())
+            ip.transverse_terms = want
+            sim.dE_dct, sim.x_kick = out[want]
+            maps['s'].append(sim.beam.position)
+            maps['z'].append(np.asarray(sim.CSR_zrange).copy())
+            maps['xi'].append(np.asarray(sim.CSR_xrange_transformed).copy())
+            maps['W'].append(out['all'][0])
+            maps['F_all'].append(out['all'][1])
+            maps['F_W1'].append(out['W1'][1])
+        sim.calculate_2D_CSR = calc
     t0 = time.time()
     with contextlib.redirect_stdout(io.StringIO()):
         sim.run()
@@ -111,7 +138,8 @@ def run(name):
              n_kicks=sim.lattice.schedule.n_kick, mean_E=p.pz.mean() * E0, sigma_E=p.pz.std() * E0,
              slice_sE=sE, slice_mE=mE, slice_zc=0.5 * (edges[1:] + edges[:-1]), sigma_z=sz,
              emit_x=tw['emit'] * E0 / p.mc2, sigma_x=p.x.std(),
-             **{f'kick_{k}': np.array(v) for k, v in kicks.items()})
+             **{f'kick_{k}': np.array(v) for k, v in kicks.items()},
+             **{f'map_{k}': np.array(v) for k, v in maps.items()})
     print(f'{name}: {sim.lattice.schedule.n_kick} kicks, {time.time() - t0:.0f} s', flush=True)
 
 

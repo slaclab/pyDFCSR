@@ -68,7 +68,7 @@ def wake_parts(sim, s, x):
     bnds = sim._layout_bounds(s, x)
     (s1, s3), (_, s4) = bnds
     sim._region_node_counts(bnds)
-    sps = [sim._far_region_nodes(s, x, t, s1, s3), sim._near_region_nodes(s, s3, s4)]
+    sps = [sim._far_region_nodes(s, x, t, s1, s3), sim._near_region_nodes(s, s3, s4, x=x, t=t)]
     radii = sim._near_patch_radii(s, s3, s4)
     tapers = [None, None if radii is None else (*radii, False)]
     out = {}

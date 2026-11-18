@@ -28,7 +28,10 @@ class Integration_params:
                          far_fine_max = 500, band_jacobian_min = 0.2,
                          prev_bend_reach = True, prev_bend_grade = 0.02,
                          ibp = False, ibp_j0 = 0.25, ibp_check = 0, ibp_check_xbins = 400,
-                         ibp_check_tol = 1e-3, ibp_check_zone_max = 1.0):
+                         ibp_check_tol = 1e-3, ibp_check_zone_max = 1.0,
+                         transverse_terms = 'all', near_adapt = False, near_adapt_eps = 0.1,
+                         near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
+                         near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -349,6 +352,29 @@ class Integration_params:
         # the Cartesian mesh and the patch separately when checking convergence.
         self.near_patch_nr = near_patch_nr
         self.near_patch_nphi = near_patch_nphi
+        # Transverse integrand: 'all' = W1 + W2 + W3 (Stupakov PRAB 25, 014401), 'W1' = the density
+        # term only. W2 and W3 both carry d rho/dt at O(1/R) and cancel to O(theta^2/8R) on the
+        # arc, so their sum is a small residual of two large terms; it is what goes noisy where a
+        # narrow spike sits in the near region of a pedestal observer (BC20 B1RE, progress_facet_bc20 9j).
+        if transverse_terms not in ('all', 'W1'):
+            raise ValueError(f"CSR_integration.transverse_terms must be 'all' or 'W1', got {transverse_terms!r}")
+        self.transverse_terms = transverse_terms
+        # near_adapt: add near-region s' nodes where the RETARDED density varies along the column
+        # (CSR2D._near_adapt_nodes). The fixed layout (near_cell, near_grade) resolves a source that
+        # varies on the sigma_z scale; ahead of the observer z_ret moves at 2 ds', so a feature of
+        # width w in z is crossed in w/2 of s', and a 3 um spike in a 41 um cell is sampled by at
+        # most one node (BC20 B1RE pedestal: the transverse d rho/dt terms go to speckle,
+        # progress_facet_bc20 9j-9k). The column is scanned (band location + density lookup),
+        # refined until z_ret changes by <= near_adapt_scan_dz * res_z per interval inside the
+        # history's z support (at most near_adapt_max_scan points), and the nodes equidistribute
+        # 1/h_fixed + |d(rho/rho_max)/ds'| / near_adapt_eps, graded to near_adapt_max_ratio, at most
+        # near_adapt_max_nodes. No peak finding: horns, spikes and edges are all just gradients.
+        self.near_adapt = bool(near_adapt)
+        self.near_adapt_eps = float(near_adapt_eps)
+        self.near_adapt_scan_dz = float(near_adapt_scan_dz)
+        self.near_adapt_max_scan = int(near_adapt_max_scan)
+        self.near_adapt_max_nodes = int(near_adapt_max_nodes)
+        self.near_adapt_max_ratio = float(near_adapt_max_ratio)
 
 
 class CSR_params:
