@@ -414,20 +414,21 @@ def test_near_adapt_gaussian_close_to_fixed():
     import make_golden_2d
     from pyDFCSR_2D.CSR import CSR2D
     res = {}
-    for adapt in (False, True):
+    for adapt, adapt_x in ((False, False), (True, False), (True, True)):
         with tempfile.TemporaryDirectory() as tmp:
             f = make_golden_2d.config(tmp, None, {'write_wakes': False})
             cfg = yaml.safe_load(open(f))
-            cfg['CSR_integration']['near_adapt'] = adapt
+            cfg['CSR_integration'].update(near_adapt=adapt, near_adapt_x=adapt_x)
             yaml.safe_dump(cfg, open(f, 'w'), sort_keys=False)
             with contextlib.redirect_stdout(io.StringIO()):
                 sim = CSR2D(input_file=f)
                 sim.run()
-            res[adapt] = sim
-    s0, s1 = res[False], res[True]
-    assert np.isfinite(s1.dE_dct).all() and np.isfinite(s1.x_kick).all()
-    assert np.linalg.norm(s1.dE_dct - s0.dE_dct) < 2e-2 * np.linalg.norm(s0.dE_dct)
-    assert np.linalg.norm(s1.x_kick - s0.x_kick) < 5e-2 * np.linalg.norm(s0.x_kick)
+            res[adapt, adapt_x] = sim
+    s0, s1 = res[False, False], res[True, False]
+    for sx in (s1, res[True, True]):
+        assert np.isfinite(sx.dE_dct).all() and np.isfinite(sx.x_kick).all()
+        assert np.linalg.norm(sx.dE_dct - s0.dE_dct) < 2e-2 * np.linalg.norm(s0.dE_dct)
+        assert np.linalg.norm(sx.x_kick - s0.x_kick) < 5e-2 * np.linalg.norm(s0.x_kick)
     # the node sets at a central mesh point of the final kick
     t = s1.beam.position
     i = s1.CSR_zmesh.size // 2

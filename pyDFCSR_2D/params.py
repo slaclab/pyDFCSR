@@ -31,7 +31,8 @@ class Integration_params:
                          ibp_check_tol = 1e-3, ibp_check_zone_max = 1.0,
                          transverse_terms = 'all', near_adapt = False, near_adapt_eps = 0.1,
                          near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
-                         near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5):
+                         near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
+                         near_adapt_x = False, near_adapt_x_rounds = 2, near_adapt_x_max = 4):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -375,6 +376,17 @@ class Integration_params:
         self.near_adapt_max_scan = int(near_adapt_max_scan)
         self.near_adapt_max_nodes = int(near_adapt_max_nodes)
         self.near_adapt_max_ratio = float(near_adapt_max_ratio)
+        # near_adapt_x: the same for the x' nodes of the near-region columns. z_ret also depends on
+        # x' (d z_ret / d x' ~ dx / |r - r'|, O(1) for a source ahead), so a narrow feature is
+        # crossed within the band over ~w / (dz_ret/dx') of x' against a uniform x' cell of
+        # band width / xbins (BC20 B1RE: 6 um against 16 um). After the uniform evaluation, every
+        # column whose retarded density jumps by more than near_adapt_eps * rho_max between
+        # neighbouring x' nodes is re-evaluated on x' nodes that equidistribute
+        # 1/h_uniform + |d(rho/rho_max)/dx'| / near_adapt_eps (at most near_adapt_x_max * xbins
+        # nodes), near_adapt_x_rounds times. Needs near_adapt; not combined with ibp.
+        self.near_adapt_x = bool(near_adapt_x)
+        self.near_adapt_x_rounds = int(near_adapt_x_rounds)
+        self.near_adapt_x_max = int(near_adapt_x_max)
 
 
 class CSR_params:

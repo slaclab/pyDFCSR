@@ -1394,7 +1394,7 @@ class CSR2D:
         hi2 = np.where(a_first, hiB, hiA)
         return [(lo1, hi1), (np.minimum(np.maximum(lo2, hi1), hi2), hi2)]
 
-    def _integrate_xi_region(self, s, x, t, sp, ignore_vx, taper=None, scale_bands=True):
+    def _integrate_xi_region(self, s, x, t, sp, ignore_vx, taper=None, scale_bands=True, adapt_x=False):
         """
         Integrate one s' region with the transverse nodes riding the density ribbon.
 
@@ -1419,12 +1419,26 @@ class CSR2D:
             sp_mesh = np.broadcast_to(sp[None, :], xp_mesh.shape).copy()
             dxp = width / (nx - 1)
 
-            ex = {} if ibp else None
+            ip = self.integration_params
+            do_adapt_x = bool(adapt_x and ip.near_adapt and ip.near_adapt_x and not ibp)
+            ex = {} if (ibp or do_adapt_x) else None
             gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
                                             ignore_vx=ignore_vx, taper=taper, extras=ex)
+            if do_adapt_x:
+                gz, gx, dxp_col = self._adapt_x_columns(s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper)
+            else:
+                dxp_col = None
             # A zero-width column has dxp = 0 and contributes nothing. Select it out
             # rather than multiplying by zero, so a degenerate node that landed on
             # the 1/|r-r'| pole cannot turn the whole region into a nan.
+            if dxp_col is not None:
+                # refined columns: (iz, ix) already integrated over their own x' nodes
+                iz = np.where(alive, dxp_col[0], 0.0)
+                ix = np.where(alive, dxp_col[1], 0.0)
+                dE += -self.CSR_scaling * np.trapz(y=iz, x=sp)
+                xk += self.CSR_scaling * np.trapz(y=ix, x=sp)
+                meshes.append((xp_mesh, sp_mesh, gz, gx))
+                continue
             iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp, 0.0)
             if ibp:
                 # the shipped total is kept for the consistency check (get_CSR_wake)
@@ -1443,6 +1457,57 @@ class CSR2D:
             z = np.zeros((nx, len(sp)))
             return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
         return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
+
+    def _adapt_x_columns(self, s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper):
+        """
+        near_adapt_x: re-evaluate the columns whose retarded density jumps by more than
+        near_adapt_eps * rho_max between neighbouring x' nodes, on x' nodes equidistributing
+        1/h_uniform + |d(rho/rho_max)/dx'| / near_adapt_eps (every flagged column gets the same
+        count, so one rectangular evaluation covers them all). Returns the uniform-mesh integrands
+        (unchanged, for diagnostics) and the per-column integrals (iz, ix) over x', with the
+        flagged columns replaced by their refined values.
+        """
+        ip = self.integration_params
+        nx, ncol = xp_mesh.shape
+        width = xp_mesh[-1] - xp_mesh[0]
+        dxp = width / (nx - 1)
+        iz = np.trapz(y=gz, axis=0) * dxp
+        ix = np.trapz(y=gx, axis=0) * dxp
+        rho = ex['rho'].reshape(xp_mesh.shape)
+        rho_max = rho.max()
+        if not rho_max > 0:
+            return gz, gx, (iz, ix)
+        eps = ip.near_adapt_eps
+        xp_cur, rho_cur = xp_mesh, rho
+        cols = np.flatnonzero((np.abs(np.diff(rho_cur, axis=0)).max(axis=0) > eps * rho_max) & (width > 0))
+        n_ref = 0
+        for _ in range(ip.near_adapt_x_rounds):
+            if cols.size == 0:
+                break
+            xc, rc = xp_cur[:, cols], rho_cur[:, cols] / rho_max
+            h_uni = (xc[-1] - xc[0]) / (xc.shape[0] - 1)
+            m = 1.0 / h_uni[None, :] + np.abs(np.gradient(rc, axis=0) / np.gradient(xc, axis=0)) / eps
+            F = np.concatenate([np.zeros((1, cols.size)),
+                                np.cumsum(0.5 * (m[1:] + m[:-1]) * np.diff(xc, axis=0), axis=0)])
+            n_new = int(min(max(np.ceil(F[-1]).max() + 1, nx), ip.near_adapt_x_max * nx))
+            xn = np.empty((n_new, cols.size))
+            for j in range(cols.size):
+                xn[:, j] = np.interp(np.linspace(0.0, F[-1, j], n_new), F[:, j], xc[:, j])
+            sn = np.broadcast_to(sp[cols][None, :], xn.shape).copy()
+            exn = {}
+            gzn, gxn = self.get_CSR_integrand(s=s, t=t, x=x, xp=xn, sp=sn, ignore_vx=ignore_vx,
+                                              taper=taper, extras=exn)
+            iz[cols] = np.trapz(y=gzn, x=xn, axis=0)
+            ix[cols] = np.trapz(y=gxn, x=xn, axis=0)
+            n_ref += cols.size * n_new
+            rn = exn['rho'].reshape(xn.shape)
+            # next round: only the columns that still jump on the refined nodes
+            still = np.abs(np.diff(rn, axis=0)).max(axis=0) > eps * rho_max
+            xp_cur = np.zeros((n_new, ncol)); rho_cur = np.zeros((n_new, ncol))
+            xp_cur[:, cols], rho_cur[:, cols] = xn, rn
+            cols = cols[still]
+        self._last_adapt_x = dict(cols=int(n_ref // max(n_new, 1)) if n_ref else 0, evals=n_ref)
+        return gz, gx, (iz, ix)
 
     def _band_alive(self, s, x, t, sp):
         """Whether the retarded band has nonzero width, for each s' in the array."""
@@ -2132,7 +2197,8 @@ class CSR2D:
             # has |J| ~ 1 except within a few band widths of the observer, where the
             # 1/|r-r'| pole and the polar patch already set the node layout, and
             # widening there lost accuracy (D3: up to 16% at a 0.1 floor).
-            parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp, scale_bands=(k == 0))
+            parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp, scale_bands=(k == 0),
+                                               adapt_x=(k == 1))
                      for k, (spk, tp) in enumerate(zip(sps, tapers))]
             # prev_bend_reach: inside a bend, the previous bend's exit tail still arrives
             # (1D: -0.05 MeV/m at the chicane's B4 entrance). Its source lies below this

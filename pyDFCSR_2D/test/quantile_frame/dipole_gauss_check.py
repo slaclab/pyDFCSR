@@ -53,6 +53,7 @@ VARIANTS = {
     # three-term force at every kick at the same beam state and stores both mesh maps (decomp)
     'W1': dict(integ=dict(transverse_terms='W1'), decomp=True),
     'adapt': dict(integ=dict(near_adapt=True)),
+    'adapt_x': dict(integ=dict(near_adapt=True, near_adapt_x=True)),
     'allterms_decomp': dict(decomp=True),
     'bc20set': dict(dep=dict(Q_DEP, xbins=150, zbins=1200, smoothing_sigma=3.0, smoothing_sigma_z=1.0,
                              smoothing_adaptive=True),

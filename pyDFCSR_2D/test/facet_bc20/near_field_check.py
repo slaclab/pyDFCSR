@@ -73,7 +73,7 @@ def wake_parts(sim, s, x):
     tapers = [None, None if radii is None else (*radii, False)]
     out = {}
     for k, (name, spk, tp) in enumerate(zip(('far', 'near'), sps, tapers)):
-        out[name] = sim._integrate_xi_region(s, x, t, spk, False, tp, scale_bands=(k == 0))[:2]
+        out[name] = sim._integrate_xi_region(s, x, t, spk, False, tp, scale_bands=(k == 0), adapt_x=(k == 1))[:2]
     pb = sim._prev_bend_reach_start()
     out['prev'] = (sim._integrate_xi_region(s, x, t, sim._prev_region_nodes(s, pb, s1), False, None,
                                             scale_bands=True)[:2] if (pb is not None and pb < s1) else (0.0, 0.0))
