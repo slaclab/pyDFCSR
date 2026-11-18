@@ -35,9 +35,12 @@ RUNS = os.path.join(RES, 'runs')
 
 from near_field_check import wake_parts, Stop  # noqa: E402
 
-VARIANTS = {'base': {}, 'adapt': {'near_adapt': True}, 'adapt_x': {'near_adapt': True, 'near_adapt_x': True},
+VARIANTS = {'base': {}, 'adapt_x': {'near_adapt': True, 'near_adapt_x': True},
+            'adapt_x_e05': {'near_adapt': True, 'near_adapt_x': True, 'near_adapt_eps': 0.5},
+            'adapt_x_dz01': {'near_adapt': True, 'near_adapt_x': True, 'near_adapt_scan_dz': 0.4},
+            'adapt_x_e05_dz01': {'near_adapt': True, 'near_adapt_x': True, 'near_adapt_eps': 0.5, 'near_adapt_scan_dz': 0.4},
             'sp64_xp4': dict(near_cell=64, near_grade=64, xbins=4)}
-SWEEP = ('base', 'adapt', 'adapt_x', 'sp64_xp4')      # also swept along the first row at 0.5 um through the pedestal
+SWEEP = ('base', 'adapt_x', 'adapt_x_e05', 'adapt_x_dz01', 'adapt_x_e05_dz01', 'sp64_xp4')   # swept at 0.5 um through the pedestal
 
 
 def tag(s_target):
@@ -53,7 +56,8 @@ def analyse(sim, run, s_target, rows, comm, full_mesh):
     # the run's own wake at this kick, for the full mesh (computed in parallel by the replay)
     full_mesh()
     W, F = sim.dE_dct.copy(), sim.x_kick.copy()
-    keep = {k: getattr(ip, k) for k in ('near_cell', 'near_grade', 'xbins', 'far_zbins', 'near_adapt', 'near_adapt_x')}
+    keep = {k: getattr(ip, k) for k in ('near_cell', 'near_grade', 'xbins', 'far_zbins', 'near_adapt', 'near_adapt_x',
+                                         'near_adapt_eps', 'near_adapt_scan_dz')}
     far_nodes = sim._far_region_nodes
     pts = [(a, r, iz) for a, r in enumerate(rows) for iz in range(nz)]
     zs = sim.CSR_zrange[np.argmax(np.abs(W[rows]).max(0))]
@@ -94,7 +98,7 @@ def analyse(sim, run, s_target, rows, comm, full_mesh):
                 if j % size == rank:
                     p = wake_parts(sim, pos + zf[j], xf[j])
                     sw[j] = [p['far'], p['near'], p['prev'], p['patch']]
-                    if name in ('base', 'adapt', 'adapt_x') and j == zf.size // 2:
+                    if name != 'sp64_xp4' and j == zf.size // 2:
                         nodes = sim._near_region_nodes(pos + zf[j], *sim._layout_bounds(pos + zf[j], xf[j])[1],
                                                        x=xf[j], t=pos)
                         print(f'  [rank {rank}] {name}: near region at z = {zf[j]*1e6:+.1f} um: {nodes.size} s nodes '
@@ -146,8 +150,8 @@ def report(run, s_target):
         print(f'{n:8s} {rough(F):11.3f} {np.abs(F[:, ped]).max() / np.abs(F[:, sp]).max():22.3f} '
               f'{np.sqrt(np.mean(Ff[:, ped]**2)) / np.sqrt(np.mean(F[:, ped]**2)):22.3f} '
               f'{F[:, sp].mean():+16.4e} {rough(Wt):11.3f}')
-    col = {'base': '#0b0b0b', 'adapt': '#2a78d6', 'adapt_x': '#1baf7a', 'adapt_xp4': '#9ec5f4', 'sp64': '#e34948',
-           'sp64_xp4': '#7a1f1e'}
+    col = {'base': '#0b0b0b', 'adapt': '#2a78d6', 'adapt_x': '#1baf7a', 'adapt_x_e05': '#eda100',
+           'adapt_x_dz01': '#9ec5f4', 'adapt_x_e05_dz01': '#e34948', 'sp64_xp4': '#7a1f1e'}
     fig, axs = plt.subplots(2, len(rows), figsize=(5.5 * len(rows), 6.5), squeeze=False)
     for a, r in enumerate(rows):
         for j, (q, lab) in enumerate(((1, 'transverse force F'), (0, 'longitudinal W'))):
