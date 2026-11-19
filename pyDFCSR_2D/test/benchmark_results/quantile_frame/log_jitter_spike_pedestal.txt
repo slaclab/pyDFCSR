@@ -1,0 +1,27 @@
+/Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR_near_adapt/pyDFCSR_2D/test/quantile_frame/../../../pyDFCSR_2D/twiss.py:55: RuntimeWarning: invalid value encountered in scalar divide
+  eb = sigma3[0, 0] - xd ** 2 / delta2
+/Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR_near_adapt/pyDFCSR_2D/test/quantile_frame/../../../pyDFCSR_2D/twiss.py:56: RuntimeWarning: invalid value encountered in scalar divide
+  eg = sigma3[1, 1] - pd ** 2 / delta2
+/Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR_near_adapt/pyDFCSR_2D/test/quantile_frame/../../../pyDFCSR_2D/twiss.py:57: RuntimeWarning: invalid value encountered in scalar divide
+  ea = -sigma3[0, 1] + xd * pd / delta2
+/Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR_near_adapt/pyDFCSR_2D/test/quantile_frame/../../../pyDFCSR_2D/twiss.py:68: RuntimeWarning: invalid value encountered in scalar divide
+  d['eta'] = xd / delta2
+/Users/jytang/Library/CloudStorage/GoogleDrive-jytang@stanford.edu/My Drive/Stanford/research/FEL/pyDFCSR_claude/pyDFCSR_near_adapt/pyDFCSR_2D/test/quantile_frame/../../../pyDFCSR_2D/twiss.py:69: RuntimeWarning: invalid value encountered in scalar divide
+  d['etap'] = pd / delta2
+history built in 49 s; s = 1.500 m, sigma_xi 86.3 um, sigma_z 68.7 um, res_z 2.54 um
+base          :    16.9 ms/observer, F at the spike +9.8486e-02 MeV/m
+adapt         :    25.4 ms/observer, F at the spike +9.8400e-02 MeV/m
+adapt_x       :    30.9 ms/observer, F at the spike +9.8348e-02 MeV/m
+adapt_x_e05   :    33.9 ms/observer, F at the spike +9.8384e-02 MeV/m
+adapt_x_dz01  :    33.5 ms/observer, F at the spike +9.8348e-02 MeV/m
+sp64_xp4      :   361.2 ms/observer, F at the spike +9.8431e-02 MeV/m
+
+spike max|F| (reference) 9.8431e-02 MeV/m. Pedestal sweep, row 0 (axis) / row 1 (+0.5 sigma_x): noise = rms(F - 5 um smoothing), diff = rms(F - sp64_xp4); both / spike max|F|
+variant         noise0   diff0  noise1   diff1  ms/obs
+base            0.0253  0.0960  0.0131  0.0202    16.9
+adapt           0.0036  0.0010  0.0085  0.0077    25.4
+adapt_x         0.0036  0.0014  0.0085  0.0076    30.9
+adapt_x_e05     0.0036  0.0009  0.0087  0.0047    33.9
+adapt_x_dz01    0.0036  0.0014  0.0085  0.0065    33.5
+sp64_xp4        0.0036  0.0000  0.0084  0.0000   361.2
+wrote jitter_spike_pedestal.png

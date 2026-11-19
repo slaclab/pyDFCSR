@@ -79,6 +79,8 @@ def analyse(sim, run, s_target, rows, comm, full_mesh):
                 setattr(ip, k, bool(f))
             elif k in ('near_cell', 'near_grade'):
                 setattr(ip, k, keep[k] / f)
+            elif isinstance(keep[k], float):
+                setattr(ip, k, keep[k] * f)        # near_adapt_eps, near_adapt_scan_dz: factors
             else:
                 setattr(ip, k, int(keep[k] * f))
         t0 = time.time()
