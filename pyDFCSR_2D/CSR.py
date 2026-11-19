@@ -1982,8 +1982,9 @@ class CSR2D:
             if new.size == 0:
                 break
             zm, rm = self._column_scan(s, x, t, new)
-            order = np.argsort(np.concatenate([sp, new]), kind='stable')
-            sp = np.concatenate([sp, new])[order]
+            # unique: a split point can coincide with an existing one to round-off, and a zero
+            # spacing would put inf/nan into the gradient monitor below
+            sp, order = np.unique(np.concatenate([sp, new]), return_index=True)
             zr = np.concatenate([zr, zm])[order]
             rho = np.concatenate([rho, rm])[order]
         if sp.size >= ip.near_adapt_max_scan and not getattr(self, '_warned_adapt_scan', False):
@@ -2002,7 +2003,8 @@ class CSR2D:
             h_fixed = np.maximum(floor, g * np.abs(sp - s))
         else:
             h_fixed = np.full(sp.shape, (b - a) / max(base.size - 1, 1))
-        m = 1.0 / h_fixed + np.abs(np.gradient(rho / rho_max, sp)) / ip.near_adapt_eps
+        grad = np.abs(np.gradient(rho / rho_max, sp))
+        m = 1.0 / h_fixed + np.where(np.isfinite(grad), grad, 0.0) / ip.near_adapt_eps
         # grading on the non-uniform scan grid: with h = 1/m, |d ln m| per cell <= ln(max_ratio)
         lr = np.log(ip.near_adapt_max_ratio)
         dg = np.diff(sp)
@@ -2014,6 +2016,8 @@ class CSR2D:
                 lm[i] = max(lm[i], lm[i + 1] - lr * dg[i] * np.exp(lm[i + 1]))
         m = np.exp(lm)
         F = np.concatenate([[0.0], np.cumsum(0.5 * (m[1:] + m[:-1]) * dg)])
+        if not np.isfinite(F[-1]):
+            return base
         n = int(np.ceil(F[-1])) + 1
         if n > ip.near_adapt_max_nodes:
             if not getattr(self, '_warned_adapt_nodes', False):
