@@ -1486,13 +1486,26 @@ class CSR2D:
                 break
             xc, rc = xp_cur[:, cols], rho_cur[:, cols] / rho_max
             h_uni = (xc[-1] - xc[0]) / (xc.shape[0] - 1)
-            m = 1.0 / h_uni[None, :] + np.abs(np.gradient(rc, axis=0) / np.gradient(xc, axis=0)) / eps
+            with np.errstate(divide='ignore', invalid='ignore'):
+                grad = np.abs(np.gradient(rc, axis=0) / np.gradient(xc, axis=0))
+            # coincident nodes (a flat stretch of the previous round's monitor) give 0/0 here
+            m = 1.0 / h_uni[None, :] + np.where(np.isfinite(grad), grad, 0.0) / eps
             F = np.concatenate([np.zeros((1, cols.size)),
                                 np.cumsum(0.5 * (m[1:] + m[:-1]) * np.diff(xc, axis=0), axis=0)])
+            ok = np.isfinite(F[-1]) & (F[-1] > 0)
+            if not ok.all():
+                cols, xc, F = cols[ok], xc[:, ok], F[:, ok]
+                if cols.size == 0:
+                    break
             n_new = int(min(max(np.ceil(F[-1]).max() + 1, nx), ip.near_adapt_x_max * nx))
             xn = np.empty((n_new, cols.size))
             for j in range(cols.size):
                 xn[:, j] = np.interp(np.linspace(0.0, F[-1, j], n_new), F[:, j], xc[:, j])
+            # strictly increasing nodes: trapz needs it and the next round's gradient divides by dx
+            xn = np.maximum.accumulate(xn, axis=0)
+            tiny = 1e-9 * (xn[-1] - xn[0])
+            for k in range(1, n_new):
+                xn[k] = np.maximum(xn[k], xn[k - 1] + tiny)
             sn = np.broadcast_to(sp[cols][None, :], xn.shape).copy()
             exn = {}
             gzn, gxn = self.get_CSR_integrand(s=s, t=t, x=x, xp=xn, sp=sn, ignore_vx=ignore_vx,
