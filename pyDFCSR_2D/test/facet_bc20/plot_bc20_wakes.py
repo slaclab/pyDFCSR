@@ -148,13 +148,16 @@ def zproj(Rq, Ro, D1, fname):
         r = Rq[nearest(Rq, s)]
         zm = zmid(r)
         ax.axhline(0, color=GRID, lw=0.8)
-        d = D1.get(round(r['s'], 6))
+        # the 1D run's kick nearest to this one (its schedule differs); the offset is in the title
+        s1 = min(D1, key=lambda k: abs(k - r['s']))
+        d = D1[s1] if abs(s1 - r['s']) < 0.15 else None
         if d is not None:
             ax.plot((d[0] - zm) * 1e6, d[1], color=COL['1d'], lw=1.3, ls=(0, (3, 1.5)))
         ro = Ro[nearest(Ro, s)]
         ax.plot((ro['z'] - zm) * 1e6, proj(ro, ro['W']), color=COL['old'], lw=1.2)
         ax.plot((r['z'] - zm) * 1e6, proj(r, r['W']), color=COL['q'], lw=1.4)
-        ax.set_title(f"{lab}, s = {r['s']:.2f} m", loc='left', pad=1.5)
+        off = f" (1D at {s1:.2f})" if d is not None and abs(s1 - r['s']) > 5e-3 else ''
+        ax.set_title(f"{lab}, s = {r['s']:.2f} m{off}", loc='left', pad=1.5)
         ax.set_xlim((r['z'][0] - zm) * 1e6, (r['z'][-1] - zm) * 1e6)
         ax.tick_params(labelsize=6, length=1.5)
     for ax in axs.flat[len(PICK):]:
@@ -166,7 +169,7 @@ def zproj(Rq, Ro, D1, fname):
     h = [plt.Line2D([], [], color=COL['q'], lw=1.4), plt.Line2D([], [], color=COL['old'], lw=1.2),
          plt.Line2D([], [], color=COL['1d'], lw=1.3, ls=(0, (3, 1.5)))]
     fig.legend(h, [f'{LABEL.get(RUN, RUN)} (charge-weighted over ξ)', f'{LABEL.get(CMP, CMP)}, nearest kick',
-                   f'{LABEL.get(RUN1, RUN1)}, same s'], loc='upper right', ncol=3, frameon=False, fontsize=8.5)
+                   f'{LABEL.get(RUN1, RUN1)}, nearest kick (within 15 cm)'], loc='upper right', ncol=3, frameon=False, fontsize=8.5)
     fig.suptitle('BC20 longitudinal wake projected on z', x=0.01, ha='left', fontsize=10, color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.96), h_pad=0.5, w_pad=0.4)
     fig.savefig(os.path.join(RES, fname), dpi=130)
