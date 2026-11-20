@@ -38,6 +38,11 @@ def load_state(path):
         sim = pickle.load(f)
     sim.parallel = False
     sim.rank = 0
+    # parameters added to Integration_params after the pickle was written get their defaults
+    from pyDFCSR_2D.params import Integration_params
+    for k, v in vars(Integration_params()).items():
+        if not hasattr(sim.integration_params, k):
+            setattr(sim.integration_params, k, v)
     sim.get_CSR_mesh()
     return sim
 

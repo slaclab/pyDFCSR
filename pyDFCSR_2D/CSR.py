@@ -1927,7 +1927,7 @@ class CSR2D:
         The retarded source seen by the column at each s': (z_ret, rho) at the located band's
         axis point, the larger of the two Eq 4.24 branches. rho is 0 where no branch is live.
         """
-        self._retarded_xi_bands(s, x, t, sp, n_iter=self.integration_params.near_adapt_scan_iter)
+        self._retarded_xi_bands(s, x, t, sp, n_iter=getattr(self.integration_params, 'near_adapt_scan_iter', 4))
         diag = getattr(self, '_branch_diag', None)
         zr = np.full(sp.shape, np.nan)
         rho = np.zeros(sp.shape)
