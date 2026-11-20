@@ -29,10 +29,10 @@ class Integration_params:
                          prev_bend_reach = True, prev_bend_grade = 0.02,
                          ibp = False, ibp_j0 = 0.25, ibp_check = 0, ibp_check_xbins = 400,
                          ibp_check_tol = 1e-3, ibp_check_zone_max = 1.0,
-                         transverse_terms = 'all', near_adapt = False, near_adapt_eps = 0.1,
+                         transverse_terms = 'all', near_adapt = False, near_adapt_eps = 0.02,
                          near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
-                         near_adapt_x = False, near_adapt_x_rounds = 2, near_adapt_x_max = 4):
+                         near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -370,6 +370,8 @@ class Integration_params:
         # history's z support (at most near_adapt_max_scan points), and the nodes equidistribute
         # 1/h_fixed + |d(rho/rho_max)/ds'| / near_adapt_eps, graded to near_adapt_max_ratio, at most
         # near_adapt_max_nodes. No peak finding: horns, spikes and edges are all just gradients.
+        # eps 0.02 (not 0.1): on the tilted, two-branch BC20 B1RE state 0.1 left 6% of the spike
+        # force as residual on the pedestal, 0.02 with 4 x' rounds 0.5% (progress_facet_bc20 9l).
         self.near_adapt = bool(near_adapt)
         self.near_adapt_eps = float(near_adapt_eps)
         self.near_adapt_scan_dz = float(near_adapt_scan_dz)
