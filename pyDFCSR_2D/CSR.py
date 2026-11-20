@@ -31,6 +31,18 @@ from .yaml_parser import parse_yaml
 
 
 
+def degenerate_margin_factor(sin2a, factor, lo=0.8, hi=0.95):
+    """
+    Ribbon-margin multiplier near the band-branch degeneracy: 1 for |sin 2a| <= lo, `factor` for
+    |sin 2a| >= hi, a C1 smoothstep in between (a jump would make the wake discontinuous in s).
+    """
+    if not factor or factor <= 1.0:
+        return 1.0
+    u = (abs(float(sin2a)) - lo) / (hi - lo)
+    u = min(max(u, 0.0), 1.0)
+    return 1.0 + (float(factor) - 1.0) * u * u * (3.0 - 2.0 * u)
+
+
 class CSR2D:
     """
     The main class to calculate 2D CSR
@@ -1286,6 +1298,10 @@ class CSR2D:
         q2 = qx * qx + qy * qy
         T = t - sp
         margin = self.integration_params.xi_band_margin
+        tau0 = self._frame_tilt()
+        margin = margin * degenerate_margin_factor(
+            2.0 * tau0 / (1.0 + tau0 * tau0),
+            getattr(self.integration_params, 'xi_band_margin_degenerate', 1.0))
 
         # BOTH roots are always taken. The branch degeneracy of thesis 4.4.2 is a
         # property of the tilt at the RETARDED time a(s'), which varies column to

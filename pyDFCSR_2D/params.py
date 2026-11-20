@@ -18,7 +18,7 @@ class Integration_params:
         self.configure_params(**input_dic)
 
     def configure_params(self, n_formation_length = 1, zbins = 200, xbins = 200,
-                         xi_bands = True, xi_band_margin = 2.0, near_patch = 5.0,
+                         xi_bands = True, xi_band_margin = 2.0, xi_band_margin_degenerate = 3.0, near_patch = 5.0,
                          near_patch_nr = 100, near_patch_nphi = 180,
                          near_cell = 0.25, far_zbins = 200, near_grade = 0.05,
                          branch_sin_min = 0.05, near_floor = 20.0,
@@ -344,6 +344,12 @@ class Integration_params:
         # Widen the located ribbon by this factor, to absorb the error in the
         # single-pass estimate of where t_ret places the beam.
         self.xi_band_margin = xi_band_margin
+        # Near the branch degeneracy |sin 2a| -> 1 (frame tilt |tau| -> 1, the two Eq 4.24 roots
+        # merge and the band Jacobian -> 0) the default margin under-covers the retarded source:
+        # BC20 D5 x-waist, tau = -1.15: -40% of <W>, converged by margin 6 (progress_facet_bc20 9m).
+        # The margin is multiplied by this factor, ramped in smoothly between |sin 2a| = 0.8 and
+        # 0.95 (CSR2D.degenerate_margin_factor). 1 (or 0) disables.
+        self.xi_band_margin_degenerate = float(xi_band_margin_degenerate)
         # Radius (in sigma_xi) of the polar patch used for the near field around
         # the singular point x' = x, s' = s, where the integrand goes as 1/|r-r'|.
         # 0 disables the patch. See Stupakov, PRAB 25, 014401 (2022) Sec. IV, which

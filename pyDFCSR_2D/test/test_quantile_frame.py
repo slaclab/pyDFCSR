@@ -466,3 +466,12 @@ def test_kicks_from_profile_refinement_terms():
     sk = s[k2]
     assert np.diff(sk[(sk >= 7.0) & (sk <= 8.5)]).max() <= 0.1 + 0.005 + 1e-9    # + one 5 mm node
     assert np.sum((sk > 7.0) & (sk <= 8.5)) >= 14
+
+
+def test_degenerate_margin_factor():
+    """1 away from the degeneracy, the full factor at it, monotone and continuous in between."""
+    from pyDFCSR_2D.CSR import degenerate_margin_factor as f
+    assert f(0.0, 3.0) == 1.0 and f(0.8, 3.0) == 1.0 and f(1.0, 3.0) == 3.0 and f(-1.0, 3.0) == 3.0
+    v = [f(x, 3.0) for x in np.linspace(0.8, 0.95, 50)]
+    assert np.all(np.diff(v) >= 0) and abs(v[0] - 1.0) < 1e-12 and abs(v[-1] - 3.0) < 1e-12
+    assert f(1.0, 1.0) == 1.0 and f(1.0, 0.0) == 1.0
