@@ -128,6 +128,11 @@ RUNS = {
                 dep=dict(curvature=True, curv_zlim=4.0, frame='peak', frame_quantile=0.005, frame_margin=0.1,
                          peak_halfwidth=3.0, peak_taper=2.0, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1),
                 integ=dict(near_cell=0.25), mesh=dict(mesh_mode='charge', xbins=12, zbins=40, mesh_x_quantile=0.002)),
+    # 2dP again after xi_band_margin_degenerate (default 3, 2026-11-20): the chicane's B2/B3 reach |tau| ~ 1.2
+    '2dPm': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2, prev=True,
+                 dep=dict(curvature=True, curv_zlim=4.0, frame='peak', frame_quantile=0.005, frame_margin=0.1,
+                          peak_halfwidth=3.0, peak_taper=2.0, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1),
+                 integ=dict(near_cell=0.25), mesh=dict(mesh_mode='charge', xbins=12, zbins=40, mesh_x_quantile=0.002)),
     '2dP_noT': dict(cls='2d', tangent=True, vx='affine', cutoff2d=0.0, reach=True, thin=0.01, cap=500, jac=0.2, prev=True,
                     dep=dict(curvature=True, curv_zlim=4.0, frame='peak', frame_quantile=0.005, frame_margin=0.1,
                              peak_halfwidth=3.0, peak_taper=2.0, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1),
@@ -150,7 +155,7 @@ LABEL = {'2d': '2D (cutoff 1 Rφ)', '2d_noT': '2D, no transverse force',
          '2d_jac': '2D, defaults, no cutoff, far band Jacobian-scaled',
          '2d_jac_curv': '2D, + far band Jacobian + curvature shear',
          '2dC': '2D (closed chicane, all defaults)', '2dP': '2D, BC20 recipe (peak frame, capped smoothing, charge mesh)',
-         '2dP_noT': '2D, BC20 recipe, no transverse force', '2dC_noT': '2D, no transverse force', '2dC_xavg': '2D, x-averaged wake',
+         '2dP_noT': '2D, BC20 recipe, no transverse force', '2dPm': '2D, BC20 recipe + degenerate band margin', '2dC_noT': '2D, no transverse force', '2dC_xavg': '2D, x-averaged wake',
          '2d_def': '2D, code defaults (no cutoff)', '2d_near': '2D, defaults + near_cell 0.25, no cutoff', '2d_all': '2D, all fixes (near 0.25, curvature 4, prev reach)',
          '2d_curv_mesh': '2D, + Jacobian + curvature, mesh on the ridge', '2d_curv_prev': '2D, + ... + previous-bend reach',
          '2d_x8': '2D, defaults, no cutoff, deposition xlim 8', '2d_x8c': '2D, defaults, no cutoff, xlim 8 xbins 300',
@@ -394,7 +399,7 @@ def analyze():
     # ---- plots
     cols = {'2d': 'C3', '2d_noT': 'C1', '1d': 'C0', '1d_full': 'C2', '1d_fine': 'C9', '1d_fine_full': 'C4',
             '2d_tb': 'C5', '2d_vx': 'C7', '2d_new': 'C6', '2d_new_noT': 'C8', '2d_new_xavg': 'C9', '2d_new_xavgB4': 'C4',
-            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8', '2d_x8': 'C2', '2d_x8c': 'C0', '2d_jac': 'C5', '2d_jac_curv': 'C4', '2d_curv_mesh': 'C9', '2d_curv_prev': 'C7', '2d_near': 'C1', '2d_all': 'C3', '2d_def': 'C0', '2dC': 'C3', '2dC_noT': 'C1', '2dC_xavg': 'C9', '2dP': 'C4', '2dP_noT': 'C6'}
+            '2d_reach': 'C3', '2d_reach_noT': 'C1', '2d_reach_cap': 'C6', '2d_reach_cap_noT': 'C8', '2d_x8': 'C2', '2d_x8c': 'C0', '2d_jac': 'C5', '2d_jac_curv': 'C4', '2d_curv_mesh': 'C9', '2d_curv_prev': 'C7', '2d_near': 'C1', '2d_all': 'C3', '2d_def': 'C0', '2dC': 'C3', '2dC_noT': 'C1', '2dC_xavg': 'C9', '2dP': 'C4', '2dP_noT': 'C6', '2dPm': 'C2'}
     have_slice = all('slice_var' in R[n] for n in ['off'] + names)
     if have_slice:
         fig = plt.figure(figsize=(14, 16.5), layout='constrained')
