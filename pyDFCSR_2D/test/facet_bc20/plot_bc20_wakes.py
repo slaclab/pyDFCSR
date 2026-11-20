@@ -42,7 +42,8 @@ LABEL = {'dfcsr_2d_q': '2D quantile frame', 'dfcsr_2d': '2D, old rms grids',
          'dfcsr_1d_pk20': '1D (peak 20/FWHM)', 'dfcsr_1d_pk20_k05': '1D (peak 20/FWHM), every snapshot',
          'dfcsr_2d_peak_1M': '2D peak frame, 1M particles', 'dfcsr_1d_1M': '1D, 1M particles',
          'dfcsr_2d_peak_1M_sz6.5cap_m40_k115': '2D peak frame 1M, z smoothing 6.5 bins capped, 12x40 mesh, 116 kicks',
-         'dfcsr_2d_peak_1M_sz6.5cap_m40_k115_b1reW1': '2D peak 1M, 116 kicks; F = W1 only from the B1RE entrance'}
+         'dfcsr_2d_peak_1M_sz6.5cap_m40_k115_b1reW1': '2D peak 1M, 116 kicks; F = W1 only from the B1RE entrance',
+         'dfcsr_2d_peak_1M_ref': '2D peak 1M reference: hybrid 269 kicks, adaptive near nodes'}
 RUN, CMP, RUN1 = 'dfcsr_2d_q', 'dfcsr_2d', 'dfcsr_1d_pk20'
 UNIFORM_FRAC = 0.3
 # kicks to show: (target s [m], short label)
