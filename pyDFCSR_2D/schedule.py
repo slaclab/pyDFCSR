@@ -658,7 +658,8 @@ def auto_step_profile(s, sz, rho, L_f, distance, lattice_length, opts,
                        d_edge=d_edge, L_f_edge=L_f_edge, r_edge=r_edge, r_wake=r_wake)
 
 
-def kicks_from_profile(s_nodes, forced, prof_s, prof_r, tol=0.01, h_kick_max=1.0):
+def kicks_from_profile(s_nodes, forced, prof_s, prof_r, tol=0.01, h_kick_max=1.0,
+                       h_eff_nodes=None, h_max=None, kappa_refine=None, exits=None, h_exit=None):
     """
     Kick nodes chosen from a CSR strength profile r(s) >= 0 (step_control kick_placement 'csr1d':
     r = rms over the bunch of the 1D wake, from a pre-pass with a kick at every snapshot).
@@ -669,6 +670,13 @@ def kicks_from_profile(s_nodes, forced, prof_s, prof_r, tol=0.01, h_kick_max=1.0
     rule's local error h^3 |r''| / 24 by the same budget; the third caps the spacing where there is
     no CSR. Nodes in `forced` (the dipole edges, where W jumps) are always kicks. Kicks are a
     subset of s_nodes, as the schedule requires.
+
+    Two optional terms for what the 1D profile cannot see (2D-only transients, BC20 9j/9m):
+      kappa_refine  wherever the auto step profile refines the steps (h_eff below 0.75 of its median:
+                    the beam's size or tilt changes fast -- a waist, a dipole edge), add 1 / (kappa_refine * h_eff),
+                    i.e. at least a kick per kappa_refine steps there (the old kappa rule, locally);
+      h_exit        for R*phi past each bend exit ((s_exit, R*phi) in `exits`), the exit wake's decay
+                    length, the kick spacing is at most h_exit.
     """
     from scipy.ndimage import gaussian_filter1d
     s_nodes = np.asarray(s_nodes, float)
@@ -681,6 +689,17 @@ def kicks_from_profile(s_nodes, forced, prof_s, prof_r, tol=0.01, h_kick_max=1.0
         # r'' on the node grid, lightly smoothed so shot noise in the 1D pre-pass does not count
         d2 = np.gradient(np.gradient(gaussian_filter1d(r, 1.5), s_nodes), s_nodes)
         n = n + r / (tol * R) + np.cbrt(np.abs(d2) / (24.0 * tol * R))
+    if h_eff_nodes is not None and kappa_refine:
+        # "refined" is relative to the prevailing step, not to h_max: the dyadic snap puts the quiet
+        # stretches one level below h_max everywhere (BC20: 25 mm under h_max 50 mm), and the
+        # waists and edges one or more levels below that
+        he = np.asarray(h_eff_nodes, float)
+        refined = he < 0.75 * float(np.median(he))
+        n = n + np.where(refined, 1.0 / (float(kappa_refine) * np.maximum(he, 1e-12)), 0.0)
+    if exits and h_exit:
+        for s_ex, rphi in exits:
+            m = (s_nodes > s_ex) & (s_nodes <= s_ex + abs(rphi))
+            n = np.where(m, np.maximum(n, 1.0 / float(h_exit)), n)
     phi = np.concatenate([[0.0], np.cumsum(0.5 * (n[1:] + n[:-1]) * np.diff(s_nodes))])
     is_kick = np.zeros(s_nodes.size, bool)
     forced = np.asarray(forced, float)
@@ -696,7 +715,7 @@ def kicks_from_profile(s_nodes, forced, prof_s, prof_r, tol=0.01, h_kick_max=1.0
 def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_scan,
                rho_scan, L_f_scan, step_size=None, kick_interval='trailing', nsep=None,
                sxi_scan=None, tau_scan=None, sx_scan=None, force_nodes=None, kick_profile=None,
-               kick_tol=0.01, kick_h_max=1.0, **overrides):
+               kick_tol=0.01, kick_h_max=1.0, kick_kappa_refine=None, kick_h_exit=None, **overrides):
     """
     Build a schedule by equidistributing 1/h_eff, so element boundaries land exactly.
 
@@ -779,8 +798,12 @@ def build_auto(lattice_config, distance, lattice_length, n_element, s_scan, sz_s
     if kick_profile is not None:
         # kicks where the CSR is (kicks_from_profile); forced only at the dipole edges, the one
         # place W jumps, and midpoint intervals clipped only there
+        exits = [(float(e), abs(float(R) * float(ph))) for e, R, ph, ex in
+                 zip(bend_edges, bend_R, bend_phi, bend_is_exit) if ex]
         is_kick = kicks_from_profile(s_nodes, bend_edges, kick_profile[0], kick_profile[1],
-                                     tol=kick_tol, h_kick_max=kick_h_max)
+                                     tol=kick_tol, h_kick_max=kick_h_max,
+                                     h_eff_nodes=np.interp(s_nodes, s_scan, h_eff), h_max=opts['h_max'],
+                                     kappa_refine=kick_kappa_refine, exits=exits, h_exit=kick_h_exit)
         clip_at = np.asarray(bend_edges, float)
     else:
         # kicks: coarser than snapshots by kappa, snapped to snapshot nodes, forced at every boundary

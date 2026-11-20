@@ -78,7 +78,8 @@ class CSR2D:
             par = getattr(self, '_parallel_requested', False) and MPI.COMM_WORLD.Get_size() > 1
             prof = None
             if (not par) or MPI.COMM_WORLD.Get_rank() == 0:
-                prof = csr1d_kick_profile(input, sc.get('kick_profile_1d'))
+                prof = csr1d_kick_profile(input, sc.get('kick_profile_1d'),
+                                          n_particles=sc.get('kick_prepass_particles'))
             if par:
                 prof = MPI.COMM_WORLD.bcast(prof, root=0)
             sc['kick_profile'] = prof

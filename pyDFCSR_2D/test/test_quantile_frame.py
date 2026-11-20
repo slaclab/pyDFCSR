@@ -441,3 +441,28 @@ def test_near_adapt_gaussian_close_to_fixed():
     assert nodes.size >= base.size and np.all(np.diff(nodes) > 0)
     assert nodes[0] == s3 and nodes[-1] == s4 and np.any(np.isclose(nodes, s, rtol=0, atol=1e-12))
     assert s1._last_adapt['scan'] >= base.size
+
+
+def test_kicks_from_profile_refinement_terms():
+    """The waist/edge refinement and exit-transient terms add kicks only where they apply, and the
+    default call (both off) is unchanged."""
+    from pyDFCSR_2D.schedule import kicks_from_profile
+    s = np.linspace(0.0, 10.0, 2001)
+    r = np.where((s > 6) & (s < 7), 1.0, 1e-4)
+    k0 = kicks_from_profile(s, [6.0, 7.0], s, r, tol=0.01, h_kick_max=1.0)
+    k0b = kicks_from_profile(s, [6.0, 7.0], s, r, tol=0.01, h_kick_max=1.0, h_eff_nodes=np.full(s.size, 0.05),
+                             h_max=0.05, kappa_refine=None, exits=None, h_exit=None)
+    assert np.array_equal(k0, k0b)
+    # the step profile refines to 12.5 mm in [2, 2.5] m: a kick per 4 steps = every 5 cm there
+    h_eff = np.where((s > 2.0) & (s < 2.5), 0.0125, 0.05)
+    k1 = kicks_from_profile(s, [6.0, 7.0], s, r, tol=0.01, h_kick_max=1.0, h_eff_nodes=h_eff, h_max=0.05,
+                            kappa_refine=4)
+    sk = s[k1]
+    assert 8 <= np.sum((sk > 2.0) & (sk < 2.5)) <= 12
+    # downstream the density is unchanged; the running integral's phase shifts, so compare counts
+    assert abs(np.sum(k1[s > 3.0]) - np.sum(k0[s > 3.0])) <= 1
+    # the exit of the bend at 7 m with R*phi = 1.5 m: spacing <= 0.1 m up to 8.5 m, unchanged beyond
+    k2 = kicks_from_profile(s, [6.0, 7.0], s, r, tol=0.01, h_kick_max=1.0, exits=[(7.0, 1.5)], h_exit=0.1)
+    sk = s[k2]
+    assert np.diff(sk[(sk >= 7.0) & (sk <= 8.5)]).max() <= 0.1 + 0.005 + 1e-9    # + one 5 mm node
+    assert np.sum((sk > 7.0) & (sk <= 8.5)) >= 14

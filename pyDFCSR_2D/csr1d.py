@@ -290,7 +290,7 @@ def _plain(o):
     return o
 
 
-def csr1d_kick_profile(cfg, csr1d_opts=None):
+def csr1d_kick_profile(cfg, csr1d_opts=None, n_particles=None):
     """
     CSR strength profile for step_control kick_placement 'csr1d' (schedule.kicks_from_profile).
 
@@ -305,13 +305,28 @@ def csr1d_kick_profile(cfg, csr1d_opts=None):
     import tempfile
     import yaml
     c = _plain(cfg)
+    # n_particles (step_control kick_prepass_particles): the pre-pass on a random subsample of a
+    # from_file beam, same total charge. The profile only needs the shape of r(s), and tracking the
+    # particles is the pre-pass's whole cost (1M: ~6 min, 20k: ~30 s). None: all particles.
+    sub = None
+    ib = dict(c.get('input_beam') or {})
+    if n_particles and ib.get('style') == 'from_file':
+        full = np.loadtxt(ib['beamfile'])
+        if full.shape[0] > int(n_particles):
+            sel = np.sort(np.random.default_rng(0).choice(full.shape[0], int(n_particles), replace=False))
+            sub = full[sel]
     sc = dict(c.get('step_control') or {})
-    for k in ('kick_placement', 'kick_profile', 'kick_tol', 'kick_h_max', 'kick_profile_1d'):
+    for k in ('kick_placement', 'kick_profile', 'kick_tol', 'kick_h_max', 'kick_profile_1d',
+              'kick_prepass_particles', 'kick_kappa_refine', 'kick_h_exit'):
         sc.pop(k, None)
     sc.update(mode='auto', kappa=1.0)
     sc.setdefault('kick_interval', 'midpoint')
     c['step_control'] = sc
     with tempfile.TemporaryDirectory() as tmp:
+        if sub is not None:
+            ib['beamfile'] = os.path.join(tmp, 'prepass_beam.txt')
+            np.savetxt(ib['beamfile'], sub)
+            c['input_beam'] = ib
         cc = dict(c.get('CSR_computation') or {})
         cc.update(compute_CSR=1, apply_CSR=1, write_wakes=False, write_beam=None, workdir=tmp,
                   write_name='kick_profile')

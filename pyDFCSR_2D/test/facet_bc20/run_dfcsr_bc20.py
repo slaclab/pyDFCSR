@@ -84,6 +84,14 @@ RUNS['dfcsr_2d_peak_1M_sz6.5cap_m40_k115'] = dict(
     cls='2d', transverse=1, dep=dict(P_DEP, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1),
     csr=dict(Q_MESH, zbins=40, mesh_x_quantile=0.002), beam='input/facet_bc20_beam_1000000.txt',
     sc=dict(kick_placement='csr1d', kick_tol=0.02, kick_h_max=0.75))
+# the converged-reference run (progress_facet_bc20.md 9m): 1D-guided kicks from a 20k-subsample pre-pass,
+# plus a kick per 4 refined steps where the auto profile refines (waists, edges) and <= 10 cm spacing for
+# R*phi after each bend exit; adaptive near-region nodes (near_adapt + near_adapt_x, defaults eps 0.02)
+KP_REF = dict(kick_placement='csr1d', kick_tol=0.005, kick_h_max=0.5, kick_prepass_particles=20000,
+              kick_kappa_refine=4, kick_h_exit=0.1)
+RUNS['dfcsr_2d_peak_1M_ref'] = dict(cls='2d', transverse=1, dep=dict(P_DEP, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1),
+                                    csr=dict(Q_MESH, zbins=40, mesh_x_quantile=0.002), beam='input/facet_bc20_beam_1000000.txt',
+                                    sc=KP_REF, integ=dict(near_adapt=True, near_adapt_x=True))
 # the same 1M runs at coarser deposition grids (x 200, z 600 and 300)
 for _nz in (600, 300):
     RUNS[f'dfcsr_2d_qa_kp_1M_z{_nz}'] = dict(cls='2d', transverse=1, dep=dict(Q_DEP_AD, xbins=200, zbins=_nz),
@@ -153,7 +161,7 @@ def config(name):
                                   compute_CSR=1, apply_CSR=1, transverse_on=r.get('transverse', 1))
     cfg['particle_deposition'] = dict(PIN_2D_DEP, **r.get('dep', {}))
     cfg['CSR_computation'].update(r.get('csr', {}))
-    cfg['CSR_integration'] = dict(PIN_2D_INTEG)
+    cfg['CSR_integration'] = dict(PIN_2D_INTEG, **r.get('integ', {}))
     if r['cls'] == '1d':
         cfg['CSR_1D'] = dict(nbins=r.get('nbins', 300), nsmooth=r.get('nsmooth', 2), drift_cutoff=0.0, **r.get('csr1d', {}))
     os.makedirs(os.path.join(OUT, 'inputs'), exist_ok=True)

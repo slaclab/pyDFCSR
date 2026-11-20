@@ -4,7 +4,10 @@ Replay a BC20 2D run to the first kick at or after s_target and pickle the whole
 seconds instead of a 45-minute replay.
 
     cd pyDFCSR_2D/example
-    mpirun -np 6 python ../test/facet_bc20/dump_kick_state.py <run> <s_target>     (pydfcsr-mpi)
+    mpirun -np 6 python ../test/facet_bc20/dump_kick_state.py <run> <s_target> [--dense]   (pydfcsr-mpi)
+
+--dense applies rerun_kick_dense.densify (a kick at every snapshot in its windows), so a state can be
+pickled at any snapshot inside them (e.g. the 19.11 m glitch).
 
 Writes benchmark_results/facet_bc20/runs/state_<run>_s<s_target>.pkl (rank 0; ~200 MB for the 1M
 beam). Load with
@@ -47,7 +50,7 @@ def load_state(path):
     return sim
 
 
-def main(run, s_target):
+def main(run, s_target, *flags):
     from mpi4py import MPI
     from pyDFCSR_2D import CSR2D
     comm = MPI.COMM_WORLD
@@ -55,6 +58,11 @@ def main(run, s_target):
     s_target = float(s_target)
     sim = CSR2D(input_file=os.path.join(RUNS, 'inputs', f'{run}.yaml'), parallel=comm.Get_size() > 1)
     sim.CSR_params.write_wakes = False
+    if '--dense' in flags:
+        from rerun_kick_dense import densify
+        n0, n1 = densify(sim)
+        if rank == 0:
+            print(f'  [dense] kicks {n0} -> {n1}', flush=True)
     orig = sim.calculate_2D_CSR_parallel if sim.parallel else sim.calculate_2D_CSR
 
     def kick():
