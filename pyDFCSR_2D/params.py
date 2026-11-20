@@ -32,7 +32,8 @@ class Integration_params:
                          transverse_terms = 'all', near_adapt = False, near_adapt_eps = 0.02,
                          near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
-                         near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4):
+                         near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
+                         near_adapt_scan_iter = 4):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -389,6 +390,10 @@ class Integration_params:
         self.near_adapt_x = bool(near_adapt_x)
         self.near_adapt_x_rounds = int(near_adapt_x_rounds)
         self.near_adapt_x_max = int(near_adapt_x_max)
+        # fixed-point iterations of the band solve in the column scan (the integration's own solve
+        # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3
+        # differs at 1e-7 MeV/m; 4 saves 13% per observer (progress_facet_bc20 9l).
+        self.near_adapt_scan_iter = int(near_adapt_scan_iter)
 
 
 class CSR_params:
