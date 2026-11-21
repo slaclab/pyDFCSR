@@ -348,7 +348,7 @@ def test_smoothing_res_fwhm_caps_the_spike_only(frame):
     tr = _tracker(frame=frame, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1)
     tr.get_DF(x, z, px, 0.0)
     fw = tr._peak_fw if frame == 'peak' else peak_fwhm(z[tr.window_weight(z) > 0])
-    floor = tr.delta_z_phys * np.sqrt(0.25 + 2.0 / 3.0)        # the 0.5-bin floor
+    floor = tr.delta_z_phys * np.sqrt(tr.smoothing_min_bins ** 2 + 2.0 / 3.0)   # the smoothing_min_bins floor (1 bin)
     assert tr.sz_used < 6.5 and tr.res_z <= max(0.1 * fw, floor) * (1 + 1e-9)
     xg = np.random.default_rng(3).normal(0, 20e-6, 200000)
     zg = np.random.default_rng(4).normal(0, 50e-6, 200000)
@@ -361,6 +361,31 @@ def test_smoothing_res_fwhm_caps_the_spike_only(frame):
     t0.get_DF(x, z, px, 0.0)
     t1.get_DF(x, z, px, 0.0)
     assert np.array_equal(t0.density, t1.density) and t1.sz_used == 2.0
+
+
+def test_velocity_mask_clamps_negative_density():
+    """The FFT Gaussian can leave the smoothed density slightly negative at a sharp edge; the
+    velocity floor and the d vx/dx mask clamp it at zero, so neither passes through a zero
+    denominator (Indranil's loss beam, progress_facet_bc20.md 11b). Non-negative input: unchanged."""
+    from pyDFCSR_2D.deposit_smooth import velocity_mask
+    eps = 1.6e-4
+    rho = np.array([0.5, 1e-3, 0.0, -0.5 * eps, -eps, -1.4 * eps, -8.9e-5])
+    m = velocity_mask(rho, eps)
+    assert np.all(np.isfinite(m)) and np.all(m >= 0) and np.all(m <= 1) and np.all(m[3:] == 0)
+    pos = np.abs(rho)
+    assert np.array_equal(velocity_mask(pos, eps), (pos / (pos + eps)) ** 3)
+    # a sharp 100x step deposited and smoothed with a sub-bin kernel goes negative; the tracker's
+    # vx and d vx/du stay bounded by the particles' px
+    x = np.random.default_rng(5).normal(0, 20e-6, 400000)
+    z = np.concatenate([np.random.default_rng(6).uniform(-1.0e-6, 0.0, 300000),
+                        np.random.default_rng(7).uniform(0.0, 60e-6, 100000)])
+    px = np.random.default_rng(8).normal(0, 5e-6, 400000)
+    tr = _tracker(frame='quantile', smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1, smoothing_min_bins=0.5)
+    tr.velocity_threhold = 1000
+    tr.get_DF(x, z, px, 0.0)
+    assert tr.density.min() < 0, 'the test needs a negative overshoot to be meaningful'
+    assert np.abs(tr.vx).max() < 10 * np.abs(px).max() and np.all(np.isfinite(tr.vx_u))
+    assert np.abs(tr.vx_u).max() < 10 * np.abs(px).max() / tr.delta_u
 
 
 def test_mesh_x_quantile_clips_axis_and_clamps_kick():

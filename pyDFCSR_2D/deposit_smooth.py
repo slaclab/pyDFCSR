@@ -130,6 +130,18 @@ def smooth_and_differentiate(field, dx, dz, sigma_smooth, sigma_smooth_z=None):
     return field_smooth, dfield_dx, dfield_dz
 
 
+def velocity_mask(density_smooth, epsilon):
+    """
+    (rho / (rho + eps))^3 with rho clamped at zero: the taper of d vx/dx where the density is
+    negligible. The FFT Gaussian smoothing can leave the density slightly negative near a sharp
+    edge (see smoothing_min_bins); without the clamp rho + eps passes through zero there and the
+    mask (and vx = rho vx / (rho + eps), which uses the same clamp) blow up. Bit-identical to the
+    unclamped form wherever the smoothed density is non-negative.
+    """
+    rho = np.maximum(density_smooth, 0.0)
+    return (rho / (rho + epsilon)) ** 3
+
+
 def smooth_levels(field, dx, dz, sigma_x, sigma_z_levels, weights, want=(True, True, True)):
     """
     Spatially varying z smoothing: the field smoothed at every z width in sigma_z_levels (x width
@@ -274,14 +286,14 @@ class DF_tracker_smooth:
             vx_weighted, dx, dz, self.smoothing_sigma
         )
         epsilon = np.max(density_smooth) / self.velocity_threhold
-        vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+        vx_smooth = rho_vx_smooth / (np.maximum(density_smooth, 0.0) + epsilon)
 
         # Differentiate vx with full smoothing sigma to suppress boundary noise
         _, vx_dxi, _ = smooth_and_differentiate(
             vx_smooth, dx, dz, self.smoothing_sigma
         )
         # Taper ∂vx/∂ξ to zero where density is negligible
-        density_mask = (density_smooth / (density_smooth + epsilon)) ** 3
+        density_mask = velocity_mask(density_smooth, epsilon)
         vx_dxi *= density_mask
 
         # Chain rule correction for ∂ρ/∂z:
@@ -470,6 +482,7 @@ class DF_tracker_comoving:
                          smoothing_adaptive=False, smoothing_min_particles=100,
                          smoothing_sigma_z_max=16.0, peak_halfwidth=3.0, peak_taper=2.0,
                          peak_rate=0.2, peak_shift=0.25, smoothing_res_fwhm=None,
+                         smoothing_min_bins=1.0,
                          u_taper=0.5, edge_warn=1e-4):
         self.method = method
         self.xbins = xbins
@@ -482,12 +495,20 @@ class DF_tracker_comoving:
         self.smoothing_sigma_z = None if smoothing_sigma_z is None else float(smoothing_sigma_z)
         # frames 'quantile'/'peak': cap the z smoothing in physical length, so that the effective
         # z resolution (cell * sqrt(sz^2 + 2/3)) stays <= smoothing_res_fwhm * FWHM of the highest
-        # current peak (floor 0.5 bins). The smoothing is in bins and the bins follow the window,
+        # current peak (floor smoothing_min_bins). The smoothing is in bins and the bins follow the window,
         # so without a cap a smoothing chosen for the long bunch (BC20 entrance, 2 um bins) is
         # a few bins of a 0.1 um grid once the window has shrunk onto a spike -- harmless -- but
         # one chosen to remove the long bunch's fine structure (6.5 bins = 14 um there) is 0.6-1 um
         # on the spike, comparable to its rms. None: no cap.
         self.smoothing_res_fwhm = None if smoothing_res_fwhm is None else float(smoothing_res_fwhm)
+        # the cap never takes the z smoothing below this many bins. smooth_and_differentiate is a
+        # Gaussian applied in Fourier space; below ~1 bin it is not band-limited (at 0.5 bins the
+        # response at Nyquist is 0.29), so its real-space kernel rings and the smoothed density of a
+        # sharp edge goes NEGATIVE by up to ~1e-4 of the peak -- enough to reach the velocity floor
+        # epsilon (1.6e-4 at velocity_threhold 1000) and send vx = rho vx / (rho + eps) and its mask
+        # to infinity (Indranil's loss beam: 7654 MeV/m in W2 at the second kick, 1e20 at the end,
+        # progress_facet_bc20.md 11b). The old floor was 0.5.
+        self.smoothing_min_bins = float(smoothing_min_bins)
         # Which normalized frame the fixed (u, w) grid is laid in, per snapshot:
         # 'rms'       w = (z - mean)/std over all particles (the original frame)
         # 'quantile'  the grid spans [z_q, z_(1-q)] widened by frame_margin*span on each side,
@@ -755,11 +776,11 @@ class DF_tracker_comoving:
         # beam and inject temporal inconsistency into the W2 / div(v) term.
         rho_hat_ref = 1.0 / (2.0 * np.pi)
         epsilon = rho_hat_ref / self.velocity_threhold
-        vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+        vx_smooth = rho_vx_smooth / (np.maximum(density_smooth, 0.0) + epsilon)
 
         _, vx_du, _ = smooth_and_differentiate(
             vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, self.smoothing_sigma_z)
-        vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+        vx_du *= velocity_mask(density_smooth, epsilon)
         self._check_edge(density_smooth, t)
 
         if self.vx_model == 'affine':
@@ -945,7 +966,7 @@ class DF_tracker_comoving:
         if self.smoothing_res_fwhm:
             fw = self._peak_fw if self.frame == 'peak' else fw_pk
             r = self.smoothing_res_fwhm * fw / (self.delta_w * sigma_z)
-            sz = min(sz, max(np.sqrt(max(r * r - 2.0 / 3.0, 0.0)), 0.5))
+            sz = min(sz, max(np.sqrt(max(r * r - 2.0 / 3.0, 0.0)), self.smoothing_min_bins))
         self.sz_used = sz
         # the floor scales with the windowed charge, so eps / peak density stays as in the
         # rms frame; f_window is smooth in time, unlike a per-snapshot peak
@@ -957,7 +978,7 @@ class DF_tracker_comoving:
                 density, self.delta_u, self.delta_w, sx, levels, W)
             rho_vx_smooth = smooth_levels(vx_weighted, self.delta_u, self.delta_w, sx, levels, W,
                                           want=(True, False, False))[0]
-            vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+            vx_smooth = rho_vx_smooth / (np.maximum(density_smooth, 0.0) + epsilon)
             vx_du = smooth_levels(vx_smooth, self.delta_u, self.delta_w, sx, levels, W,
                                   want=(False, True, False))[1]
         else:
@@ -966,10 +987,10 @@ class DF_tracker_comoving:
                 density, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
             rho_vx_smooth, _, _ = smooth_and_differentiate(
                 vx_weighted, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
-            vx_smooth = rho_vx_smooth / (density_smooth + epsilon)
+            vx_smooth = rho_vx_smooth / (np.maximum(density_smooth, 0.0) + epsilon)
             _, vx_du, _ = smooth_and_differentiate(
                 vx_smooth, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
-        vx_du *= (density_smooth / (density_smooth + epsilon)) ** 3
+        vx_du *= velocity_mask(density_smooth, epsilon)
         self._check_edge(density_smooth, t)
         if self.vx_model == 'affine':
             wg = np.clip(self.w_grids, w_lo, w_hi)[None, :]
