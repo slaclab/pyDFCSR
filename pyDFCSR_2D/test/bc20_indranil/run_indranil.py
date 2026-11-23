@@ -40,7 +40,7 @@ import run_dfcsr_bc20 as RD  # noqa: E402
 
 DEP = dict(RD.P_DEP, smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1)
 MESH = dict(RD.Q_MESH, zbins=40, mesh_x_quantile=0.002)
-INTEG = dict(near_adapt=True, near_adapt_x=True)
+INTEG = dict(near_adapt=True, near_adapt_x=True, far_adapt_x=True)
 KP = dict(RD.KP_REF)
 KP2 = dict(KP, kick_tol=0.0025, kick_h_exit=0.05)
 # the loss beam is 65 um long with a sharp 42 kA peak on a broad body: the peak window (+-3 FWHM) kept

@@ -478,6 +478,37 @@ def test_lattice_vectors_extend_straight_before_the_start():
     assert np.all(ref[2][sv < -d] == 0) and np.all(ref[3][sv < -d] == 0)      # what it replaces
 
 
+def test_far_adapt_x_runs_and_is_gated():
+    """far_adapt_x (default True) refines the far region's x' nodes only with near_adapt and
+    near_adapt_x on; a run with it differs from one without by much less than the wake itself on
+    the golden dipole (the Gaussian beam has nothing to alias), and without near_adapt it is inert
+    (bit-identical)."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    from pyDFCSR_2D.params import Integration_params
+    assert Integration_params().far_adapt_x is True
+    out = {}
+    for key, integ in (('off', dict(near_adapt=True, near_adapt_x=True, far_adapt_x=False)),
+                       ('on', dict(near_adapt=True, near_adapt_x=True, far_adapt_x=True)),
+                       ('plain', dict(far_adapt_x=False)), ('plain_on', dict(far_adapt_x=True))):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = make_golden_2d.config(tmp, {'frame': 'quantile', 'zbins': 128, 'smoothing_sigma_z': 1.0},
+                                      {'mesh_mode': 'charge', 'write_wakes': False})
+            import yaml
+            cfg = yaml.safe_load(open(f)); cfg['CSR_integration'].update(integ); yaml.safe_dump(cfg, open(f, 'w'), sort_keys=False)
+            with contextlib.redirect_stdout(io.StringIO()):
+                sim = CSR2D(input_file=f)
+                sim.run()
+            out[key] = (np.array(sim.dE_dct), np.array(sim.x_kick), np.array(sim.beam.pz))
+    assert np.array_equal(out['plain'][2], out['plain_on'][2])
+    dW = np.abs(out['on'][0] - out['off'][0]).max() / np.abs(out['off'][0]).max()
+    dF = np.abs(out['on'][1] - out['off'][1]).max() / max(np.abs(out['off'][1]).max(), 1e-300)
+    assert dW < 0.05 and dF < 0.05, (dW, dF)
+
+
 def test_mesh_x_quantile_clips_axis_and_clamps_kick():
     """mesh_x_quantile: the charge mesh's x axis stays within the quantile span (so the core gets
     the rows), and particles beyond it get the edge row's kick instead of 0."""

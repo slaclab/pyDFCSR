@@ -2274,7 +2274,7 @@ class CSR2D:
             # 1/|r-r'| pole and the polar patch already set the node layout, and
             # widening there lost accuracy (D3: up to 16% at a 0.1 floor).
             parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp, scale_bands=(k == 0),
-                                               adapt_x=(k == 1))
+                                               adapt_x=(k == 1) or (k == 0 and self.integration_params.far_adapt_x))
                      for k, (spk, tp) in enumerate(zip(sps, tapers))]
             # prev_bend_reach: inside a bend, the previous bend's exit tail still arrives
             # (1D: -0.05 MeV/m at the chicane's B4 entrance). Its source lies below this

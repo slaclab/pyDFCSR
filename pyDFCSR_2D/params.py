@@ -33,7 +33,7 @@ class Integration_params:
                          near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
-                         near_adapt_scan_iter = 4):
+                         near_adapt_scan_iter = 4, far_adapt_x = True):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -396,6 +396,15 @@ class Integration_params:
         self.near_adapt_x = bool(near_adapt_x)
         self.near_adapt_x_rounds = int(near_adapt_x_rounds)
         self.near_adapt_x_max = int(near_adapt_x_max)
+        # far_adapt_x: the same x' refinement on the FAR region's columns. A horn 1 um wide seen
+        # through the oblique branch of the band from far behind is crossed in a few um of x'
+        # against a uniform cell of band width / xbins (BC20 loss, B2RE: 10 um), and the
+        # transverse integrand (1/|r-r'|^2, d rho/dt) aliases it into isolated cells of F up to
+        # 10x the force on the horn, and W into cells off by 34% of the horn's W (progress_facet_bc20.md
+        # 11f). On the B2RE state far_adapt_x reproduces an 8x x' reference to 10% of the horn F and 1%
+        # of the horn W at +16% run time (8x: +160%). Default True; inert unless near_adapt and
+        # near_adapt_x are on (they are off by default).
+        self.far_adapt_x = bool(far_adapt_x)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3
         # differs at 1e-7 MeV/m; 4 saves 13% per observer (progress_facet_bc20 9l).
