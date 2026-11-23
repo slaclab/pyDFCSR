@@ -1011,12 +1011,38 @@ class CSR2D:
         if rank == 0:
             self._ibp_consistency_check()
 
+    def _lattice_vectors(self, sval):
+        """
+        (X0, Y0, n_x, n_y, tau_x, tau_y) of the reference orbit at arc length(s) sval.
+
+        Past the lattice end the table itself is padded with a straight line (lattice.py). Before
+        the start it is not: interpolate1D extrapolates with the first interval for one cell
+        below the table and returns ZERO further down -- position at the origin, normal (0, 0) --
+        so an observer more than one table cell before s = 0 (the bunch tail at the first kick,
+        when the table is fine: a short lattice, or many samples) got a collapsed geometry and a
+        transverse integrand of 1e16. Here the orbit is continued backwards along the initial
+        tangent, exactly as the physical straight section before the lattice. Queries inside the
+        table, and within one cell below it, are untouched (bit-identical).
+        """
+        lat = self.lattice
+        sval = np.asarray(sval, dtype=float)
+        out = [interpolate1D(xval=sval, data=d, min_x=lat.min_x, delta_x=lat.delta_x)
+               for d in (lat.coords[:, 0], lat.coords[:, 1], lat.n_vec[:, 0], lat.n_vec[:, 1],
+                         lat.tau_vec[:, 0], lat.tau_vec[:, 1])]
+        before = sval <= lat.min_x - lat.delta_x        # where interpolate1D returns 0
+        if before.any():
+            ds = sval[before] - lat.min_x
+            tx, ty = float(lat.tau_vec[0, 0]), float(lat.tau_vec[0, 1])
+            vals = (lat.coords[0, 0] + ds * tx, lat.coords[0, 1] + ds * ty,
+                    lat.n_vec[0, 0], lat.n_vec[0, 1], tx, ty)
+            for k, v in enumerate(vals):
+                out[k] = out[k].copy()
+                out[k][before] = v
+        return tuple(out)
+
     def _lattice_at(self, sval):
         """(X0, Y0, n_x, n_y) of the reference orbit at arc length(s) sval."""
-        lat = self.lattice
-        return tuple(interpolate1D(xval=sval, data=d, min_x=lat.min_x, delta_x=lat.delta_x)
-                     for d in (lat.coords[:, 0], lat.coords[:, 1],
-                               lat.n_vec[:, 0], lat.n_vec[:, 1]))
+        return self._lattice_vectors(sval)[:4]
 
     def _retarded_xi_band(self, s, x, t, sp, n_iter=3):
         """
@@ -2570,31 +2596,10 @@ class CSR2D:
                                  delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
                                  delta_z=self.DF_tracker.delta_z)[0]
 
-        X0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
-                             delta_x = self.lattice.delta_x)[0]
-        X0_sp = interpolate1D(xval = sp_flat, data = self.lattice.coords[:, 0], min_x = self.lattice.min_x,
-                              delta_x = self.lattice.delta_x)
-        Y0_s = interpolate1D(xval = np.array([s]), data = self.lattice.coords[:, 1], min_x = self.lattice.min_x,
-                             delta_x = self.lattice.delta_x)[0]
-        Y0_sp = interpolate1D(xval = sp_flat, data = self.lattice.coords[:, 1], min_x = self.lattice.min_x,
-                              delta_x = self.lattice.delta_x)
-        n_vec_s_x = interpolate1D(xval = np.array([s]), data = self.lattice.n_vec[:, 0], min_x = self.lattice.min_x,
-                                  delta_x = self.lattice.delta_x)[0]
-        n_vec_sp_x =interpolate1D(xval = sp_flat, data = self.lattice.n_vec[:, 0], min_x = self.lattice.min_x,
-                                  delta_x = self.lattice.delta_x)
-        n_vec_s_y = interpolate1D(xval=np.array([s]), data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
-                                  delta_x=self.lattice.delta_x)[0]
-        n_vec_sp_y = interpolate1D(xval=sp_flat, data=self.lattice.n_vec[:, 1], min_x=self.lattice.min_x,
-                                   delta_x=self.lattice.delta_x)
-        tau_vec_s_x = interpolate1D(xval=np.array([s]), data=self.lattice.tau_vec[:, 0], min_x=self.lattice.min_x,
-                                  delta_x=self.lattice.delta_x)[0]
-        tau_vec_sp_x = interpolate1D(xval=sp_flat, data=self.lattice.tau_vec[:, 0], min_x=self.lattice.min_x,
-                                   delta_x=self.lattice.delta_x)
-        tau_vec_s_y = interpolate1D(xval=np.array([s]), data=self.lattice.tau_vec[:, 1], min_x=self.lattice.min_x,
-                                  delta_x=self.lattice.delta_x)[0]
-        tau_vec_sp_y = interpolate1D(xval=sp_flat, data=self.lattice.tau_vec[:, 1], min_x=self.lattice.min_x,
-                                   delta_x=self.lattice.delta_x)
-
+        (X0_s, Y0_s, n_vec_s_x, n_vec_s_y,
+         tau_vec_s_x, tau_vec_s_y) = (v[0] for v in self._lattice_vectors(np.array([s])))
+        (X0_sp, Y0_sp, n_vec_sp_x, n_vec_sp_y,
+         tau_vec_sp_x, tau_vec_sp_y) = self._lattice_vectors(sp_flat)
 
         r_minus_rp_x = X0_s - X0_sp + x * n_vec_s_x - xp_flat * n_vec_sp_x
         r_minus_rp_y = Y0_s - Y0_sp + x * n_vec_s_y - xp_flat * n_vec_sp_y

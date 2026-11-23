@@ -449,6 +449,35 @@ def test_auto_frame_in_csr2d_matches_peak_run():
     assert np.array_equal(out['auto'][0], out['peak'][0]) and np.array_equal(out['auto'][1], out['peak'][1])
 
 
+def test_lattice_vectors_extend_straight_before_the_start():
+    """Observers before the lattice start (the bunch tail at the first kick) get the reference
+    orbit continued along the initial tangent, not interpolate1D's zeros; inside the table and
+    within one cell below it nothing changes."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    from pyDFCSR_2D.interp1D import interpolate1D
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, {'frame': 'quantile', 'zbins': 128}, {'mesh_mode': 'charge', 'write_wakes': False})
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+    lat = sim.lattice
+    d = lat.delta_x
+    sv = np.array([-5 * d, -1.5 * d, -d, -0.5 * d, 0.0, 0.3, 0.49])
+    X0, Y0, nx, ny, tx, ty = sim._lattice_vectors(sv)
+    ref = [interpolate1D(xval=sv, data=a, min_x=lat.min_x, delta_x=d)
+           for a in (lat.coords[:, 0], lat.coords[:, 1], lat.n_vec[:, 0], lat.n_vec[:, 1], lat.tau_vec[:, 0], lat.tau_vec[:, 1])]
+    inside = sv > -d
+    for got, want in zip((X0, Y0, nx, ny, tx, ty), ref):
+        assert np.array_equal(got[inside], want[inside])
+    far = sv <= -d
+    assert np.allclose(X0[far], lat.coords[0, 0] + sv[far] * lat.tau_vec[0, 0]) and np.allclose(Y0[far], lat.coords[0, 1] + sv[far] * lat.tau_vec[0, 1])
+    assert np.all(nx[far] == lat.n_vec[0, 0]) and np.all(ny[far] == lat.n_vec[0, 1]) and np.all(tx[far] == lat.tau_vec[0, 0])
+    assert np.all(ref[2][sv < -d] == 0) and np.all(ref[3][sv < -d] == 0)      # what it replaces
+
+
 def test_mesh_x_quantile_clips_axis_and_clamps_kick():
     """mesh_x_quantile: the charge mesh's x axis stays within the quantile span (so the core gets
     the rows), and particles beyond it get the edge row's kick instead of 0."""
