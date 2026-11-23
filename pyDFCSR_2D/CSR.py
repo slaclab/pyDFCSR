@@ -12,6 +12,7 @@ from .beams import Beam
 from .deposit import DF_tracker
 from .deposit_smooth import DF_tracker_smooth, DF_tracker_comoving
 from .interp1D import interpolate1D
+from .integrand_kernel import csr_integrand_kernel
 from .interp3D import (interpolate3D, interpolate3D_transformed,
                        interpolate3D_comoving_fields, interpolate3D_comoving_ibp)
 from .lattice import Lattice  # , get_referece_traj
@@ -977,34 +978,32 @@ class CSR2D:
         self._ibp_consistency_check()
 
     def calculate_2D_CSR_parallel(self):
-        work_size= self.CSR_params.xbins * self.CSR_params.zbins
+        """
+        The wake mesh split over the ranks INTERLEAVED (rank r takes points r, r + size, ...),
+        not in contiguous blocks. A point's cost varies 15x across the mesh (24-340 ms on the
+        BC20 loss beam at B2RE: the near-adapt and x' refinement work where the horns are, the
+        core rows cost 1.7x the edge rows), and contiguous blocks are whole rows, so the slowest
+        rank held 1.16x the mean at 3 ranks and 1.27-1.30x at 6-12; interleaving brings it to
+        1.01-1.02x (measured on the pickled 37.74 m state). Every point is computed once, by one
+        rank, with the same arithmetic as before, so the result is bit-identical to the serial
+        and to the block split; the gather is an Allreduce of zero-padded full arrays.
+        """
+        work_size = self.CSR_params.xbins * self.CSR_params.zbins
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
-        start = int(self.displ[rank])
-        local_size = int(self.count[rank])
+        size = comm.Get_size()
+
+        dE_local = np.zeros((work_size,))
+        xk_local = np.zeros((work_size,))
+        for k in range(rank, work_size, size):
+            s = self.beam.position + self.CSR_zmesh[k]
+            x = self.CSR_xmesh[k]
+            dE_local[k], xk_local[k] = self.get_CSR_wake(s, x)
 
         self.dE_dct = np.zeros((work_size,))
         self.x_kick = np.zeros((work_size,))
-
-        dE_dct_local = np.zeros((local_size,))
-        x_kick_local = np.zeros(local_size, )
-
-        start_time = time.time()
-        for i in range(local_size):
-            k  = start + i
-            # if i == 210:
-            #    print(i)
-
-            # if i%int(N//10) == 0:
-            #    print('Complete', str(np.round(i/N*100,2)), '%')
-
-            s = self.beam.position + self.CSR_zmesh[k]
-            x = self.CSR_xmesh[k]
-
-            dE_dct_local[i], x_kick_local[i] = self.get_CSR_wake(s,x)
-
-        comm.Allgatherv(dE_dct_local, [self.dE_dct, self.count, self.displ, MPI.DOUBLE])
-        comm.Allgatherv(x_kick_local, [self.x_kick, self.count, self.displ, MPI.DOUBLE])
+        comm.Allreduce(dE_local, self.dE_dct, op=MPI.SUM)
+        comm.Allreduce(xk_local, self.x_kick, op=MPI.SUM)
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
@@ -2606,12 +2605,13 @@ class CSR2D:
         r_minus_rp = np.sqrt(r_minus_rp_x**2 + r_minus_rp_y**2)
 
 
-        rho_sp = np.zeros(sp_flat.shape)
-        for count in range(self.lattice.Nelement):
-            if count == 0:
-                rho_sp[sp_flat < self.lattice.distance[count]] = self.lattice.rho[count]
-            else:
-                rho_sp[(sp_flat < self.lattice.distance[count]) & (sp_flat >= self.lattice.distance[count - 1])] = self.lattice.rho[count]
+        # curvature of the element each s' falls in (0 past the lattice end). One searchsorted
+        # instead of the per-element mask loop: identical values, 3.8 -> 0.5 ms on 80k points
+        # with 65 elements (BC20), i.e. ~15% of a wake point.
+        dist = np.asarray(self.lattice.distance)
+        rho_el = np.asarray(self.lattice.rho)
+        k_el = np.searchsorted(dist, sp_flat, side='right')
+        rho_sp = np.where(k_el < dist.size, rho_el[np.minimum(k_el, dist.size - 1)], 0.0)
 
         t_ret = t - r_minus_rp
 
@@ -2621,9 +2621,13 @@ class CSR2D:
             # The chain rule for d rho/dz is applied inside, with the time-blended
             # p', which the pre-baked per-snapshot version could not do.
             z_ret = sp_flat - t_ret
-            if extras is None:
+            if extras is None or not (self.integration_params.ibp and self.use_comoving):
+                # the x' refinement (near_adapt_x / far_adapt_x) asks for extras only to read the
+                # retarded density, which the plain pass returns; the ibp pass computes A and B on
+                # top (22.3 vs 17.4 ms per 80k points, bit-identical first five fields)
                 (density_ret, density_x_ret, density_z_ret,
                  vx_ret, vx_x_ret) = self._comoving_fields(xp_flat, z_ret, t_ret)
+                A_ibp = B_ibp = None
             else:
                 (density_ret, density_x_ret, density_z_ret,
                  vx_ret, vx_x_ret, A_ibp, B_ibp) = self._comoving_fields_ibp(xp_flat, z_ret, t_ret)
@@ -2705,6 +2709,29 @@ class CSR2D:
                                  delta_z=self.DF_tracker.delta_z)
 
         ## Todo: More accurate vx, maybe add vs
+        if ignore_vx:
+            vx = 0
+            vx_x_ret = 0
+            vx_ret = 0
+        if getattr(self.integration_params, 'integrand_kernel', 'numpy') == 'numba':
+            n = xp_flat.size
+            CSR_integrand_z = np.empty(n); CSR_integrand_x = np.empty(n); vn = np.empty(n)
+            as_arr = lambda v: np.broadcast_to(np.asarray(v, dtype=float), (n,)) if np.ndim(v) == 0 else np.ascontiguousarray(v, dtype=float)
+            R1, R2, keep_inner = taper if taper is not None else (0.0, 1.0, False)
+            csr_integrand_kernel(np.ascontiguousarray(xp_flat, dtype=float), as_arr(rho_sp), as_arr(r_minus_rp_x), as_arr(r_minus_rp_y),
+                                 as_arr(r_minus_rp), as_arr(n_vec_sp_x), as_arr(n_vec_sp_y), as_arr(tau_vec_sp_x), as_arr(tau_vec_sp_y),
+                                 as_arr(density_ret), as_arr(density_x_ret), as_arr(density_z_ret), as_arr(vx_ret), as_arr(vx_x_ret),
+                                 float(vx), float(n_vec_s_x), float(n_vec_s_y), float(tau_vec_s_x), float(tau_vec_s_y),
+                                 getattr(self.integration_params, 'transverse_terms', 'all') == 'W1', taper is not None,
+                                 float(R1), float(R2), bool(keep_inner), CSR_integrand_z, CSR_integrand_x, vn)
+            if extras is not None:
+                extras.update(rx=r_minus_rp_x, ry=r_minus_rp_y, nx=n_vec_sp_x, ny=n_vec_sp_y,
+                              xp=xp_flat, sp=sp_flat, kappa=rho_sp, vn=vn,
+                              rho=density_ret, rho_x=density_x_ret, A=A_ibp, B=B_ibp)
+            CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
+            CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
+            return CSR_integrand_z, CSR_integrand_x
+
         vs = 1
         vs_ret = 1
         vs_s_ret = 0

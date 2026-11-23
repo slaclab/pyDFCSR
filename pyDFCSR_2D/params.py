@@ -33,7 +33,7 @@ class Integration_params:
                          near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
-                         near_adapt_scan_iter = 4, far_adapt_x = True):
+                         near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba'):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -405,6 +405,12 @@ class Integration_params:
         # of the horn W at +16% run time (8x: +160%). Default True; inert unless near_adapt and
         # near_adapt_x are on (they are off by default).
         self.far_adapt_x = bool(far_adapt_x)
+        # integrand_kernel: 'numba' (default; integrand_kernel.py, the arithmetic fused per point, no
+        # temporaries) or 'numpy' (the original whole-array arithmetic). Bit-identical to each other
+        # (checked on the BC20 B2RE state and the golden fixtures); numba is ~8% faster per wake point.
+        if integrand_kernel not in ('numpy', 'numba'):
+            raise ValueError(f"integrand_kernel must be 'numpy' or 'numba', got {integrand_kernel!r}")
+        self.integrand_kernel = integrand_kernel
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3
         # differs at 1e-7 MeV/m; 4 saves 13% per observer (progress_facet_bc20 9l).
