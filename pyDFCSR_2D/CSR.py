@@ -128,11 +128,41 @@ class CSR2D:
         else:
             self.CSR_params = CSR_params()
 
+    def _resolve_auto_frame(self):
+        """
+        particle_deposition.frame 'auto': decide 'peak' or 'quantile' from the initial beam, once.
+        The peak window is previewed on the beam; the 1D wake its dropped charge would radiate at
+        the exit of the FIRST bend (csr1d, steady state developed over the whole bend) is compared
+        with the full beam's (deposit_smooth.choose_auto_frame). Printed on rank 0; the choice is
+        kept for the run and recorded in statistics.h5 (quantile_frame attrs).
+        """
+        from .csr1d import CSR1DGeometry
+        from .deposit_smooth import choose_auto_frame
+        tr = self.DF_tracker
+        geom1d = CSR1DGeometry(self.lattice.lattice_config, self.lattice.distance)
+        first = next((el for el in geom1d.elements if el['bend']), None)
+        if first is None:
+            geom = dict(case='none', R=np.inf, phi=0.0, phim=0.0, x_R=0.0, bend=None)
+        else:
+            geom = geom1d.at(first['end'], first['name'])
+        choice, f_peak, fl, ff = choose_auto_frame(tr, self.beam.z, geom)
+        tr.resolve_frame(choice, (choice, f_peak, fl, ff, geom['bend']))
+        if (not getattr(self, 'parallel', False)) or getattr(self, 'rank', 0) == 0:
+            where = (f"at the exit of {first['name']} (R = {geom['R']:.2f} m)" if first is not None
+                     else 'nowhere: the lattice has no bend')
+            print(f"  [frame auto] '{choice}': the peak window (+-{tr.peak_halfwidth:g} FWHM around the "
+                  f"highest current peak) holds {100 * f_peak:.1f}% of the charge; the dropped "
+                  f"{100 * (1 - f_peak):.1f}% would carry {100 * fl:.1f}% of the 1D energy loss and "
+                  f"{100 * ff:.1f}% of the 1D field on the window {where}; threshold "
+                  f"auto_pedestal_max {tr.auto_pedestal_max:g}.", flush=True)
+
     def initialization(self):
         """
         deposit the initial beam
         :return:
         """
+        if self.use_comoving and getattr(self.DF_tracker, 'frame', None) == 'auto':
+            self._resolve_auto_frame()
         self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
         self.DF_tracker.append_DF()
         self.DF_tracker.append_interpolant(formation_length=float('inf'),
@@ -869,8 +899,7 @@ class CSR2D:
           z resolution (warn below 5) and against the local wake-mesh spacing (below 3).
           A WARNING only; nothing here moves the frame.
         """
-        from scipy.signal import savgol_filter
-        from .csr1d import CSR1DGeometry, bin_width, wake_1d
+        from .csr1d import CSR1DGeometry, dropped_wake_fraction
         from .peakfind import peak_fwhm
         tr = self.DF_tracker
         z = np.asarray(self.beam.z, dtype=float)
@@ -880,23 +909,7 @@ class CSR2D:
             self.quantile_log = []
         geom = self._geom1d.at(self.beam.position, self.lattice.current_element)
         fwhm = peak_fwhm(z)
-        ds = max(bin_width(z, 300, 'peak', bins_per_fwhm=20), np.ptp(z) / 20000)
-        nb = int(np.ceil(np.ptp(z) / ds)) + 1
-        edges = z.min() - 2 * ds + ds * np.arange(nb + 5)
-        S = 0.5 * (edges[1:] + edges[:-1])
-        frac_loss = frac_field = 0.0
-        if geom['case'] != 'none':
-            lam = []
-            for wgt in (np.ones_like(z), 1.0 - T):
-                h, _ = np.histogram(z, bins=edges, weights=wgt)
-                lam.append(savgol_filter(h / (z.size * ds), 5, 2, mode='constant'))
-            W = [wake_1d(S, ds, l, np.gradient(l, ds), geom) for l in lam]
-            Wf, Wd = (np.interp(z, S, w) for w in W)
-            if abs(Wf.mean()) > 0:
-                frac_loss = float(Wd.mean() / Wf.mean())
-            inw = T > 0.5
-            if inw.any() and np.abs(Wf[inw]).max() > 0:
-                frac_field = float(np.abs(Wd[inw]).max() / np.abs(Wf[inw]).max())
+        frac_loss, frac_field = dropped_wake_fraction(z, T, geom)
         res_z, _ = self._deposition_resolution()
         zr = np.asarray(self.CSR_zrange)
         h_mesh = np.diff(zr)
@@ -910,7 +923,10 @@ class CSR2D:
             print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the dropped '
                   f'{100 * (1 - tr.f_window):.2f}% of the charge carries {100 * frac_loss:.1f}% of '
                   f'the 1D energy loss and {100 * frac_field:.1f}% of the 1D field on the window '
-                  f'(pedestal_warn {cp.pedestal_warn:g}). Lower particle_deposition.frame_quantile.')
+                  f'(pedestal_warn {cp.pedestal_warn:g}). '
+                  + ("frame 'auto' chose 'peak' on the initial beam; the pedestal matters now: use frame 'quantile'."
+                     if getattr(tr, 'frame_requested', None) == 'auto' and tr.frame == 'peak'
+                     else 'Lower particle_deposition.frame_quantile.'))
         if res_z > 0 and fwhm / res_z < 5 and not getattr(self, '_warned_res', False):
             self._warned_res = True
             print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the highest '
@@ -2925,6 +2941,11 @@ class CSR2D:
                 # one row per kick: s, window lo, hi, margin, f_window, res_z, peak FWHM,
                 # finest mesh z spacing, dropped-tail fraction of the 1D loss and field
                 q = hf.create_group('quantile_frame')
+                q.attrs['frame'] = str(self.DF_tracker.frame)
+                q.attrs['frame_requested'] = str(getattr(self.DF_tracker, 'frame_requested', self.DF_tracker.frame))
+                if getattr(self.DF_tracker, 'frame_decision', None):
+                    ch, fp, fl, ff, bend = self.DF_tracker.frame_decision
+                    q.attrs['auto_decision'] = f'{ch}: peak window keeps {fp:.4f} of the charge; dropped part carries {fl:.4f} of the 1D loss, {ff:.4f} of the field at {bend}'
                 cols = ('s', 'window_lo', 'window_hi', 'window_margin', 'window_margin_hi', 'f_window', 'res_z',
                         'peak_fwhm', 'mesh_dz_min', 'dropped_loss_frac', 'dropped_field_frac')
                 arr = np.array(self.quantile_log)

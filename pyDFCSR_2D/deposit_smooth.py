@@ -142,6 +142,26 @@ def velocity_mask(density_smooth, epsilon):
     return (rho / (rho + epsilon)) ** 3
 
 
+def choose_auto_frame(tracker, z, geom, threshold=None):
+    """
+    Frame 'auto': 'peak' or 'quantile' for this beam. The peak window (tracker.peak_window_weight)
+    keeps the highest current peak and drops the rest; csr1d.dropped_wake_fraction says what the
+    dropped charge would contribute to the 1D wake at geometry `geom` (CSR2D uses the exit of the
+    first bend, where its steady-state wake is most developed). Above `threshold` (default
+    tracker.auto_pedestal_max) in either the energy loss or the field on the window, the pedestal
+    -- or a second horn -- matters and the whole bunch must be the source: 'quantile'.
+    Returns (choice, f_peak, frac_loss, frac_field) with f_peak the charge fraction the peak
+    window keeps. With no CSR at `geom` (case 'none') the fractions are 0 and 'peak' is chosen.
+    """
+    from .csr1d import dropped_wake_fraction
+    thr = tracker.auto_pedestal_max if threshold is None else float(threshold)
+    T = tracker.peak_window_weight(z)
+    f_peak = float(T.mean())
+    frac_loss, frac_field = dropped_wake_fraction(z, T, geom)
+    choice = 'quantile' if max(abs(frac_loss), frac_field) > thr else 'peak'
+    return choice, f_peak, frac_loss, frac_field
+
+
 def smooth_levels(field, dx, dz, sigma_x, sigma_z_levels, weights, want=(True, True, True)):
     """
     Spatially varying z smoothing: the field smoothed at every z width in sigma_z_levels (x width
@@ -482,7 +502,7 @@ class DF_tracker_comoving:
                          smoothing_adaptive=False, smoothing_min_particles=100,
                          smoothing_sigma_z_max=16.0, peak_halfwidth=3.0, peak_taper=2.0,
                          peak_rate=0.2, peak_shift=0.25, smoothing_res_fwhm=None,
-                         smoothing_min_bins=1.0,
+                         smoothing_min_bins=1.0, auto_pedestal_max=0.05,
                          u_taper=0.5, edge_warn=1e-4):
         self.method = method
         self.xbins = xbins
@@ -527,8 +547,17 @@ class DF_tracker_comoving:
         #             window). Centre and FWHM from peakfind.peak_center_fwhm, rate-limited between
         #             snapshots (|d ln H| <= peak_rate, |d centre| <= peak_shift * H), because the
         #             history lookup blends neighbouring snapshots' frames.
-        if frame not in ('rms', 'quantile', 'peak'):
-            raise ValueError(f"frame must be 'rms', 'quantile' or 'peak', got {frame!r}")
+        # 'auto'      decided once, before the first deposit, by CSR2D._resolve_auto_frame
+        #             (choose_auto_frame): 'peak' unless the charge the peak window would drop
+        #             carries more than auto_pedestal_max of the 1D energy loss or of the 1D field
+        #             on the window at the exit of the first bend (a second horn, a strong
+        #             pedestal), then 'quantile'. The choice is printed and kept for the run; the
+        #             per-kick pedestal diagnostic keeps watching it.
+        if frame not in ('rms', 'quantile', 'peak', 'auto'):
+            raise ValueError(f"frame must be 'rms', 'quantile', 'peak' or 'auto', got {frame!r}")
+        self.frame_requested = frame
+        self.auto_pedestal_max = float(auto_pedestal_max)
+        self.frame_decision = None   # frame 'auto': (choice, f_peak, frac_loss, frac_field, bend) once resolved
         self.peak_halfwidth = float(peak_halfwidth)
         self.peak_taper = float(peak_taper)
         self.peak_rate = float(peak_rate)
@@ -687,7 +716,32 @@ class DF_tracker_comoving:
                   f'amplifies such an edge by its cancellation factor; widen xlim or set '
                   f'u_taper > 0 (further snapshots are not reported; see edge_u_max).')
 
+    def resolve_frame(self, choice, decision=None):
+        """Frame 'auto': fix the frame for the run (CSR2D._resolve_auto_frame)."""
+        if choice not in ('quantile', 'peak'):
+            raise ValueError(f"auto frame must resolve to 'quantile' or 'peak', got {choice!r}")
+        self.frame = choice
+        self.frame_decision = decision
+
+    def peak_window_weight(self, z):
+        """
+        T(z) of the peak window this beam would get in frame 'peak', without touching the
+        tracker's rate-limiter state (the decision preview of frame 'auto').
+        """
+        from .peakfind import window_weight
+        z = np.asarray(z, dtype=float)
+        keep = (self._peak_prev, getattr(self, '_peak_fw', None))
+        try:
+            lo, hi = np.quantile(z, [self.frame_quantile, 1.0 - self.frame_quantile])
+            lo, hi, m_lo, m_hi = self._peak_window(z, lo, hi, self.frame_margin * (hi - lo))
+        finally:
+            self._peak_prev, self._peak_fw = keep
+        return window_weight(z, lo, hi, m_lo, m_hi)
+
     def get_DF(self, x, z, px, t):
+        if self.frame == 'auto':
+            raise RuntimeError("frame 'auto' must be resolved before the first deposit "
+                               "(CSR2D does this in initialization(); call resolve_frame())")
         if self.frame in ('quantile', 'peak'):
             return self._get_DF_quantile(x, z, px, t)
         zmean = np.mean(z)

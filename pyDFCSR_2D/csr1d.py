@@ -221,6 +221,40 @@ def wake_after_bend(S, ds, lam, dlam, R, phim, x_R):
     return AMP_DRIFT / R * ((lam3 - lam4) / (phim + 2 * x_R) + integral)
 
 
+def dropped_wake_fraction(z, T, geom):
+    """
+    How much of the 1D wake the charge OUTSIDE a deposition window carries: the window weight T
+    (1 inside, 0 in the dropped tails) splits the line density into lambda = T lambda + (1 - T)
+    lambda; both parts are binned on one grid (peak binning, 20 bins per FWHM) and smoothed
+    alike, so W_full = W_window + W_dropped exactly. Returns
+
+        frac_loss   <W_dropped> / <W_full> over all particles (the mean energy loss)
+        frac_field  max|W_dropped| / max|W_full| inside the window (the field on the source)
+
+    both 0 where there is no CSR (geom case 'none'). Used per kick by CSR2D._quantile_diagnostics
+    and once, at the first bend, by the frame 'auto' decision (deposit_smooth.choose_auto_frame).
+    """
+    from scipy.signal import savgol_filter
+    z = np.asarray(z, dtype=float)
+    if geom['case'] == 'none':
+        return 0.0, 0.0
+    ds = max(bin_width(z, 300, 'peak', bins_per_fwhm=20), np.ptp(z) / 20000)
+    nb = int(np.ceil(np.ptp(z) / ds)) + 1
+    edges = z.min() - 2 * ds + ds * np.arange(nb + 5)
+    S = 0.5 * (edges[1:] + edges[:-1])
+    lam = []
+    for wgt in (np.ones_like(z), 1.0 - T):
+        h, _ = np.histogram(z, bins=edges, weights=wgt)
+        lam.append(savgol_filter(h / (z.size * ds), 5, 2, mode='constant'))
+    W = [wake_1d(S, ds, l, np.gradient(l, ds), geom) for l in lam]
+    Wf, Wd = (np.interp(z, S, w) for w in W)
+    frac_loss = float(Wd.mean() / Wf.mean()) if abs(Wf.mean()) > 0 else 0.0
+    inw = T > 0.5
+    frac_field = (float(np.abs(Wd[inw]).max() / np.abs(Wf[inw]).max())
+                  if inw.any() and np.abs(Wf[inw]).max() > 0 else 0.0)
+    return frac_loss, frac_field
+
+
 def wake_1d(S, ds, lam, dlam, geom):
     """Dispatch on the geometry returned by CSR1DGeometry.at(), like csr_4case_calc on x_R."""
     if geom['case'] == 'AB':

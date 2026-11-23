@@ -388,6 +388,67 @@ def test_velocity_mask_clamps_negative_density():
     assert np.abs(tr.vx_u).max() < 10 * np.abs(px).max() / tr.delta_u
 
 
+def test_auto_frame_decision():
+    """frame 'auto': a spike on a weak pedestal -> 'peak'; a double horn -> 'quantile' (the dropped
+    horn carries half of the 1D wake); no bend -> 'peak' with zero fractions; the resolved tracker
+    deposits exactly as the frame it chose; an unresolved one refuses to deposit."""
+    from pyDFCSR_2D.deposit_smooth import choose_auto_frame
+    geom = dict(case='AB', R=6.0, phi=0.05, phim=0.05, x_R=0.0, bend='B1')
+    tr = _tracker(frame='auto')
+    assert tr.frame == 'auto' and tr.frame_requested == 'auto'
+    x, z, px = _beam('spike')
+    with pytest.raises(RuntimeError):
+        tr.get_DF(x, z, px, 0.0)
+    choice, f_peak, fl, ff = choose_auto_frame(tr, z, geom)
+    assert choice == 'peak' and 0.3 < f_peak < 0.7 and max(abs(fl), ff) <= tr.auto_pedestal_max
+    assert tr._peak_prev is None            # the preview left the rate limiter untouched
+    xh, zh, pxh = _beam('horns')
+    choice_h, f_h, fl_h, ff_h = choose_auto_frame(tr, zh, geom)
+    assert choice_h == 'quantile' and f_h < 0.5 and max(abs(fl_h), ff_h) > 0.2
+    none = dict(case='none', R=np.inf, phi=0.0, phim=0.0, x_R=0.0, bend=None)
+    assert choose_auto_frame(tr, zh, none) == ('peak', pytest.approx(f_h), 0.0, 0.0)
+    # resolved 'peak' == frame 'peak', bit for bit
+    tr.resolve_frame('peak', (choice, f_peak, fl, ff, 'B1'))
+    tr.get_DF(x, z, px, 0.0)
+    ref = _tracker(frame='peak')
+    ref.get_DF(x, z, px, 0.0)
+    assert tr.frame == 'peak' and np.array_equal(tr.density, ref.density) and tr.window == ref.window
+    with pytest.raises(ValueError):
+        _tracker(frame='auto').resolve_frame('rms')
+
+
+def test_auto_frame_in_csr2d_matches_peak_run():
+    """A CSR2D run with frame 'auto' on the golden beam (a Gaussian: the peak window is the whole
+    bunch) chooses 'peak', prints the decision, records it in statistics.h5 and reproduces the
+    frame 'peak' run bit for bit."""
+    import contextlib
+    import glob
+    import io
+    import tempfile
+    import h5py
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    out = {}
+    for frame in ('peak', 'auto'):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = make_golden_2d.config(tmp, {'frame': frame, 'zbins': 128, 'smoothing_sigma_z': 1.0},
+                                      {'mesh_mode': 'charge', 'write_wakes': False})
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                sim = CSR2D(input_file=f)
+                sim.run()
+            attrs = {}
+            st = glob.glob(os.path.join(tmp, '*statistics.h5'))
+            if st:
+                with h5py.File(st[0], 'r') as hf:
+                    attrs = dict(hf['quantile_frame'].attrs) if 'quantile_frame' in hf else {}
+            out[frame] = (np.array(sim.beam.z), np.array(sim.beam.pz), sim.DF_tracker.frame, buf.getvalue(), attrs)
+    assert out['auto'][2] == 'peak' and "[frame auto] 'peak'" in out['auto'][3]
+    assert out['auto'][4].get('frame') == 'peak' and out['auto'][4].get('frame_requested') == 'auto'
+    assert 'auto_decision' in out['auto'][4] and 'frame_decision' not in out['peak'][4]
+    assert np.array_equal(out['auto'][0], out['peak'][0]) and np.array_equal(out['auto'][1], out['peak'][1])
+
+
 def test_mesh_x_quantile_clips_axis_and_clamps_kick():
     """mesh_x_quantile: the charge mesh's x axis stays within the quantile span (so the core gets
     the rows), and particles beyond it get the edge row's kick instead of 0."""
