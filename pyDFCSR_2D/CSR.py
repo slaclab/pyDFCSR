@@ -23,9 +23,10 @@ from .beams import Beam
 from .deposit import DF_tracker
 from .deposit_smooth import DF_tracker_smooth, DF_tracker_comoving
 from .interp1D import interpolate1D
-from .integrand_kernel import csr_integrand_kernel
+from .integrand_kernel import csr_integrand_kernel, csr_integrand_kernel_par
 from .interp3D import (interpolate3D, interpolate3D_transformed,
-                       interpolate3D_comoving_fields, interpolate3D_comoving_ibp)
+                       interpolate3D_comoving_fields, interpolate3D_comoving_ibp,
+                       interpolate3D_comoving_fields_par, interpolate3D_comoving_ibp_par)
 from .lattice import Lattice  # , get_referece_traj
 from .lookup import lookup_vec
 from .schedule import SCHEDULE_ELEMENT_KEYS
@@ -134,6 +135,9 @@ class CSR2D:
             self.integration_params = Integration_params(input['CSR_integration'])
         else:
             self.integration_params = Integration_params()
+        if getattr(self.integration_params, 'threads', 1) > 1:
+            import numba
+            numba.set_num_threads(min(int(self.integration_params.threads), numba.config.NUMBA_NUM_THREADS))
 
         if 'CSR_computation' in input:
             self.CSR_params = CSR_params(input['CSR_computation'])
@@ -1020,6 +1024,15 @@ class CSR2D:
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         if rank == 0:
             self._ibp_consistency_check()
+
+    def _use_threads(self, arr):
+        """
+        CSR_integration.threads > 1 and the point set is large: use the thread-parallel
+        compilation of the field / integrand kernels. Small calls (the observer's vx, the band
+        scan columns) stay serial -- the omp fork/join costs more than they do.
+        """
+        n = int(getattr(self.integration_params, 'threads', 1))
+        return n > 1 and np.size(arr) >= int(getattr(self.integration_params, 'threads_min_points', 20000))
 
     def _lattice_vectors(self, sval):
         """
@@ -2384,7 +2397,7 @@ class CSR2D:
         kernel; see interp3D.interpolate3D_comoving_fields.
         """
         tr = self.DF_tracker
-        return interpolate3D_comoving_fields(
+        return (interpolate3D_comoving_fields_par if self._use_threads(xval) else interpolate3D_comoving_fields)(
             xval, zval, tval,
             tr.data_density_interp, tr.data_density_u_interp,
             tr.data_density_w_interp, tr.data_vx_interp, tr.data_vx_u_interp,
@@ -2403,7 +2416,7 @@ class CSR2D:
         interp3D.interpolate3D_comoving_ibp. want_fields False returns only A (the rest 0).
         """
         tr = self.DF_tracker
-        return interpolate3D_comoving_ibp(
+        return (interpolate3D_comoving_ibp_par if self._use_threads(xval) else interpolate3D_comoving_ibp)(
             xval, zval, tval,
             tr.data_density_interp, tr.data_density_u_interp,
             tr.data_density_w_interp, tr.data_vx_interp, tr.data_vx_u_interp,
@@ -2729,7 +2742,7 @@ class CSR2D:
             CSR_integrand_z = np.empty(n); CSR_integrand_x = np.empty(n); vn = np.empty(n)
             as_arr = lambda v: np.broadcast_to(np.asarray(v, dtype=float), (n,)) if np.ndim(v) == 0 else np.ascontiguousarray(v, dtype=float)
             R1, R2, keep_inner = taper if taper is not None else (0.0, 1.0, False)
-            csr_integrand_kernel(np.ascontiguousarray(xp_flat, dtype=float), as_arr(rho_sp), as_arr(r_minus_rp_x), as_arr(r_minus_rp_y),
+            (csr_integrand_kernel_par if self._use_threads(xp_flat) else csr_integrand_kernel)(np.ascontiguousarray(xp_flat, dtype=float), as_arr(rho_sp), as_arr(r_minus_rp_x), as_arr(r_minus_rp_y),
                                  as_arr(r_minus_rp), as_arr(n_vec_sp_x), as_arr(n_vec_sp_y), as_arr(tau_vec_sp_x), as_arr(tau_vec_sp_y),
                                  as_arr(density_ret), as_arr(density_x_ret), as_arr(density_z_ret), as_arr(vx_ret), as_arr(vx_x_ret),
                                  float(vx), float(n_vec_s_x), float(n_vec_s_y), float(tau_vec_s_x), float(tau_vec_s_y),

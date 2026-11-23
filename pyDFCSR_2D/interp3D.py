@@ -1,7 +1,7 @@
 import math
 
 import numpy as np
-from numba import jit
+from numba import jit, prange
 
 from .lookup import lookup_hybrid
 from numba.experimental import jitclass
@@ -464,8 +464,7 @@ def bspline_eval_single(data2d, u_cell, w_cell, n_u, n_w):
     return out
 
 
-@jit(nopython=True, cache=True)
-def interpolate3D_comoving_fields(xval, zval, tval,
+def _interpolate3D_comoving_fields_impl(xval, zval, tval,
                                   data_rho, data_rho_u, data_rho_w,
                                   data_vx, data_vx_u,
                                   poly_coeffs, xi_bar_arr, sigma_xi_arr,
@@ -522,7 +521,7 @@ def interpolate3D_comoving_fields(xval, zval, tval,
     n_u = data_rho.shape[1]
     n_w = data_rho.shape[2]
 
-    for i in range(n):
+    for i in prange(n):
         # Bracketing index and blend weight. The is_uniform branch inside lookup_hybrid is the
         # historical expression character for character, so a uniform history -- every run under
         # step_control mode 'legacy' -- reproduces previous results bit-for-bit. A locally refined
@@ -672,8 +671,14 @@ def interpolate3D_comoving_fields(xval, zval, tval,
     return rho, rho_x, rho_z, vx, vx_x
 
 
-@jit(nopython=True, cache=True)
-def interpolate3D_comoving_ibp(xval, zval, tval,
+
+# serial and thread-parallel compilations of the same source; prange is a plain range in the
+# serial one, so it is the historical kernel bit for bit. CSR2D picks the parallel one only for
+# large point sets when CSR_integration.threads > 1 (the fork/join cost dominates small calls).
+interpolate3D_comoving_fields = jit(nopython=True, cache=True)(_interpolate3D_comoving_fields_impl)
+interpolate3D_comoving_fields_par = jit(nopython=True, parallel=True)(_interpolate3D_comoving_fields_impl)
+
+def _interpolate3D_comoving_ibp_impl(xval, zval, tval,
                                   data_rho, data_rho_u, data_rho_w,
                                   data_vx, data_vx_u,
                                   poly_coeffs, xi_bar_arr, sigma_xi_arr,
@@ -722,7 +727,7 @@ def interpolate3D_comoving_ibp(xval, zval, tval,
     n_u = data_rho.shape[1]
     n_w = data_rho.shape[2]
 
-    for i in range(n):
+    for i in prange(n):
         # Bracketing index and blend weight. The is_uniform branch inside lookup_hybrid is the
         # historical expression character for character, so a uniform history -- every run under
         # step_control mode 'legacy' -- reproduces previous results bit-for-bit. A locally refined
@@ -930,3 +935,10 @@ def interpolate3D_comoving_ibp(xval, zval, tval,
         B_out[i] = (rho_hw * (w_z - w_t) - F_t) / jac + rho[i] * (sxi_t / s_xi + sz_t / s_z)
 
     return rho, rho_x, rho_z, vx, vx_x, A_out, B_out
+
+# serial and thread-parallel compilations of the same source; prange is a plain range in the
+# serial one, so it is the historical kernel bit for bit. CSR2D picks the parallel one only for
+# large point sets when CSR_integration.threads > 1 (the fork/join cost dominates small calls).
+interpolate3D_comoving_ibp = jit(nopython=True, cache=True)(_interpolate3D_comoving_ibp_impl)
+interpolate3D_comoving_ibp_par = jit(nopython=True, parallel=True)(_interpolate3D_comoving_ibp_impl)
+

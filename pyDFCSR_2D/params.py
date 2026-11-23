@@ -33,7 +33,8 @@ class Integration_params:
                          near_adapt_scan_dz = 0.25, near_adapt_max_scan = 4000,
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
-                         near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba'):
+                         near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
+                         threads = 1, threads_min_points = 20000):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -411,6 +412,12 @@ class Integration_params:
         if integrand_kernel not in ('numpy', 'numba'):
             raise ValueError(f"integrand_kernel must be 'numpy' or 'numba', got {integrand_kernel!r}")
         self.integrand_kernel = integrand_kernel
+        # threads: numba threads per process for the field interpolation and the integrand kernel on
+        # point sets of at least threads_min_points (smaller calls stay serial). 1 = the serial
+        # kernels, bit-identical to before; the parallel ones are the same source compiled with
+        # parallel=True and give identical numbers (independent iterations, no reductions).
+        self.threads = int(threads)
+        self.threads_min_points = int(threads_min_points)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3
         # differs at 1e-7 MeV/m; 4 saves 13% per observer (progress_facet_bc20 9l).

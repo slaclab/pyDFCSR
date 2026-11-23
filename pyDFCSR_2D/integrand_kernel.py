@@ -10,11 +10,10 @@ in the order numpy evaluated it (no fastmath, no reassociation), so the results 
 be bit-identical to the numpy path; test_quantile_frame checks that on the golden fixtures.
 """
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 
-@njit(cache=True, fastmath=False)
-def csr_integrand_kernel(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
+def _csr_integrand_kernel_impl(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
                          rho, rho_x, rho_z, vx_ret, vx_x_ret,
                          vx, nsx, nsy, tsx, tsy, w1_only, use_taper, R1, R2, keep_inner,
                          gz, gx, vn):
@@ -26,7 +25,7 @@ def csr_integrand_kernel(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
     """
     velocity_x = tsx + vx * nsx
     velocity_y = tsy + vx * nsy
-    for i in range(xp.shape[0]):
+    for i in prange(xp.shape[0]):
         scale_term = 1.0 + xp[i] * kappa[i]
         velocity_ret_x = tspx[i] + vx_ret[i] * nspx[i]
         velocity_ret_y = tspy[i] + vx_ret[i] * nspy[i]
@@ -64,3 +63,7 @@ def csr_integrand_kernel(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
         gz[i] = giz
         gx[i] = gix
         vn[i] = velocity_x * nspx[i] + velocity_y * nspy[i]
+
+
+csr_integrand_kernel = njit(cache=True, fastmath=False)(_csr_integrand_kernel_impl)
+csr_integrand_kernel_par = njit(fastmath=False, parallel=True)(_csr_integrand_kernel_impl)   # no cache: a cached entry is shared with the serial twin
