@@ -5,6 +5,17 @@ from .tracking import SextupoleKDK
 from .tools import dict2hdf5
 import h5py
 import numpy as np
+# MPICH's libfabric 'sockets' provider (the default of the pydfcsr-mpi environment on macOS) runs
+# two progress threads that spin in the kernel: every process that has merely imported mpi4py
+# consumes ~2.75 cores while computing single-threaded (1.3 user + 1.4 system), which is why the
+# 12-core machine saturated at 3 ranks (progress_facet_bc20.md 11h). The 'tcp' provider has no such
+# threads: 0.95 cores per rank, and the golden run goes 48 -> 31 s at 3 ranks, 38 -> 19 s at 6. The
+# variable must be set before MPI_Init, i.e. before this import; it is only defaulted on macOS and
+# only when the user has not chosen a provider.
+import os as _os
+import sys as _sys
+if _sys.platform == 'darwin':
+    _os.environ.setdefault('FI_PROVIDER', 'tcp')
 from mpi4py import MPI
 
 from .beams import Beam

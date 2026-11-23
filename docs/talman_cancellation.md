@@ -58,11 +58,11 @@ No published work isolates "chicane emittance with and without the transverse CS
 
 1. *The benchmark chicane* (5 GeV, 1 nC, σ_z 200 µm compressing to 6 kA; `test/chicane_2d_vs_1d.py`, runs `2dP`, `2dP_noT`, `1d_full`, same tracking and schedule):
 
-   | at the exit, vs CSR off | 2D full | 2D without transverse force | 1D |
-   |---|---|---|---|
-   | mean energy change [keV] | −2687 | −2656 | −1746 |
-   | core slice σ_E change [keV] | +28 | +160 | +10 |
-   | emittance growth, η-corrected [µm] | 0.494 | 0.947 | 0.549 |
+   | at the exit, vs CSR off | 2D full | 2D, transverse W1 (Coulomb) only | 2D without transverse force | 1D |
+   |---|---|---|---|---|
+   | mean energy change [keV] | −2687 | −2704 | −2656 | −1746 |
+   | core slice σ_E change [keV] | +28 | +37 | +160 | +10 |
+   | emittance growth, η-corrected [µm] | 0.494 | 0.490 | 0.947 | 0.549 |
 
    The 2D kinetic energy kick contains the potential-energy (compression, W₂) part that the 1D radiative wake does not have; applied alone it gives a core slice energy spread 16× the 1D one and twice the emittance growth. Adding the transverse force — whose Coulomb part is the counterpart of that potential energy — brings the emittance back to within 10% of 1D, while the kinetic slice energy spread stays at +28 keV. That is Li's statement in numbers: the potential energy shows up in the kinetic energy spread but not in the emittance, because eΦ/R cancels against F^CSCF.
 
@@ -74,7 +74,7 @@ So "the 2D result converges to the 1D result when the transverse force is includ
 
 The code has everything needed to test the cancellation quantitatively rather than argue it, because it can evaluate both members of G_c on the same density:
 
-1. **Isolate the Talman part.** `CSR_integration.transverse_terms: W1` keeps only the Coulomb term of the transverse force. The chicane run `2dP_W1` (launched 2026-11-23) will show whether the Coulomb part alone restores the 1D emittance — i.e. whether it is the Talman force that cancels the potential-energy kick, with the radiative W2 + W3 (10–20% of the transverse force in bends, §9k) as a separate, smaller effect.
+1. **Isolate the Talman part — done.** `CSR_integration.transverse_terms: W1` keeps only the Coulomb term of the transverse force. The chicane run `2dP_W1` (2026-11-23, table above) gives an emittance growth of 0.490 µm against 0.494 with the full force and 0.947 without it: the Coulomb (Talman) term alone does all of the cancelling. The radiative W2 + W3 terms change the emittance by 1% and the core slice energy spread from +37 to +28 keV, i.e. they are the small, separate transverse radiation effect, as Derbenev–Shiltsev and Cai estimate. This is the first direct numerical demonstration of the cancellation on a bunch compressor that I am aware of.
 
 2. **Compute the potential.** φ at the particles is the same retarded integral with the kernel 1/|r − r′| and ρ (a "W₀" term) — the machinery of `get_CSR_integrand` with one more output. With it the code can evaluate, per particle and per kick, G_c = e(A_s − Φ)/r ≈ (W1-transverse force) − κeφ, and show directly how small it is, how it behaves at a magnet entrance (Geloni's objection), and how its head–tail part behaves. This is the controlled demonstration the literature lacks.
 
