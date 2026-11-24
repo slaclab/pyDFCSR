@@ -268,7 +268,9 @@ The W₁ integrand's leading term is G·∂ρ/∂x′ with G nearly constant acr
 * it needs ~96–128 x′ nodes per band for 1e-3–1e-4 accuracy (the default 200 is converged at ~5e-7);
 * any error in ∂ρ/∂x that does not integrate to zero across the beam is amplified by ~C: a hard deposit edge clipping 0.3% of the charge moved the wake by 3%, which is why the deposit is tapered in u (§3.3).
 
-`ibp: true` integrates the main term by parts along each column, which removes the cancellation (C → 1–3), is immune to a ρ/∂ρ inconsistency and gives the same beam as the shipped form to 1e-5 on the dipole and 2.4e-4 on the chicane, but is not faster at matched accuracy (progress_cancellation.md §7). `ibp_check: 3` compares both forms at three mesh points per kick and warns above `ibp_check_tol` = 1e-3; it is recommended for any new kind of beam or deposition setting. Both are off by default.
+`ibp: true` integrates the main term by parts along each column, which removes the cancellation (C → 1–3), is immune to a ρ/∂ρ inconsistency and gives the same beam as the shipped form to 1e-5 on the dipole and 2.4e-4 on the chicane (progress_cancellation.md §7). **It is a robustness option, not a speed or convergence one.** Measured on the BC20 loss beam against an 8× x′ reference (progress_facet_bc20.md §11i): with the x′ refinement running alongside it (since 3cd9528; before that `ibp` switched the refinement off and the horns aliased), by parts reproduces the shipped result exactly wherever the shipped result is converged, is better only where the shipped form is already poor (25 x′ nodes: 41% against 237% of the horn's W), and costs 40% more per wake point for its geometry evaluations. The x′ node count is set by resolving the horns, not by the cancellation, so by parts cannot lower it. Where it earns its cost: a deposition whose derivatives are not the exact derivatives of its values (sub-bin smoothing, a future density estimator), and as a check. `ibp_check: 3` compares both forms at three mesh points per kick, at about one wake point of cost, and warns above `ibp_check_tol` = 1e-3; it is part of the BC20 reference recipe since 2026-11-24 and recommended for any new kind of beam or deposition setting. `ibp` itself stays off by default.
+
+The cheap gain on this front is the uniform x′ count: 100 nodes instead of 200 cost 1.35% instead of 0.97% of the horn's W at the worst mesh cell (0.19% rms) and save 15% of the wake time on the loss beam (§11i). The default stays 200 because the dipole and chicane validations were done there.
 
 ---
 
@@ -512,7 +514,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | `far_adapt_x` | True | the same on the far region (needs the two above) |
 | `integrand_kernel` | `numba` | `numba`: the integrand arithmetic fused per point (integrand_kernel.py); `numpy`: the original whole-array path. Bit-identical; numba is ~8% faster per wake point (§9.5). |
 | `transverse_terms` | all | `W1` drops the ∂ₜρ terms (diagnostic only) |
-| `ibp`, `ibp_check`, `ibp_check_xbins`, `ibp_check_tol` | False, 0, 400, 1e-3 | integration by parts and the shipped-vs-by-parts check |
+| `ibp`, `ibp_check`, `ibp_check_xbins`, `ibp_check_tol` | False, 0, 400, 1e-3 | integration by parts (robustness, not speed; §5.7) and the shipped-vs-by-parts check (3 in the BC20 recipe) |
 
 ### `step_control`
 

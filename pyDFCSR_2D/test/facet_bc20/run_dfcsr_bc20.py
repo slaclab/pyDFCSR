@@ -36,7 +36,11 @@ BASE = os.path.join(ROOT, 'example', 'input', 'facet_bc20_config.yaml')
 # the 2D defaults as of 5fb726b (2026-11-06), set explicitly
 PIN_2D_INTEG = dict(n_formation_length=1, xbins=200, zbins=200, drift_cutoff=0.0, tangent_bands=True,
                     drift_reach=True, drift_snap_thin=0.01, far_fine_max=500, band_jacobian_min=0.2,
-                    prev_bend_reach=True, prev_bend_grade=0.02, near_cell=0.25)
+                    prev_bend_reach=True, prev_bend_grade=0.02, near_cell=0.25,
+                    # shipped-vs-by-parts check at 3 mesh points per kick (~one wake point of cost): a
+                    # disagreement above 1e-3 flags a deposition problem at the kick where it starts
+                    # (progress_facet_bc20.md 11i)
+                    ibp_check=3)
 PIN_2D_DEP = dict(method='bspline_comoving', xbins=300, zbins=300, xlim=5, zlim=5, smoothing_sigma=3.0,
                   poly_degree=1, velocity_threhold=1000, vx_model='affine', curvature=True, curv_zlim=4.0)
 RUNS = {
