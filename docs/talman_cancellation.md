@@ -168,7 +168,7 @@ What the figures show:
 In B1 the 2D wake is half the 1D one (max |W| 0.042 vs 0.086 MeV/m at the exit; ⟨W⟩ −0.0039 vs −0.0212). Two things truncate the 2D integral there and neither is physics:
 
 - **The lattice start.** The benchmark has 0.1 m of drift before B1, and the 2D integral has no sources before s′ = 0 (the beam is first deposited there), whereas the 1D entrance transient assumes the beam arrived along an infinite straight line. A source at distance u before the bend entrance, seen from arc angle φ, is retarded by ≈ Rφ³/6 − R²φ⁴/(8u): the whole straight-line history contributes at nearly the same retarded z and its contribution decays only as 1/u.
-- **The reach.** Even with the history present, the far region reaches back only n_formation_length × L_f = 0.8 m from s3, so from the B1 exit it covers 0.3 m of the straight section.
+- **The reach.** Even with the history present, the far region reaches back only n_formation_length × L_f from s3 (L_f is evaluated with 5σ_z in the code, 1.37 m here), so from the B1 exit it covers 0.9 m of the straight section, and the straight section's contribution decays only as 1/u (§7.5).
 
 `chicane_prehistory.py` reruns the first bend with D0 = 2 m (the lattice shifted by 1.9 m, everything else identical) and n_formation_length 1, 2 and 4:
 
@@ -181,7 +181,7 @@ In B1 the 2D wake is half the 1D one (max |W| 0.042 vs 0.086 MeV/m at the exit; 
 | 0.78 | −0.0097 | −0.0196 | −0.0271 | −0.0271 | −0.0375 | 0.042 | 0.076 | 0.076 |
 | 0.90 | −0.029 | −0.042 | −0.051 | −0.051 | −0.039 | 0.085 | 0.098 | 0.064 |
 
-With the straight-line history present and a reach of two formation lengths (converged: 2 and 4 agree to the printed digits) the 2D peak wake matches 1D at B1 mid and is within 8% at the exit; the mean energy loss rate is 30% below 1D at the exit and 30% above it 0.3 m after. So: (i) a 2D benchmark needs a straight section of a few R·φ before the first bend (here 2 m); the 0.1 m D0 of this lattice, and BC20 lattices that start at the first dipole (Indranil's starts at B1LE), understate the first bend; (ii) `n_formation_length` = 1 is not enough at the exit of a bend shorter than L_f with a large angle — the straight-section tail needs the reach to cover ≈ 2Rφ of it (1 m here); 2 is converged. This is the first-bend component of Indranil's observation (§11k of progress_facet_bc20.md found the reach converged at 1 only at B2RE/B1RE, deep in the lattice, where φ is small). The per-element B1 numbers of §7.1 (−0.9 vs −3.0 keV) and the D1 entrance are therefore not a 2D-vs-1D comparison; the rest of the lattice is unaffected (the reach test at constant far cell in §11k).
+With the straight-line history present and a reach of two formation lengths (converged: 2 and 4 agree to the printed digits) the 2D peak wake matches 1D at B1 mid and is within 8% at the exit; the mean energy loss rate is 30% below 1D at the exit and 30% above it 0.3 m after. So: (i) a 2D benchmark needs the straight section before the first bend (the 0.1 m D0 of this lattice, and BC20 lattices that start at the first dipole — Indranil's starts at B1LE — understate the first bend); (ii) `n_formation_length` = 1 is not enough at the exit of a short bend with a large angle, because the straight-section contribution converges only as 1/u. "2 and 4 agree" above is an artefact of the 2 m of drift available: both were clipped there. §7.5 measures the convergence properly and gives the fix. This is the first-bend component of Indranil's observation (§11k of progress_facet_bc20.md found the reach converged at 1 only at B2RE/B1RE, deep in the lattice, where φ is small). The per-element B1 numbers of §7.1 (−0.9 vs −3.0 keV) and the D1 entrance are therefore not a 2D-vs-1D comparison; the rest of the lattice is unaffected (the reach test at constant far cell in §11k).
 
 ### 7.4 The synthetic pre-history (`CSR_integration.prehistory`, 2026-11-24)
 
@@ -197,3 +197,33 @@ Implemented after §7.3: with `prehistory: L` (metres) the far and near regions 
 | 0.90 | −0.029 | −0.051 | −0.047 | −0.039 | 0.085 | 0.098 | 0.086 | 0.064 |
 
 The synthetic history reproduces the real-drift run to 2% in the peak wake and 4–9% in the mean (the real-drift beam is not the benchmark beam at B1: it has drifted 1.9 m further, so its transverse size differs; the synthetic run keeps the benchmark beam exactly). Figure: [prehistory_B1_pre2_nfl2.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/prehistory_B1_pre2_nfl2.png). Default 0 (bit-identical to before); for a lattice starting at or near its first dipole use `prehistory` ≥ the reach together with `n_formation_length: 2`.
+
+
+### 7.5 How far back the straight section matters, and `reach_straight` (2026-11-24)
+
+On the pickled B1-exit state of the synthetic-history run (a = 0.5 m into the bend, Rφ = 0.5 m, σ_z 201 µm, flat reach 1.41 m = 0.9 m of straight; 1D at the same kick: ⟨W⟩ −0.0212, max |W| 0.0861 MeV/m) the straight section was extended at the fixed far cell (2 mm):
+
+| straight section covered [m] | 0.9 | 1.0 | 1.5 | 2.5 | 4.0 | 6.0 | 10.0 |
+|---|---|---|---|---|---|---|---|
+| ⟨W⟩ [MeV/m] | −0.0103 | −0.0109 | −0.0123 | −0.0139 | −0.0150 | −0.0157 | −0.0163 |
+| max \|W\| [MeV/m] | 0.0689 | 0.0705 | 0.0747 | 0.0788 | 0.0815 | 0.0831 | 0.0844 |
+| far nodes | 400 | 438 | 584 | 876 | 1313 | 1897 | 3065 |
+
+The straight-section contribution converges as U/(U + Rφ): 20 Rφ for 95%, and the far node count grows linearly. Its sources are far from the observer and retarded by nearly the same Rφ³/6, so the column integral is a smooth ~1/u² in u = s − s′, which geometric grading resolves with a few dozen nodes. `CSR_integration.reach_straight` (default 40, in units of Rφ) integrates [entrance − reach_straight·Rφ, entrance) as its own region, graded in u with ratio 1 + near_grade, below the regular layout (which is unchanged), inside the bend and in the drift after it, while the straight sources are retarded within `reach_slip_max` (5) σ_z of the bunch — inside the bend Rφ³/6, past the exit plus xφ²/2, so it switches itself off within ~Rφ past the exit and never fires deep in a long bend. With a 2 σ_z cap it switched off 0.18 m past the B1 exit while 1D was still growing (⟨W⟩ −0.020 against 1D −0.038 at 0.78 m; with 5 σ_z −0.033). The region never goes below the previous bend's exit: `prev_bend_reach` already integrates everything from the previous bend's entrance, so in a chicane or in BC20 the rule acts only on the first bend and the drift after it (checked on the BC20 B2RE state: bit-identical). Same state:
+
+| reach_straight [Rφ] | 0 | 5 | 10 | 20 | 40 | 100 (clipped at 20 m) |
+|---|---|---|---|---|---|---|
+| straight covered [m] | 0.9 | 2.5 | 5 | 10 | 20 | 20 |
+| extension nodes | 0 | 17 | 29 | 43 | 56 | 75 |
+| ⟨W⟩ [MeV/m] | −0.0103 | −0.0138 | −0.0154 | −0.0163 | −0.01675 | −0.01675 |
+| max \|W\| [MeV/m] | 0.0689 | 0.0787 | 0.0824 | 0.0844 | 0.0855 | 0.0855 |
+| time per mesh [s] | 16 | 17 | 17 | 17 | 17 | 17 |
+
+The graded region reproduces the fixed-cell result (−0.0163 at 10 m with 43 nodes against 3065) at no measurable cost, and converges at 20 m of straight. The converged first-bend exit wake is then: peak 0.0855 against 0.0861 in 1D (0.7% apart), mean energy loss rate −0.0168 against −0.0212 (2D 21% below 1D). The peak agrees with 1D; the mean does not, and that residual is a 2D-versus-1D difference in the entrance transient, not a boundary artefact. The full first-bend run with the defaults and `prehistory: 20` (`2dR_pre20_rs40_slip5`, 3.3 min) gives, against 1D:
+
+| s [m] | 0.34 (B1 mid) | 0.55 | 0.60 (exit) | 0.66 | 0.78 | 0.90 |
+|---|---|---|---|---|---|---|
+| ⟨W⟩ 2D / 1D [MeV/m] | −0.0015 / −0.0006 | −0.0100 / −0.0136 | −0.0167 / −0.0212 | −0.0239 / −0.0283 | −0.0333 / −0.0375 | −0.0530 / −0.0386 |
+| max \|W\| 2D / 1D | 0.0218 / 0.0216 | 0.0725 / 0.0735 | 0.0855 / 0.0861 | 0.0886 / 0.0855 | 0.0859 / 0.0764 | 0.0869 / 0.0640 |
+
+against −0.0039 / 0.042 at the exit in the original 2dR run. Inside the bend the 2D peak wake is the 1D one to 1%; the mean is 20% below 1D at the exit, and 0.3 m after the exit 2D is 37% above 1D in the mean and in the peak — the drift after a bend is where the two formulations differ (§7.2, item 5). With `prehistory` ≥ reach_straight·Rφ the synthetic history supplies the straight section when the lattice has none. Default on (bit-identical where it does not fire, which includes the golden dipole: its 0.3 m bend has an exit slip of 2.5 σ_z); `reach_straight: 0` turns it off.

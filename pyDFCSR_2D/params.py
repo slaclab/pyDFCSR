@@ -35,7 +35,7 @@ class Integration_params:
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
                          near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
                          threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50,
-                         seam_ratio = 2.0, prehistory = 0.0):
+                         seam_ratio = 2.0, prehistory = 0.0, reach_straight = 40.0, reach_slip_max = 5.0):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -456,6 +456,28 @@ class Integration_params:
         # L metres unchanged. Set it to at least the reach (n_formation_length * L_f, or ~2 R phi
         # for a short strong bend) -- the drift test needed 2 m on the chicane. 0 = off (bit-identical).
         self.prehistory = float(prehistory)
+        # Straight-section reach for the entrance transient (talman_cancellation.md 7.3-7.5).
+        # Inside a bend, a = R phi past the entrance, the straight section the beam came along is
+        # a source retarded by ~ R phi^3/6 (nearly the same for all of it) whose contribution
+        # decays only as 1/u with the distance u before the entrance, so the fraction beyond U is
+        # ~ R phi/(U + R phi): U = 20 R phi captures 95%, 40 R phi 98% (the default; measured
+        # converged to 1e-4 between 40 and 100 with 56 and 75 nodes). Measured on the chicane's B1 exit state
+        # (R phi = 0.5 m): <W> -0.0103 with the 0.9 m of straight the flat reach covered, -0.0139
+        # at 2.5 m, -0.0150 at 4 m, -0.0163 at 10 m (1D: -0.0212; the peak wake converges to the
+        # 1D one, 0.084 vs 0.086). The rule: integrate [-reach_straight * R phi, entrance) as its
+        # own region, geometrically graded in u (ratio 1 + near_grade, ~40 nodes for 10 m against
+        # 3000 at the fixed far cell), inside the bend and in the drift after it, while the
+        # straight sources are still retarded within reach_slip_max * sigma_z of the bunch
+        # (R phi^3/6 inside, + x phi^2/2 at x past the exit; beyond that their retarded point has
+        # left the bunch). 5 sigma_z: with 2 the rule switched off 0.18 m past the chicane's B1
+        # exit while 1D still grew (<W> -0.020 vs -0.038 there; with 5: -0.033). The region never
+        # goes below the previous bend's exit (prev_bend_reach owns that, and covers the whole
+        # section between two bends already, so in a chicane or BC20 the rule only acts on the
+        # FIRST bend) nor below the retained history unless that is the synthetic pre-history.
+        # Needs the history: a lattice starting at its first bend also needs prehistory.
+        # reach_straight = 0 disables the rule (bit-identical).
+        self.reach_straight = float(reach_straight)
+        self.reach_slip_max = float(reach_slip_max)
         self.threads_min_points = int(threads_min_points)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3

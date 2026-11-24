@@ -411,6 +411,15 @@ class CSR2D:
         pb = self._prev_bend_reach_start()
         if pb is not None:
             f = pb if f is None else min(f, pb)
+        g = self._geo_reach(self.beam.position + 3.0 * self.beam._sigma_z)
+        if g is not None:
+            # straight-section reach (Integration_params.reach_straight) for the bunch head, not
+            # below the previous bend's exit (the history there is drift_reach's)
+            gs = self.beam.position + 3.0 * self.beam._sigma_z - g
+            pe = getattr(self, 'prev_bend_end', None)
+            if pe is not None:
+                gs = max(gs, float(pe))
+            f = gs if f is None else min(f, gs)
         return f
 
     def _check_retention(self):
@@ -433,6 +442,13 @@ class CSR2D:
         pb = self._prev_bend_reach_start()
         if pb is not None:
             need = min(need, pb)
+        g = self._geo_reach(self.beam.position)
+        if g is not None:
+            gs = self.beam.position - g
+            pe = getattr(self, 'prev_bend_end', None)
+            if pe is not None:
+                gs = max(gs, float(pe))
+            need = min(need, max(0.0, gs))
         have = self.DF_tracker.time_log[0]
         if have > need + 1e-9:
             self._retention_short += 1
@@ -586,6 +602,11 @@ class CSR2D:
                 # arrives here (Integration_params.prev_bend_reach)
                 self.prev_bend_start = (getattr(self, 'bend_start_rec', None)
                                         if self.afterbend else None)
+                # ... and its exit: the section before THIS bend is straight only from there
+                # (Integration_params.reach_straight)
+                self.prev_bend_end = ((getattr(self, 'bend_start_rec', 0.0) + getattr(self, 'bend_len_rec', 0.0))
+                                      if self.afterbend else None)
+                self.bend_len_rec = L
                 self.afterbend = True
                 self.R_rec = R
                 self.phi_rec = angle
@@ -1768,6 +1789,87 @@ class CSR2D:
         """
         return bool(self.afterbend and not self.inbend)
 
+    def _geo_reach(self, s):
+        """
+        Entrance-transient reach for an observer at s, measured back from s, or None.
+
+        The straight section the beam came along before the last bend entrance is a source
+        retarded by ~ R phi^3/6 (phi = arc angle traversed) whose contribution decays only as
+        1/u with the distance u before the entrance, so it is needed out to
+        reach_straight * R phi, i.e. reach = (s - entrance) + reach_straight * R phi. It is
+        applied while that retardation is within reach_slip_max sigma_z of the bunch
+        (Integration_params.reach_straight): inside the bend slip = a^3/(6R^2) with a the arc
+        length past the entrance; in the drift x past the exit the straight sources slip a
+        further x phi^2/2 and fall out of the bunch within a fraction of R phi.
+        The straight section is integrated as its own graded region below the regular layout
+        (_straight_region_nodes), inside the bend and in the drift after it alike; the retention
+        floor and check use the same reach.
+        """
+        ip = self.integration_params
+        rs = getattr(ip, 'reach_straight', 0.0)
+        sb = getattr(self, 'bend_start_rec', None)
+        if not rs or sb is None:
+            return None
+        R = abs(float(getattr(self, 'R_rec', 0.0) or 0.0))
+        if R <= 0.0:
+            return None
+        a = float(s) - float(sb)
+        if a <= 0.0:
+            return None
+        if self.inbend:
+            phi = a / R
+            slip = R * phi ** 3 / 6.0
+        elif self.afterbend:
+            Lb = abs(float(getattr(self, 'phi_rec', 0.0) or 0.0)) * R      # the bend's arc length
+            phi = Lb / R
+            x = a - Lb
+            if x < 0.0:
+                return None
+            slip = R * phi ** 3 / 6.0 + x * phi * phi / 2.0
+        else:
+            return None
+        if slip > ip.reach_slip_max * self.beam._sigma_z:
+            return None
+        return a + rs * R * phi
+
+    def _straight_region_lo(self, s):
+        """
+        Lower s' bound of the straight-section extension for an observer at s, or None:
+        s - _geo_reach(s), but never below the previous bend's exit (the section before the
+        entrance is straight only from there; the previous bend's own tail is prev_bend_reach's
+        business), never below the retained history unless that is the synthetic pre-history,
+        and never below -prehistory.
+        """
+        g = self._geo_reach(s)
+        if g is None:
+            return None
+        lo = s - g
+        lo = max(lo, -float(getattr(self.integration_params, 'prehistory', 0.0) or 0.0))
+        pe = getattr(self, 'prev_bend_end', None)
+        if pe is not None:
+            lo = max(lo, float(pe))
+        tl = self.DF_tracker.time_log
+        if len(tl) and float(tl[0]) > 1e-12:
+            lo = max(lo, float(tl[0]))
+        return lo
+
+    def _straight_region_nodes(self, s, lo, hi):
+        """
+        s' nodes for the straight-section extension [lo, hi) below the regular layout
+        (reach_straight). Its sources are far from the observer and their retarded z is nearly
+        constant, so the column integral is a smooth ~1/u^2 in u = s - s': geometric grading in u
+        with ratio 1 + near_grade, ~ln(u_lo/u_hi)/near_grade nodes (41 for 10 m behind a 0.5 m
+        bend at 5%), where the fixed far cell would need thousands.
+        """
+        g = self.integration_params.near_grade or 0.05
+        u_hi, u_lo = max(s - hi, 1e-9), s - lo
+        k = int(np.ceil(np.log(u_lo / u_hi) / np.log1p(g)))
+        u = u_hi * (1.0 + g) ** np.arange(k + 1)
+        u = np.minimum(u, u_lo)
+        if u[-1] < u_lo:
+            u = np.append(u, u_lo)
+        return np.unique(s - u)
+
     def _layout_bounds(self, s, x):
         """
         The two s' integration regions for the xi_bands path.
@@ -1846,6 +1948,7 @@ class CSR2D:
         d = ((10.0 * sigma_x + x - b._mean_x) * abs(cos2a)
              / max(abs(sin2a), ip.branch_sin_min))
         d = max(d, ip.near_floor * sigma_z)
+        reach = ip.n_formation_length * self.formation_length
         if (getattr(ip, 'seam_ratio', 0.0) and ip.near_grade
                 and not (ip.causal_clip and self._exit_transient())):
             # Seam continuity: keep grading the near region until its cell near_grade*u has
@@ -1858,7 +1961,7 @@ class CSR2D:
             far_cell = ip.n_formation_length * self.formation_length / max(2 * ip.far_zbins, 3)
             d = max(d, far_cell / (ip.near_grade * ip.seam_ratio))
         # and never reach back further than the retained history supports
-        d = min(max(d, 0.0), ip.n_formation_length * self.formation_length)
+        d = min(max(d, 0.0), reach)
 
         s4 = s + 3.0 * sigma_z
         # prehistory: the lattice start is not a wall. Sources on the synthetic straight section
@@ -1872,7 +1975,7 @@ class CSR2D:
         # s1 = s2 - n_fl*L_f with s2 = s3 - 200 sigma_z reached back 200 sigma_z FURTHER
         # than the retained history supports, and inverted (s1 > s2) whenever s2 went
         # negative while s1 clamped.
-        s1 = max(lo, s3 - ip.n_formation_length * self.formation_length)
+        s1 = max(lo, s3 - reach)
         # In a drift after a bend the source of the exit wake is the bend's own arc,
         # which recedes behind the observer; a fixed n_fl*L_f reach loses it ~1.7 R*phi
         # past the exit and the wake then changes sign (progress.md, 2026-11-03).
@@ -2354,6 +2457,18 @@ class CSR2D:
                 sp_prev = self._prev_region_nodes(s, pb, s1)
                 parts.append(self._integrate_xi_region(s, x, t, sp_prev, ignore_vx, None,
                                                        scale_bands=True))
+            # reach_straight in the drift after a bend: the straight section before that bend's
+            # entrance is still a source (retarded by R phi^3/6 + x phi^2/2, decaying as 1/u) for
+            # a fraction of R phi past the exit. Below the exit-transient layout, as its own
+            # region at the fixed far cell, so the causal-edge / fine-window layout of the arc is
+            # untouched (talman_cancellation.md 7.3-7.5).
+            lo_pre = self._straight_region_lo(s)
+            if lo_pre is not None:
+                lo_cur = min(s1, pb) if pb is not None else s1
+                lo_cur = min(lo_cur, float(self.bend_start_rec))      # never the arc itself
+                if lo_pre < lo_cur - 1e-12:
+                    parts.append(self._integrate_xi_region(s, x, t, self._straight_region_nodes(s, lo_pre, lo_cur),
+                                                           ignore_vx, None, scale_bands=True))
             if radii is not None:
                 parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
 

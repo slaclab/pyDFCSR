@@ -29,9 +29,9 @@ def golden():
     return np.load(os.path.join(HERE, 'golden', 'golden_2d.npz'))
 
 
-# u_taper (default 0.5 since 2026-11-12, progress_cancellation.md §4e) and seam_ratio (default 2
-# since 2026-11-24, progress_facet_bc20.md §11k) are the two defaults that deliberately change the
-# result; with both off, the old path must still be bit-identical.
+# u_taper (default 0.5 since 2026-11-12, progress_cancellation.md §4e), seam_ratio (default 2 since
+# 2026-11-24, progress_facet_bc20.md §11k) and reach_straight (default 2, §11n) are the defaults that
+# deliberately change the result; with them off, the old path must still be bit-identical.
 @pytest.mark.parametrize('extra_dep, extra_csr', [
     ({'u_taper': 0.0}, None),
     ({'frame': 'rms', 'smoothing_sigma_z': None, 'u_taper': 0.0}, {'mesh_mode': 'uniform'}),
@@ -42,7 +42,7 @@ def test_defaults_bit_identical(golden, extra_dep, extra_csr):
         from pyDFCSR_2D.params import CSR_params
         if 'mesh_mode' not in CSR_params.configure_params.__code__.co_varnames:
             pytest.skip('mesh_mode not implemented yet')
-    out = make_golden_2d.run_case(extra_dep, extra_csr, extra_integ={'seam_ratio': 0.0})
+    out = make_golden_2d.run_case(extra_dep, extra_csr, extra_integ={'seam_ratio': 0.0, 'reach_straight': 0.0})
     assert int(out['nkicks']) == int(golden['nkicks'])
     bad = [k for k in golden.files if not np.array_equal(golden[k], out[k])]
     assert not bad, f'differs from the golden fixture: {bad}'
@@ -696,3 +696,51 @@ def test_prehistory_extends_the_reach_below_the_lattice_start():
     rho = np.where(k_el < dist.size, np.asarray(sim.lattice.rho)[np.minimum(k_el, dist.size - 1)], 0.0)
     rho = np.where(sp < 0.0, 0.0, rho)            # the guard added to get_CSR_integrand
     assert rho[0] == 0.0 and rho[1] != 0.0
+
+
+def test_straight_section_reach_in_the_first_bend():
+    """reach_straight: inside a bend (a = s - entrance) and in the drift after it, the straight section
+    before the entrance is integrated as a separate region down to reach_straight * R phi before the
+    entrance, geometrically graded in u = s - s', while its retardation (a^3/(6R^2), + x phi^2/2 past
+    the exit) is within reach_slip_max sigma_z; off deep in the bend and with reach_straight 0
+    (talman_cancellation.md §7.5)."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, None, {'write_wakes': False, 'compute_CSR': 0, 'apply_CSR': 0})
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+    ip = sim.integration_params
+    assert ip.reach_straight == 40.0 and ip.reach_slip_max == 5.0
+    sim.formation_length = 0.4
+    sim.inbend, sim.afterbend = True, False
+    sim.bend_start_rec, sim.R_rec, sim.phi_rec = 0.0, 6.0, 0.03     # a 0.18 m bend: exit slip 0.54 sigma_z
+    sz = sim.beam._sigma_z
+    s = 0.15                                   # slip a^3/(6R^2) = 0.3 sigma_z: on
+    g = sim._geo_reach(s)
+    assert abs(g - (s + 40.0 * s)) < 1e-12     # a + reach_straight * R phi, phi = a / R
+    # the regular layout is untouched by the rule
+    (s1, s3), _ = sim._layout_bounds(s, sim.beam._mean_x)
+    assert s1 == 0.0 and abs(s3 - s1) <= ip.n_formation_length * sim.formation_length + 1e-12
+    # the extension: graded in u from s1 down to s - g, a few dozen nodes for 6 m
+    sp = sim._straight_region_nodes(s, s - g, 0.0)
+    assert sp[0] == s - g and sp[-1] == 0.0 and np.all(np.diff(sp) > 0) and 20 < sp.size < 200
+    u = s - sp[::-1]
+    r = u[2:] / u[1:-1]
+    assert np.all(r < 1.0 + ip.near_grade + 1e-9) and np.all(r > 1.0)
+    # deep in the bend the straight sources are retarded out of the bunch: off
+    s_deep = (6 * 36.0 * ip.reach_slip_max * sz) ** (1 / 3) * 1.01
+    assert sim._geo_reach(s_deep) is None
+    # in the drift after the bend: on just past the exit, off once x phi^2/2 has carried the slip out
+    sim.inbend, sim.afterbend = False, True
+    Lb = 0.03 * 6.0
+    assert sim._geo_reach(Lb + 0.01) is not None
+    x_off = (ip.reach_slip_max * sz - 6.0 * 0.03 ** 3 / 6.0) / (0.03 ** 2 / 2.0)
+    assert sim._geo_reach(Lb + x_off * 1.05) is None
+    # off
+    ip.reach_straight = 0.0
+    sim.inbend, sim.afterbend = True, False
+    assert sim._geo_reach(s) is None

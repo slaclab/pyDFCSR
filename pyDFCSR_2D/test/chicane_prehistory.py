@@ -4,7 +4,7 @@ it? The benchmark lattice has a 0.1 m drift (D0) before B1, and the 2D integral 
 the lattice starts (s' < 0), while the 1D entrance transient assumes an infinite straight line. This runs
 the 2dR recipe with D0 = <L> m up to 0.35 m past B1's exit and compares the B1 wakes with 2dR and 1d_full.
 
-    PYTHONPATH=<repo root> conda run -n pydfcsr python pyDFCSR_2D/test/chicane_prehistory.py [run|analyze] [L] [n_formation_length] [prehistory]
+    PYTHONPATH=<repo root> conda run -n pydfcsr python pyDFCSR_2D/test/chicane_prehistory.py [run|analyze] [L] [n_formation_length] [prehistory] [reach_straight] [reach_slip_max]
 """
 import contextlib
 import io
@@ -26,7 +26,9 @@ os.makedirs(os.path.join(C.OUT, 'inputs'), exist_ok=True)
 L0 = float(sys.argv[2]) if len(sys.argv) > 2 else 2.0
 NFL = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0      # n_formation_length (reach); 1 is the default
 PRE = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0      # CSR_integration.prehistory [m]: synthetic straight history instead of a real drift
-NAME = (f'2dR_pre{PRE:g}' if PRE else f'2dR_D0_{L0:g}') + (f'_nfl{NFL:g}' if NFL != 1.0 else '')
+RS = float(sys.argv[5]) if len(sys.argv) > 5 else None      # CSR_integration.reach_straight (None = the default)
+SLIP = float(sys.argv[6]) if len(sys.argv) > 6 else None    # CSR_integration.reach_slip_max (None = the default)
+NAME = (f'2dR_pre{PRE:g}' if PRE else f'2dR_D0_{L0:g}') + (f'_nfl{NFL:g}' if NFL != 1.0 else '') + (f'_rs{RS:g}' if RS is not None else '') + (f'_slip{SLIP:g}' if SLIP is not None else '')
 
 
 def run():
@@ -46,6 +48,10 @@ def run():
     cfg['CSR_integration']['n_formation_length'] = NFL
     if PRE:
         cfg['CSR_integration']['prehistory'] = PRE
+    if RS is not None:
+        cfg['CSR_integration']['reach_straight'] = RS
+    if SLIP is not None:
+        cfg['CSR_integration']['reach_slip_max'] = SLIP
     f2 = os.path.join(C.OUT, 'inputs', f'{NAME}.yaml')
     yaml.safe_dump(cfg, open(f2, 'w'))
     from pyDFCSR_2D import CSR2D
