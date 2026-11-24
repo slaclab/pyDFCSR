@@ -98,8 +98,38 @@ class Beam():
         #self._mean_energy = self.mean_energy
 
  #   @profile
+    def set_particle_split(self, comm):
+        """
+        step_control.particle_split: under MPI every rank tracks only its contiguous slice of the
+        particles and the slices are gathered back, so the (replicated) tracking cost drops by the
+        rank count. Each particle sees the same arithmetic as in the serial loop, so the result is
+        bit-identical; the gather is 6 arrays of N doubles per step (48 MB for 1M particles).
+        """
+        n = int(np.size(self.particle.x))
+        size, rank = comm.Get_size(), comm.Get_rank()
+        ave, res = divmod(n, size)
+        counts = np.array([ave + 1 if r < res else ave for r in range(size)])
+        displs = np.concatenate([[0], np.cumsum(counts)[:-1]])
+        self._split = (comm, rank, counts, displs)
+
     def track(self, element, step_size, update_step=True):
-        self.particle = track_element(self.particle, element)
+        split = getattr(self, '_split', None)
+        if split is None:
+            self.particle = track_element(self.particle, element)
+        else:
+            from mpi4py import MPI
+            comm, rank, counts, displs = split
+            lo, hi = int(displs[rank]), int(displs[rank] + counts[rank])
+            p = self.particle
+            local = Particle(p.x[lo:hi], p.px[lo:hi], p.y[lo:hi], p.py[lo:hi], p.z[lo:hi], p.pz[lo:hi],
+                             p.s, p.p0c, p.mc2)
+            out = track_element(local, element)
+            full = []
+            for arr in (out.x, out.px, out.y, out.py, out.z, out.pz):
+                buf = np.empty(int(counts.sum()))
+                comm.Allgatherv(np.ascontiguousarray(arr, dtype=np.float64), [buf, counts, displs, MPI.DOUBLE])
+                full.append(buf)
+            self.particle = Particle(*full, out.s, out.p0c, out.mc2)
         self.position += step_size
         if update_step:
             self.step += 1

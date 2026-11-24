@@ -779,10 +779,7 @@ class DF_tracker_comoving:
 
         npart = len(u)
         Tu = self.u_weight(u)
-        density = histogram_bspline_2d(
-            q1=u, q2=w, w=Tu,
-            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
-            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        density = self._deposit2d(u, w, Tu)
         if self.vx_model == 'affine':
             # px ~ c0 + b_u u + g(w), g = g1 w + g2 w^2 + g3 w^3, fitted on the core.
             # In (u, w), b x = b sigma_xi u + (a function of w), so the u-coefficient
@@ -797,10 +794,7 @@ class DF_tracker_comoving:
         wq = np.clip(w, -self.fit_zlim, self.fit_zlim)
         vx_fit = (vx_coef[0] + vx_coef[1] * u + vx_coef[2] * wq
                   + vx_coef[3] * wq ** 2 + vx_coef[4] * wq ** 3)
-        vx_weighted = histogram_bspline_2d(
-            q1=u, q2=w, w=Tu * (px - vx_fit if self.vx_model == 'affine' else px),
-            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
-            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        vx_weighted = self._deposit2d(u, w, Tu * (px - vx_fit if self.vx_model == 'affine' else px))
 
         # --- exact, grid-independent normalization ---
         # The old path used trapz of the deposited field and divided by it, which
@@ -983,10 +977,7 @@ class DF_tracker_comoving:
         self.curv_c2, self.curv_c3 = c2, c3
 
         Tu = self.u_weight(u)
-        density = histogram_bspline_2d(
-            q1=u, q2=w, w=T * Tu,
-            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
-            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        density = self._deposit2d(u, w, T * Tu)
         wq = np.clip(w, w_lo, w_hi)
         if self.vx_model == 'affine':
             wc = wq[sel]
@@ -996,10 +987,7 @@ class DF_tracker_comoving:
             vx_coef = np.zeros(5)
         vx_fit = (vx_coef[0] + vx_coef[1] * u + vx_coef[2] * wq
                   + vx_coef[3] * wq ** 2 + vx_coef[4] * wq ** 3)
-        vx_weighted = histogram_bspline_2d(
-            q1=u, q2=w, w=T * Tu * (px - vx_fit if self.vx_model == 'affine' else px),
-            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
-            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        vx_weighted = self._deposit2d(u, w, T * Tu * (px - vx_fit if self.vx_model == 'affine' else px))
 
         norm = npart * self.delta_u * self.delta_w
         density /= norm
@@ -1077,6 +1065,39 @@ class DF_tracker_comoving:
         self.res_log.append((t, fw_pk, self.res_z, f_window))
 
     NFIELD = 5      # density, density_u, density_w, vx, vx_u
+
+    def set_deposit_split(self, comm):
+        """
+        step_control.deposit_split: under MPI each rank deposits only its contiguous slice of the
+        particles and the raw histograms are summed with one Allreduce (two nx x nz arrays per
+        snapshot). The frame fits, quantiles and smoothing stay on the full beam, which every rank
+        holds. NOT bit-identical: the floating-point sum over particles is taken in a different
+        order (differences at the 1e-16 level of the cell values).
+        """
+        self._deposit_comm = comm
+
+    def _deposit2d(self, q1, q2, w):
+        """histogram_bspline_2d on the normalized grid, whole beam or this rank's slice + Allreduce"""
+        comm = getattr(self, '_deposit_comm', None)
+        if comm is None:
+            return histogram_bspline_2d(
+                q1=q1, q2=q2, w=w,
+                nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
+                nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        from mpi4py import MPI
+        n = q1.size
+        size, rank = comm.Get_size(), comm.Get_rank()
+        ave, res = divmod(n, size)
+        lo = sum(ave + 1 if r < res else ave for r in range(rank))
+        hi = lo + (ave + 1 if rank < res else ave)
+        w = np.broadcast_to(w, (n,))
+        local = histogram_bspline_2d(
+            q1=q1[lo:hi], q2=q2[lo:hi], w=np.ascontiguousarray(w[lo:hi]),
+            nbins_1=self.xbins, bins_start_1=self.u_start, bins_end_1=self.u_end,
+            nbins_2=self.zbins, bins_start_2=self.w_start, bins_end_2=self.w_end)
+        total = np.empty_like(local)
+        comm.Allreduce(np.ascontiguousarray(local), total, op=MPI.SUM)
+        return total
 
     def _ring_push(self, fields):
         """

@@ -75,6 +75,13 @@ class CSR2D:
 
         if parallel:
             self.init_MPI()
+            sc = getattr(self, '_step_control_cfg', {})
+            # the two replicated-work splits (progress_facet_bc20.md 11h): tracking (bit-identical)
+            # and deposition (1e-16 differences) over contiguous particle slices per rank
+            if sc.get('particle_split', False):
+                self.beam.set_particle_split(MPI.COMM_WORLD)
+            if sc.get('deposit_split', False) and self.use_comoving:
+                self.DF_tracker.set_deposit_split(MPI.COMM_WORLD)
         else:
             self.parallel = False
 
@@ -87,6 +94,7 @@ class CSR2D:
         # schedule every validated run used. A config that wants the old uniform stepping
         # must now say step_control: {mode: legacy}.
         sc = dict(input.get('step_control') or {})
+        self._step_control_cfg = sc
         sc.setdefault('mode', 'auto')
         if sc['mode'] == 'auto':
             sc.setdefault('kick_interval', 'midpoint')
