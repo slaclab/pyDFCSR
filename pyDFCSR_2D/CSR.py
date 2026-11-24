@@ -1510,35 +1510,37 @@ class CSR2D:
             dxp = width / (nx - 1)
 
             ip = self.integration_params
-            do_adapt_x = bool(adapt_x and ip.near_adapt and ip.near_adapt_x and not ibp)
+            # the x' refinement (near_adapt_x / far_adapt_x) and the by-parts form now coexist: a
+            # refined column -- one where the retarded density jumps between x' nodes, i.e. a horn
+            # crossed obliquely -- keeps the shipped form on its own refined nodes (the by-parts
+            # form's gain is where the density is smooth across the band), every other column
+            # takes the by-parts integrand on the uniform nodes. Until 2026-11-23 ibp switched
+            # the refinement off, and on the loss beam that brought the aliased cells back
+            # (max |dW| 34% of the horn's W at 200 nodes, ibp_nodes.py).
+            do_adapt_x = bool(adapt_x and ip.near_adapt and ip.near_adapt_x)
             ex = {} if (ibp or do_adapt_x) else None
             gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
                                             ignore_vx=ignore_vx, taper=taper, extras=ex)
+            refined = None
             if do_adapt_x:
-                gz, gx, dxp_col = self._adapt_x_columns(s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper)
-            else:
-                dxp_col = None
+                gz, gx, dxp_col, refined = self._adapt_x_columns(s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper)
             # A zero-width column has dxp = 0 and contributes nothing. Select it out
             # rather than multiplying by zero, so a degenerate node that landed on
             # the 1/|r-r'| pole cannot turn the whole region into a nan.
-            if dxp_col is not None:
-                # refined columns: (iz, ix) already integrated over their own x' nodes
-                iz = np.where(alive, dxp_col[0], 0.0)
-                ix = np.where(alive, dxp_col[1], 0.0)
-                dE += -self.CSR_scaling * np.trapz(y=iz, x=sp)
-                xk += self.CSR_scaling * np.trapz(y=ix, x=sp)
-                meshes.append((xp_mesh, sp_mesh, gz, gx))
-                continue
             iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp, 0.0)
+            ix = np.where(alive, np.trapz(y=gx, axis=0) * dxp, 0.0)
             if ibp:
                 # the shipped total is kept for the consistency check (get_CSR_wake)
                 self._ibp_ship_acc += -self.CSR_scaling * np.trapz(y=iz, x=sp)
-                gz, bnd, am, zone = self._ibp_integrand(gz, ex, t, taper, xp_mesh.shape)
-                iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp + bnd, 0.0)
+                g_ibp, bnd, am, zone = self._ibp_integrand(gz, ex, t, taper, xp_mesh.shape)
+                iz = np.where(alive, np.trapz(y=g_ibp, axis=0) * dxp + bnd, 0.0)
                 wcol = np.where(alive, dxp, 0.0) * np.gradient(sp)
                 self._ibp_gross_acc += float(np.sum(am.sum(axis=0) * wcol))
                 self._ibp_zone_acc += float(np.sum((am * zone).sum(axis=0) * wcol))
-            ix = np.where(alive, np.trapz(y=gx, axis=0) * dxp, 0.0)
+            if refined is not None and refined.any():
+                # refined columns: (iz, ix) already integrated over their own x' nodes
+                iz = np.where(alive & refined, dxp_col[0], iz)
+                ix = np.where(alive & refined, dxp_col[1], ix)
             dE += -self.CSR_scaling * np.trapz(y=iz, x=sp)
             xk += self.CSR_scaling * np.trapz(y=ix, x=sp)
             meshes.append((xp_mesh, sp_mesh, gz, gx))
@@ -1565,11 +1567,13 @@ class CSR2D:
         ix = np.trapz(y=gx, axis=0) * dxp
         rho = ex['rho'].reshape(xp_mesh.shape)
         rho_max = rho.max()
+        flagged = np.zeros(ncol, dtype=bool)
         if not rho_max > 0:
-            return gz, gx, (iz, ix)
+            return gz, gx, (iz, ix), flagged
         eps = ip.near_adapt_eps
         xp_cur, rho_cur = xp_mesh, rho
         cols = np.flatnonzero((np.abs(np.diff(rho_cur, axis=0)).max(axis=0) > eps * rho_max) & (width > 0))
+        flagged[cols] = True
         n_ref = 0
         for _ in range(ip.near_adapt_x_rounds):
             if cols.size == 0:
@@ -1610,7 +1614,7 @@ class CSR2D:
             xp_cur[:, cols], rho_cur[:, cols] = xn, rn
             cols = cols[still]
         self._last_adapt_x = dict(cols=int(n_ref // max(n_new, 1)) if n_ref else 0, evals=n_ref)
-        return gz, gx, (iz, ix)
+        return gz, gx, (iz, ix), flagged
 
     def _band_alive(self, s, x, t, sp):
         """Whether the retarded band has nonzero width, for each s' in the array."""
