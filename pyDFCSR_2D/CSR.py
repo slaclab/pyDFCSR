@@ -1529,18 +1529,22 @@ class CSR2D:
             # the 1/|r-r'| pole cannot turn the whole region into a nan.
             iz = np.where(alive, np.trapz(y=gz, axis=0) * dxp, 0.0)
             ix = np.where(alive, np.trapz(y=gx, axis=0) * dxp, 0.0)
+            iz_ship = iz
             if ibp:
-                # the shipped total is kept for the consistency check (get_CSR_wake)
-                self._ibp_ship_acc += -self.CSR_scaling * np.trapz(y=iz, x=sp)
                 g_ibp, bnd, am, zone = self._ibp_integrand(gz, ex, t, taper, xp_mesh.shape)
                 iz = np.where(alive, np.trapz(y=g_ibp, axis=0) * dxp + bnd, 0.0)
                 wcol = np.where(alive, dxp, 0.0) * np.gradient(sp)
                 self._ibp_gross_acc += float(np.sum(am.sum(axis=0) * wcol))
                 self._ibp_zone_acc += float(np.sum((am * zone).sum(axis=0) * wcol))
             if refined is not None and refined.any():
-                # refined columns: (iz, ix) already integrated over their own x' nodes
+                # refined columns: (iz, ix) already integrated over their own x' nodes, in BOTH
+                # forms (the shipped total of the consistency check must see the same refinement)
                 iz = np.where(alive & refined, dxp_col[0], iz)
+                iz_ship = np.where(alive & refined, dxp_col[0], iz_ship)
                 ix = np.where(alive & refined, dxp_col[1], ix)
+            if ibp:
+                # the shipped total is kept for the consistency check (get_CSR_wake)
+                self._ibp_ship_acc += -self.CSR_scaling * np.trapz(y=iz_ship, x=sp)
             dE += -self.CSR_scaling * np.trapz(y=iz, x=sp)
             xk += self.CSR_scaling * np.trapz(y=ix, x=sp)
             meshes.append((xp_mesh, sp_mesh, gz, gx))
@@ -2567,16 +2571,22 @@ class CSR2D:
         a, b = np.array(a), np.array(b)
         d = (float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-300)) if len(a)
              else float('nan'))
+        # The warning is judged against the mesh's largest wake, not against the checked points
+        # themselves: the centre-row points can sit where W is ~0 (the gain beam's first bend,
+        # W 0.002 MeV/m against a mesh max of 0.02), and there a 4% relative difference was
+        # 1e-4 MeV/m, which the beam never sees. d (relative to the points) stays in the log.
+        wmax = float(np.abs(self.dE_dct).max()) if getattr(self, 'dE_dct', None) is not None else 0.0
+        d_mesh = float(np.abs(a - b).max() / max(wmax, 1e-300)) if len(a) else float('nan')
         if not hasattr(self, 'ibp_check_log'):
             self.ibp_check_log = []
-        self.ibp_check_log.append((float(self.beam.position), d, len(a), skipped, max(fz)))
-        if len(a) and d > ip.ibp_check_tol and not getattr(self, '_ibp_check_warned', False):
+        self.ibp_check_log.append((float(self.beam.position), d, len(a), skipped, max(fz), d_mesh))
+        if len(a) and d_mesh > ip.ibp_check_tol and not getattr(self, '_ibp_check_warned', False):
             self._ibp_check_warned = True
             print(f'  [CSR2D] warning: at s = {self.beam.position:.4f} the shipped and the '
-                  f'integrated-by-parts longitudinal wakes differ by {d:.1e} (relative L2, '
-                  f'{len(a)} points). They are the same integral: rho and d rho/dx are '
-                  f'inconsistent somewhere (grid edge, blending). '
-                  f'Further kicks are logged in ibp_check_log, not printed.')
+                  f'integrated-by-parts longitudinal wakes differ by {d_mesh:.1e} of the mesh\'s '
+                  f'largest |W| ({d:.1e} relative to the {len(a)} checked points). They are the '
+                  f'same integral: rho and d rho/dx are inconsistent somewhere (grid edge, '
+                  f'blending). Further kicks are logged in ibp_check_log, not printed.')
 
     def _assert_history(self):
         """
