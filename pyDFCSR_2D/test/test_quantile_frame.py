@@ -744,3 +744,48 @@ def test_straight_section_reach_in_the_first_bend():
     ip.reach_straight = 0.0
     sim.inbend, sim.afterbend = True, False
     assert sim._geo_reach(s) is None
+
+
+def test_mesh_z_quantile_drops_the_sparse_tail():
+    """CSR_computation.mesh_z_quantile: the charge mesh's z axis spans the [q, 1-q] quantiles (+ pad) built
+    from the particles inside, not every particle, so a sparse tail no longer takes nodes; particles beyond
+    the axis get the edge column's kick (progress_facet_bc20.md §11o)."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    from pyDFCSR_2D.peakfind import charge_nodes
+    rng = np.random.default_rng(3)
+    z = np.concatenate([rng.normal(0, 10e-6, 200000), rng.uniform(20e-6, 200e-6, 200)])   # 0.1% sparse tail
+    full = charge_nodes(z, 80, 0.3, smooth=0.6e-6, pad=0.02)
+    zlo, zhi = np.quantile(z, [0.001, 0.999])
+    cut = charge_nodes(z[(z >= zlo) & (z <= zhi)], 80, 0.3, smooth=0.6e-6, pad=0.02)
+    empty = lambda nodes: int((np.histogram(z, bins=nodes)[0] / z.size < 5e-4).sum())
+    assert full[-1] > 150e-6 and cut[-1] < 60e-6
+    assert empty(full) > 10 and empty(cut) <= 2
+    assert np.median(np.diff(cut)) < 0.8 * np.median(np.diff(full))
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, None, {'write_wakes': False, 'compute_CSR': 0, 'apply_CSR': 0,
+                                              'mesh_mode': 'charge', 'mesh_z_quantile': 0.001, 'mesh_x_quantile': 0.002})
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+    assert sim.CSR_params.mesh_z_quantile == 0.001
+    sim.get_CSR_mesh()
+    zr = np.asarray(sim.CSR_zrange)
+    zlo, zhi = np.quantile(sim.beam.z, [0.001, 0.999])
+    assert zr[0] <= zlo and zr[-1] >= zhi and zr[-1] < sim.beam.z.max() + 1e-12 or zr[-1] <= zhi + 0.03 * (zhi - zlo)
+    # the kick beyond the axis is the edge column's, not zero
+    xr = np.asarray(sim.CSR_xrange_transformed)
+    dE = np.ones((xr.size, zr.size)); dE[:, -1] = 2.0
+    b = sim.beam
+    z_save = b.particle.z.copy()
+    zz = np.full_like(z_save, zr[-1] + 10 * (zr[-1] - zr[-2]))     # every particle beyond the last column
+    b.particle.z[:] = zz
+    pz0 = b.particle.pz.copy()
+    b.apply_wakes(dE, np.zeros_like(dE), xr, zr, 1.0, 0, x_shift=None, clamp_x=True, clamp_z=True)
+    assert np.all(b.particle.pz != pz0)
+    b.particle.pz[:] = pz0
+    b.apply_wakes(dE, np.zeros_like(dE), xr, zr, 1.0, 0, x_shift=None, clamp_x=True, clamp_z=False)
+    assert np.all(b.particle.pz == pz0)
+    b.particle.z[:] = z_save

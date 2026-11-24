@@ -769,7 +769,8 @@ class CSR2D:
                                               self.CSR_xrange_transformed, self.CSR_zrange, L_kick,
                                                   self.CSR_params.transverse_on,
                                                   x_shift=self._mesh_ridge(self.beam.z),
-                                                  clamp_x=self.CSR_params.mesh_x_quantile is not None)
+                                                  clamp_x=self.CSR_params.mesh_x_quantile is not None,
+                                                  clamp_z=getattr(self.CSR_params, 'mesh_z_quantile', None) is not None)
                             self._s_last_kick = self.beam.position
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
@@ -871,7 +872,13 @@ class CSR2D:
             from .peakfind import charge_nodes
             cp = self.CSR_params
             res_z, res_x = self._deposition_resolution()
-            zrange = charge_nodes(self.beam.z, zbins, cp.mesh_uniform_frac,
+            zq = self.beam.z
+            if getattr(cp, 'mesh_z_quantile', None) is not None:
+                # the axis on the [q, 1-q] span, the particles outside DROPPED (not clipped onto
+                # the edge: a clipped pile is a spike in the monitor); they get the edge kick
+                zlo, zhi = np.quantile(zq, [cp.mesh_z_quantile, 1.0 - cp.mesh_z_quantile])
+                zq = zq[(zq >= zlo) & (zq <= zhi)]
+            zrange = charge_nodes(zq, zbins, cp.mesh_uniform_frac,
                                   smooth=cp.mesh_smooth * res_z, pad=cp.mesh_pad,
                                   max_ratio=cp.mesh_max_ratio)
             xq = x_transform

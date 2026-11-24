@@ -55,7 +55,7 @@ RUNS = {
 # and the charge-equidistributed wake mesh: the 2D runs above cannot resolve the ~3 um spike
 Q_DEP = dict(frame='quantile', frame_quantile=0.005, frame_margin=0.1, xbins=150, zbins=1200,
              smoothing_sigma_z=1.0)
-Q_MESH = dict(mesh_mode='charge', xbins=12, zbins=80)
+Q_MESH = dict(mesh_mode='charge', xbins=12, zbins=80, mesh_z_quantile=0.001)
 RUNS['dfcsr_2d_q'] = dict(cls='2d', transverse=1, dep=Q_DEP, csr=Q_MESH)
 RUNS['dfcsr_2d_q_noT'] = dict(cls='2d', transverse=0, dep=Q_DEP, csr=Q_MESH)
 # the same with kicks placed by the 1D CSR profile (kick_placement csr1d), calibrated in 1D

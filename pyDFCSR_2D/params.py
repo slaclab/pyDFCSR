@@ -494,7 +494,7 @@ class CSR_params:
                          transverse_on = 1, xbins = 20, zbins = 30, xlim = 5, zlim = 5, write_beam = None, write_wakes = True, write_name = '',
                          mesh_mode = 'uniform', mesh_uniform_frac = 0.3, mesh_max_ratio = 1.5,
                          mesh_smooth = 3.0, mesh_pad = 0.02, pedestal_warn = 0.05,
-                         mesh_x_quantile = None):
+                         mesh_x_quantile = None, mesh_z_quantile = None):
         # mesh_mode 'uniform': xbins x zbins evenly over +-xlim, +-zlim rms (the original mesh).
         # mesh_mode 'charge': the same node counts, each axis equidistributing
         #   mesh_uniform_frac / L + (1 - mesh_uniform_frac) * (projected charge, smoothed over
@@ -521,6 +521,14 @@ class CSR_params:
         if mesh_x_quantile is not None and not 0.0 < float(mesh_x_quantile) < 0.5:
             raise ValueError(f'CSR_computation.mesh_x_quantile must be in (0, 0.5), got {mesh_x_quantile}')
         self.mesh_x_quantile = None if mesh_x_quantile is None else float(mesh_x_quantile)
+        # mesh_z_quantile: like mesh_x_quantile for the charge mesh's z axis. By default the z axis
+        # spans every particle (+ mesh_pad): a sparse tail then takes nodes -- Indranil's loss beam at
+        # s = 0.15 (quantile frame, 12.6 um core, 0.1% of the charge out to +49 um) had 15 of its 80 z
+        # cells carrying < 0.05% of the charge, 3.6 um apart in empty space, and the core cells 30%
+        # coarser than needed (progress_facet_bc20.md 11o). With q the axis spans the [q, 1-q]
+        # quantiles (+ pad) and particles beyond it get the edge column's kick (clamped), as in x.
+        # None = every particle (bit-identical); 0.001 in the BC20 recipe.
+        self.mesh_z_quantile = None if mesh_z_quantile is None else float(mesh_z_quantile)
         self.pedestal_warn = float(pedestal_warn)
         self.compute_CSR = compute_CSR
         self.apply_CSR = apply_CSR

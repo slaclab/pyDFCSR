@@ -136,7 +136,7 @@ class Beam():
         self.update_status()
   #  @profile
     def apply_wakes(self, dE_dct, x_kick, xrange, zrange, step_size, transverse_on, x_shift=None,
-                    clamp_x=False):
+                    clamp_x=False, clamp_z=False):
         # Todo: add options for transverse or longitudinal kick only
         # x_shift: per-particle offset subtracted from x_transform, matching a wake mesh
         # that follows a curved ridge (CSR2D._mesh_ridge); None = the straight mesh
@@ -145,16 +145,17 @@ class Beam():
         xt = self.x_transform if x_shift is None else self.x_transform - x_shift
         if clamp_x:
             xt = np.clip(xt, xrange[0], xrange[-1])
+        zz = np.clip(self.z, zrange[0], zrange[-1]) if clamp_z else self.z    # mesh_z_quantile: edge kick beyond
         dE_E1 = step_size * dE_dct * 1e6 / self.init_energy  # self.energy in eV
         interp = RegularGridInterpolator((xrange, zrange), dE_E1, fill_value=0.0, bounds_error=False)
-        dE_Es = interp(np.array([xt, self.z]).T)
+        dE_Es = interp(np.array([xt, zz]).T)
         #self.particle.pz += dE_Es
         pz_new = self.particle.pz + dE_Es
 
         if transverse_on:
             dxp = step_size * x_kick * 1e6 / self.init_energy
             interp = RegularGridInterpolator((xrange, zrange), dxp, fill_value=0.0, bounds_error=False)
-            dxps = interp(np.array([xt, self.z]).T)
+            dxps = interp(np.array([xt, zz]).T)
             #self.particle.px += dxps
             px_new = self.particle.px + dxps
         

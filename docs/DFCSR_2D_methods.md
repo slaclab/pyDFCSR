@@ -503,6 +503,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | `mesh_mode` | uniform | charge | charge-equidistributed axes |
 | `mesh_uniform_frac`, `mesh_max_ratio`, `mesh_smooth`, `mesh_pad` | 0.3, 1.5, 3.0, 0.02 | same | charge mesh monitor, grading, smoothing (in resolution lengths), pad |
 | `mesh_x_quantile` | None | 0.002 | ξ axis on the [q, 1−q] span, kick clamped beyond |
+| `mesh_z_quantile` | None | charge mesh: the z axis on the [q, 1−q] quantiles (+ pad) built from the particles inside, particles beyond get the edge kick; default every particle, which lets a sparse tail take nodes (0.001 in the BC20 recipe) |
 | `pedestal_warn` | 0.05 | same | dropped-charge diagnostic threshold |
 | `write_wakes`, `write_beam`, `workdir`, `write_name` | True, None, '.', '' | | output |
 
