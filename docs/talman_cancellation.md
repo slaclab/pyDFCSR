@@ -103,3 +103,82 @@ Items 1 and 5 are runs of the existing code (half an hour and a few minutes resp
 - M. Borland, Phys. Rev. ST Accel. Beams 4, 070701 (2001) (Elegant CSRCSBEND).
 - C. Huang, T. J. T. Kwan, B. E. Carlsten, Phys. Rev. ST Accel. Beams 16, 010701 (2013). (No paper by these authors on a "lack of Talman cancellation" could be found; that attribution is unverified.)
 - A. D. Brynes et al., New J. Phys. 20, 073035 (2018).
+
+## 7. The benchmark chicane in figures (2026-11-24)
+
+Runs `2dR` (2D, full force), `2dR_noT` (2D, transverse force off) and `1d_full` (1D, no drift cutoff) of `pyDFCSR_2D/test/chicane_2d_vs_1d.py`: 5 GeV, 1 nC, σ_z 200 µm → 20 µm, four 0.5 m dipoles of 48.3 mrad (R = 10.36 m), same bmad-x tracking and 489-node auto schedule (105 kicks), the BC20 reference integration recipe, before the `seam_ratio` floor. Figures by `pyDFCSR_2D/test/chicane_wake_plots.py`, in `pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/` (not in git):
+
+- [wake_maps_long_2dR.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/wake_maps_long_2dR.png) — W(ξ, z) at 17 positions (each panel normalised to its own max, range in MeV/m)
+- [wake_maps_trans_2dR.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/wake_maps_trans_2dR.png) — F(ξ, z) at the same positions
+- [wake_zproj_2dR.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/wake_zproj_2dR.png) — W projected on z (charge-weighted over ξ), 2D with and without the transverse force, and 1D at the same kick
+- [wake_xproj_2dR.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/wake_xproj_2dR.png) — W(ξ) and F(ξ) projected on the transverse axis (charge-weighted over z)
+- [wakes_along_s_2dR.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/wakes_along_s_2dR.png) — along the lattice: max |W|, the charge-weighted mean −⟨W⟩ (= energy loss rate) for 2D / 2D no-T / 1D, the normalised W(z), 1D W(z), F(z) and F(ξ) at every kick
+- [prehistory_B1_2.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/prehistory_B1_2.png) — the first bend with 0.1 m and with 2 m of straight line before it (§7.4)
+
+### 7.1 Exit and per-element tables
+
+| at the exit, vs CSR off | 2D full (2dR) | 2D, no transverse force (2dR_noT) | 1D (1d_full) |
+|---|---|---|---|
+| mean energy change [keV] | −2672 | −2682 | −1746 |
+| projected σ_E change [keV] | −322 | −368 | −303 |
+| core slice σ_E change [keV] | +28.8 | +157.8 | +10.4 |
+| emittance growth, η-corrected [µm] | 0.490 | 0.952 | 0.549 |
+| peak current [kA] (CSR off 5.99) | 5.79 | 5.72 | 5.82 |
+
+| energy change per element [keV] | B1 | D1 | B2 | D2 | B3 | D3 | B4 | Df |
+|---|---|---|---|---|---|---|---|---|
+| 2D full | −0.9 | −49 | −108 | −41 | −624 | −1468 | −231 | −150 |
+| 2D, no transverse force | −0.9 | −49 | −109 | −42 | −626 | −1459 | −242 | −154 |
+| 1D | −3.0 | −66 | −8.5 | −70 | −139 | −933 | −366 | −161 |
+
+### 7.2 The projected wake against 1D, kick by kick
+
+Charge-weighted means and peaks of the projected wakes at the picked kicks (`wake_table_2dR.txt`), MeV/m:
+
+| position | s [m] | ⟨W⟩ 2D | ⟨W⟩ 2D no-T | ⟨W⟩ 1D | 2D/1D | max\|W\| 2D | max\|W\| 1D | max\|F\| 2D | ⟨F⟩ 2D |
+|---|---|---|---|---|---|---|---|---|---|
+| B1 mid | 0.34 | −0.0012 | −0.0012 | −0.0006 | 2.0 | 0.012 | 0.022 | 0.016 | +0.010 |
+| B1 exit | 0.60 | −0.0039 | −0.0039 | −0.0212 | 0.18 | 0.042 | 0.086 | 0.009 | +0.006 |
+| D1 +0.3 m | 0.90 | −0.029 | −0.029 | −0.039 | 0.74 | 0.085 | 0.064 | 0.0007 | +0.0004 |
+| D1 mid | 3.02 | −0.0062 | −0.0062 | −0.0094 | 0.66 | 0.014 | 0.013 | 0.0000 | 0 |
+| B2 mid | 5.85 | −0.165 | −0.167 | −0.0015 | 109 | 0.27 | 0.038 | 0.026 | −0.016 |
+| B2 exit | 6.11 | −0.174 | −0.177 | −0.101 | 1.7 | 0.34 | 0.24 | 0.013 | −0.009 |
+| D2 mid | 6.69 | −0.026 | −0.027 | −0.056 | 0.46 | 0.067 | 0.081 | 0.0006 | −0.0002 |
+| B3 mid | 7.35 | −0.69 | −0.70 | −0.022 | 32 | 1.14 | 0.23 | 0.046 | −0.029 |
+| B3 exit | 7.61 | −1.91 | −2.02 | −1.36 | 1.4 | 3.12 | 2.27 | 0.046 | −0.031 |
+| D3 +0.3 m | 7.94 | −0.44 | −0.44 | −0.56 | 0.79 | 0.80 | 0.82 | 0.003 | −0.001 |
+| D3 30% | 9.06 | −0.196 | −0.195 | −0.171 | 1.15 | 0.32 | 0.24 | 0.0002 | 0 |
+| D3 60% | 10.56 | −0.158 | −0.158 | −0.089 | 1.8 | 0.25 | 0.13 | 0.0000 | 0 |
+| D3 end | 12.30 | −0.233 | −0.227 | −0.057 | 4.1 | 0.32 | 0.080 | 0.0000 | 0 |
+| B4 1/3 | 12.81 | +0.266 | +0.261 | −0.218 | −1.2 | 2.09 | 1.73 | 0.170 | +0.119 |
+| B4 2/3 | 12.97 | −0.92 | −1.00 | −1.39 | 0.66 | 1.87 | 2.19 | 0.150 | +0.102 |
+| B4 exit | 13.11 | −0.96 | −1.00 | −1.22 | 0.79 | 1.84 | 2.01 | 0.037 | +0.024 |
+| Df end | 13.31 | −0.54 | −0.56 | −0.68 | 0.80 | 0.94 | 1.00 | 0.003 | +0.001 |
+
+What the figures show:
+
+1. **Shape.** Wherever the beam is long and untilted (B1, D1, D2) the 2D projected wake has the 1D shape (the deceleration–acceleration pair of a Gaussian) at a different amplitude. In B2–B3 and D3 the 2D wake is a single deep trough at the compressed core with a small positive head; the 1D wake has the same trough but, inside B2 and B3, is 30–100× smaller, because the 1D entrance transient builds up over L_f = 0.8 m, longer than the 0.5 m bend, while the 2D wake is already large at the entrance. The 2D wake inside B2 and B3 (and the 2–4× excess over 1D late in D3) is the open item of progress_facet_bc20.md §10.0: it is converged within the 2D formulation and has never had an independent (Liénard–Wiechert) check.
+2. **Transverse structure.** W(ξ) in a bend is a linear slope across the beam (the W₁ term linear in x, the ξ-dependence of the retarded z′), and F(ξ) is a bell centred on the charge, with the sign of the bend (+ in B1 and B4, − in B2 and B3) and essentially zero in the drifts (10⁻⁵ MeV/m against 10⁻² in the bends). The transverse force in this chicane is therefore the in-bend space-charge force with the curvature sign, not a radiative transient.
+3. **The mean transverse force is the Talman force.** At B1 mid the force on the beam centre is 0.0115 MeV/m. The plain centripetal Derbenev–Shiltsev value 2κQλ_peak/(4πε₀) with λ_peak = 1/(√(2π)σ_z) = 1995 m⁻¹, κ = 1/10.36 m is 0.0035 MeV/m, a factor 3.3 lower; at B4 1/3 (6 kA, λ_peak ≈ 2·10⁴ m⁻¹) the code gives 0.17 MeV/m against 0.035, a factor 4.9. Both ratios are of the size of the logarithm ln(σ_z^{2/3}/(κ^{1/3}σ_⊥)) ≈ 4.8 (σ_z 200 µm, σ_⊥ 64 µm) that Stupakov's Eq. 42 contains, i.e. the code applies the log-enhanced Coulomb (Talman) force, scheme (i) of §4, and the cancellation of §5 is what keeps that large force from showing up in the emittance. A quantitative comparison with the Eq. 42 prefactor is still to be done.
+4. **With and without the transverse force** the projected W is the same to the line width everywhere except inside B4 (−0.92 vs −1.00 MeV/m at 2/3), where the transverse kicks accumulated in B3–D3 have changed the beam's x–z correlation; the energy loss differs by 0.4% in total. The force changes the emittance (0.49 vs 0.95 µm) through x′, not through W.
+5. **Where 2D equals 1D.** In the drifts 0.3 m past each bend exit the two agree to 20–25% in ⟨W⟩; at the end of the lattice (B4 exit, Df) 2D is 20% below 1D in both ⟨W⟩ and max |W|. At the exit of the compressing bend B3, 2D is 1.4× 1D.
+
+### 7.3 The first bend: a lattice-start artefact, and the reach
+
+In B1 the 2D wake is half the 1D one (max |W| 0.042 vs 0.086 MeV/m at the exit; ⟨W⟩ −0.0039 vs −0.0212). Two things truncate the 2D integral there and neither is physics:
+
+- **The lattice start.** The benchmark has 0.1 m of drift before B1, and the 2D integral has no sources before s′ = 0 (the beam is first deposited there), whereas the 1D entrance transient assumes the beam arrived along an infinite straight line. A source at distance u before the bend entrance, seen from arc angle φ, is retarded by ≈ Rφ³/6 − R²φ⁴/(8u): the whole straight-line history contributes at nearly the same retarded z and its contribution decays only as 1/u.
+- **The reach.** Even with the history present, the far region reaches back only n_formation_length × L_f = 0.8 m from s3, so from the B1 exit it covers 0.3 m of the straight section.
+
+`chicane_prehistory.py` reruns the first bend with D0 = 2 m (the lattice shifted by 1.9 m, everything else identical) and n_formation_length 1, 2 and 4:
+
+| s in B1 [m] | ⟨W⟩ 2dR (D0 0.1, n_fl 1) | D0 2 m, n_fl 1 | D0 2 m, n_fl 2 | D0 2 m, n_fl 4 | ⟨W⟩ 1D | max\|W\| 2dR | D0 2 m, n_fl 2 | 1D |
+|---|---|---|---|---|---|---|---|---|
+| 0.34 (mid) | −0.0012 | −0.0016 | −0.0016 | −0.0016 | −0.0006 | 0.012 | 0.022 | 0.022 |
+| 0.55 | −0.0019 | −0.0066 | −0.0083 | −0.0083 | −0.0136 | 0.034 | 0.066 | 0.074 |
+| 0.60 (exit) | −0.0039 | −0.0116 | −0.0146 | −0.0146 | −0.0212 | 0.042 | 0.079 | 0.086 |
+| 0.66 | −0.0064 | −0.0150 | −0.0197 | −0.0197 | −0.0283 | 0.043 | 0.080 | 0.086 |
+| 0.78 | −0.0097 | −0.0196 | −0.0271 | −0.0271 | −0.0375 | 0.042 | 0.076 | 0.076 |
+| 0.90 | −0.029 | −0.042 | −0.051 | −0.051 | −0.039 | 0.085 | 0.098 | 0.064 |
+
+With the straight-line history present and a reach of two formation lengths (converged: 2 and 4 agree to the printed digits) the 2D peak wake matches 1D at B1 mid and is within 8% at the exit; the mean energy loss rate is 30% below 1D at the exit and 30% above it 0.3 m after. So: (i) a 2D benchmark needs a straight section of a few R·φ before the first bend (here 2 m); the 0.1 m D0 of this lattice, and BC20 lattices that start at the first dipole (Indranil's starts at B1LE), understate the first bend; (ii) `n_formation_length` = 1 is not enough at the exit of a bend shorter than L_f with a large angle — the straight-section tail needs the reach to cover ≈ 2Rφ of it (1 m here); 2 is converged. This is the first-bend component of Indranil's observation (§11k of progress_facet_bc20.md found the reach converged at 1 only at B2RE/B1RE, deep in the lattice, where φ is small). The per-element B1 numbers of §7.1 (−0.9 vs −3.0 keV) and the D1 entrance are therefore not a 2D-vs-1D comparison; the rest of the lattice is unaffected (the reach test at constant far cell in §11k).
