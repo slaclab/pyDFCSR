@@ -34,7 +34,10 @@ OUT = os.path.join(ROOT, 'test', 'benchmark_results', 'facet_bc20', 'runs')
 BASE = os.path.join(ROOT, 'example', 'input', 'facet_bc20_config.yaml')
 
 # the 2D defaults as of 5fb726b (2026-11-06), set explicitly
-PIN_2D_INTEG = dict(n_formation_length=1, xbins=200, zbins=200, drift_cutoff=0.0, tangent_bands=True,
+# xbins 200 -> 100 on 2026-11-24: on the loss B2RE state 1.35% instead of 0.97% of the horn's W at the worst
+# mesh cell against the 8x reference, 0.19% rms, 15% less wake time; the x' refinement resolves the horns
+# (progress_facet_bc20.md 11i)
+PIN_2D_INTEG = dict(n_formation_length=1, xbins=100, zbins=200, drift_cutoff=0.0, tangent_bands=True,
                     drift_reach=True, drift_snap_thin=0.01, far_fine_max=500, band_jacobian_min=0.2,
                     prev_bend_reach=True, prev_bend_grade=0.02, near_cell=0.25,
                     # shipped-vs-by-parts check at 3 mesh points per kick (~one wake point of cost): a

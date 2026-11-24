@@ -1703,6 +1703,15 @@ class CSR2D:
             # (0.994 at shear 0, 0.783 at shear 20), which is what n_formation_length
             # already provides.
             n = max(2 * ip.far_zbins, 3)
+            if getattr(ip, 'far_adapt', False) and ip.near_adapt:
+                # far_adapt: the near region's column scan and gradient monitor on the far region,
+                # from a coarse uniform base (2 * far_adapt_base columns) up to the fixed count as
+                # the cap. Where the retarded density along the far columns is smooth -- most of a
+                # bend -- the count stays near the base; where the oblique band sweeps a horn, the
+                # monitor concentrates columns there (progress_facet_bc20.md 11j).
+                base = np.linspace(sp_far, sp_near, max(2 * int(ip.far_adapt_base), 3))
+                return self._record_far_nodes(self._near_adapt_nodes(s, x, t, sp_far, sp_near, base,
+                                                                     uniform=True, cap=n))
             return self._record_far_nodes(np.linspace(sp_far, sp_near, n))
 
         lo = sp_far
@@ -2044,7 +2053,7 @@ class CSR2D:
             zr[take] = z_ret[take[live]]
         return zr, rho
 
-    def _near_adapt_nodes(self, s, x, t, a, b, base):
+    def _near_adapt_nodes(self, s, x, t, a, b, base, uniform=False, cap=None):
         """
         Near-region s' nodes adapted to the retarded density along the column (Integration_params
         near_adapt). Starts from the fixed layout `base`, scans z_ret and rho along the column and
@@ -2110,9 +2119,10 @@ class CSR2D:
 
         floor = ip.near_cell * self.beam._sigma_x_transform
         g = ip.near_grade
-        if ip.near_cell and g and floor > 0.0:
+        if ip.near_cell and g and floor > 0.0 and not uniform:
             h_fixed = np.maximum(floor, g * np.abs(sp - s))
         else:
+            # uniform=True (the far region, far_adapt): the floor is the base layout's own cell
             h_fixed = np.full(sp.shape, (b - a) / max(base.size - 1, 1))
         grad = np.abs(np.gradient(rho / rho_max, sp))
         m = 1.0 / h_fixed + np.where(np.isfinite(grad), grad, 0.0) / ip.near_adapt_eps
@@ -2130,6 +2140,8 @@ class CSR2D:
         if not np.isfinite(F[-1]):
             return base
         n = int(np.ceil(F[-1])) + 1
+        if cap is not None:
+            n = min(n, int(cap))
         if n > ip.near_adapt_max_nodes:
             if not getattr(self, '_warned_adapt_nodes', False):
                 self._warned_adapt_nodes = True
@@ -2140,6 +2152,9 @@ class CSR2D:
         nodes = np.interp(np.linspace(0.0, F[-1], max(n, base.size)), F, sp)
         nodes = np.unique(np.concatenate([nodes, [a, s, b]]))
         nodes = nodes[(nodes >= a) & (nodes <= b)]
+        if uniform:
+            self._last_adapt_far = dict(scan=sp.size, nodes=len(nodes), base=base.size)
+            return nodes
         self._last_region_nodes = list(getattr(self, '_last_region_nodes', [ip.far_zbins] * 2))
         self._last_region_nodes[-1] = len(nodes)
         self._last_adapt = dict(scan=sp.size, nodes=len(nodes), base=base.size)

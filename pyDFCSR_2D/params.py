@@ -34,7 +34,7 @@ class Integration_params:
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
                          near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
-                         threads = 1, threads_min_points = 20000):
+                         threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -417,6 +417,16 @@ class Integration_params:
         # kernels, bit-identical to before; the parallel ones are the same source compiled with
         # parallel=True and give identical numbers (independent iterations, no reductions).
         self.threads = int(threads)
+        # far_adapt: density-adaptive s' columns on the far region inside a bend (the near-adapt scan
+        # and monitor from a 2 * far_adapt_base uniform base, capped at the fixed 2 * far_zbins).
+        # Needs near_adapt. Measured 2026-11-24 (progress_facet_bc20.md 11j): the monitor follows the
+        # density at the band axis along s', which is NOT where a horn beam's far-region structure
+        # is -- that is the oblique crossing across x', handled by far_adapt_x -- so at base 50 it
+        # kept 180 of 400 columns and was off by 18% of the horn's W at B2RE, 3% at B1RE, for
+        # 8-12% less time; on the smooth gain beam 0.5% for 44% less time. Off by default; usable
+        # only on beams without sharp features.
+        self.far_adapt = bool(far_adapt)
+        self.far_adapt_base = int(far_adapt_base)
         self.threads_min_points = int(threads_min_points)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3
