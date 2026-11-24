@@ -182,3 +182,18 @@ In B1 the 2D wake is half the 1D one (max |W| 0.042 vs 0.086 MeV/m at the exit; 
 | 0.90 | −0.029 | −0.042 | −0.051 | −0.051 | −0.039 | 0.085 | 0.098 | 0.064 |
 
 With the straight-line history present and a reach of two formation lengths (converged: 2 and 4 agree to the printed digits) the 2D peak wake matches 1D at B1 mid and is within 8% at the exit; the mean energy loss rate is 30% below 1D at the exit and 30% above it 0.3 m after. So: (i) a 2D benchmark needs a straight section of a few R·φ before the first bend (here 2 m); the 0.1 m D0 of this lattice, and BC20 lattices that start at the first dipole (Indranil's starts at B1LE), understate the first bend; (ii) `n_formation_length` = 1 is not enough at the exit of a bend shorter than L_f with a large angle — the straight-section tail needs the reach to cover ≈ 2Rφ of it (1 m here); 2 is converged. This is the first-bend component of Indranil's observation (§11k of progress_facet_bc20.md found the reach converged at 1 only at B2RE/B1RE, deep in the lattice, where φ is small). The per-element B1 numbers of §7.1 (−0.9 vs −3.0 keV) and the D1 entrance are therefore not a 2D-vs-1D comparison; the rest of the lattice is unaffected (the reach test at constant far cell in §11k).
+
+### 7.4 The synthetic pre-history (`CSR_integration.prehistory`, 2026-11-24)
+
+Implemented after §7.3: with `prehistory: L` (metres) the far and near regions may reach down to s′ = −L along the straight continuation of the reference orbit (already provided by `_lattice_vectors`), the curvature is set to zero there, and the history lookup returns the first snapshot for t < 0 (the interpolant's existing clamp), i.e. the beam is assumed to have travelled the last L metres unchanged. No tracking, no deposition and no kicks are spent on the straight section. Same first-bend test as §7.3, benchmark lattice as is (0.1 m before B1), `prehistory: 2.0`, `n_formation_length: 2` (run `2dR_pre2_nfl2`, 3.1 min against 6.0 for the real 2 m drift):
+
+| s in B1 [m] | ⟨W⟩ no pre-history (2dR) | real 2 m drift, n_fl 2 | synthetic 2 m, n_fl 2 | ⟨W⟩ 1D | max\|W\| 2dR | real drift | synthetic | 1D |
+|---|---|---|---|---|---|---|---|---|
+| 0.34 (mid) | −0.0012 | −0.0016 | −0.0014 | −0.0006 | 0.012 | 0.022 | 0.021 | 0.022 |
+| 0.55 | −0.0019 | −0.0083 | −0.0079 | −0.0136 | 0.034 | 0.066 | 0.065 | 0.074 |
+| 0.60 (exit) | −0.0039 | −0.0146 | −0.0133 | −0.0212 | 0.042 | 0.079 | 0.078 | 0.086 |
+| 0.66 | −0.0064 | −0.0197 | −0.0191 | −0.0283 | 0.043 | 0.080 | 0.080 | 0.086 |
+| 0.78 | −0.0097 | −0.0271 | −0.0270 | −0.0375 | 0.042 | 0.076 | 0.077 | 0.076 |
+| 0.90 | −0.029 | −0.051 | −0.047 | −0.039 | 0.085 | 0.098 | 0.086 | 0.064 |
+
+The synthetic history reproduces the real-drift run to 2% in the peak wake and 4–9% in the mean (the real-drift beam is not the benchmark beam at B1: it has drifted 1.9 m further, so its transverse size differs; the synthetic run keeps the benchmark beam exactly). Figure: [prehistory_B1_pre2_nfl2.png](../pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/prehistory_B1_pre2_nfl2.png). Default 0 (bit-identical to before); for a lattice starting at or near its first dipole use `prehistory` ≥ the reach together with `n_formation_length: 2`.

@@ -659,3 +659,40 @@ def test_seam_ratio_extends_near_region_in_bend_only():
     bo = sim._layout_bounds(s, sim.beam._mean_x)
     ip.seam_ratio = 2.0
     assert sim._layout_bounds(s, sim.beam._mean_x) == bo
+
+
+def test_prehistory_extends_the_reach_below_the_lattice_start():
+    """Integration_params.prehistory lets the far (and near) region reach down to s' = -prehistory
+    along the straight continuation of the orbit, with zero curvature there; 0 keeps the clamp at 0
+    (talman_cancellation.md §7.3)."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, None, {'write_wakes': False, 'compute_CSR': 0, 'apply_CSR': 0})
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+    ip = sim.integration_params
+    assert ip.prehistory == 0.0
+    sim.formation_length = 0.4
+    sim.inbend, sim.afterbend = True, False
+    s = 0.05
+    (s1, s3), _ = sim._layout_bounds(s, sim.beam._mean_x)
+    assert s1 == 0.0 and s3 >= 0.0
+    ip.prehistory = 1.5
+    (s1p, s3p), _ = sim._layout_bounds(s, sim.beam._mean_x)
+    assert s1p < 0.0 and s1p >= -1.5 and s3p <= s3
+    assert abs(s1p - max(-1.5, s3p - ip.n_formation_length * sim.formation_length)) < 1e-12
+    # the straight continuation before s = 0 has a defined normal and tangent
+    X0, Y0, nx, ny, tx, ty = sim._lattice_vectors(np.array([-1.0, -0.5]))
+    assert np.all(np.hypot(nx, ny) > 0.99) and np.all(np.hypot(tx, ty) > 0.99)
+    # and the curvature the integrand uses is zero there even though the first element is a dipole
+    assert np.asarray(sim.lattice.rho)[0] != 0.0
+    dist = np.asarray(sim.lattice.distance)
+    sp = np.array([-0.3, 0.01])
+    k_el = np.searchsorted(dist, sp, side='right')
+    rho = np.where(k_el < dist.size, np.asarray(sim.lattice.rho)[np.minimum(k_el, dist.size - 1)], 0.0)
+    rho = np.where(sp < 0.0, 0.0, rho)            # the guard added to get_CSR_integrand
+    assert rho[0] == 0.0 and rho[1] != 0.0

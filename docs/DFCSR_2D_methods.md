@@ -213,7 +213,7 @@ d  = (10 sigma_x + x - mean x) |cos 2a| / max(|sin 2a|, branch_sin_min)    # bra
 d  = max(d, near_floor sigma_z)                                             # near_floor = 20
 d  = max(d, far_cell / (near_grade seam_ratio))   in a bend; far_cell = n_fl L_f / (2 far_zbins), seam_ratio = 2
 d  = min(d, n_formation_length L_f)
-s4 = s + 3 sigma_z;   s3 = max(0, s - d);   s1 = max(0, s3 - n_formation_length L_f)
+s4 = s + 3 sigma_z;   s3 = max(-prehistory, s - d);   s1 = max(-prehistory, s3 - n_formation_length L_f)   # prehistory = 0 by default
 in the drift after a bend (drift_reach): s1 = min(s1, start of that bend)
 ```
 
@@ -514,6 +514,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | `zbins` | 200 | near-region node count when `near_cell` = 0; also caps |
 | `far_zbins` | 200 | far-region nodes (2× in a bend) |
 | `seam_ratio` | 2.0 | in a bend, near-region length ≥ far_cell/(near_grade·seam_ratio) so the s′ cell is continuous across the seam; 0 = old layout |
+| `prehistory` | 0 | synthetic straight-line history [m] before the lattice start: the far region may reach to s′ = −prehistory along the straight continuation of the orbit (zero curvature), the history lookup returning the first snapshot there. Needed when the lattice starts at or just before a dipole (the 1D entrance transient assumes an infinite straight line); set ≥ the reach, ~2 m on the chicane. 0 = sources only from s′ ≥ 0 |
 | `near_cell`, `near_grade` | 0.25, 0.05 | near-region cell in σ_ξ and geometric growth |
 | `near_floor`, `branch_sin_min` | 20.0, 0.05 | near-region length floor (σ_z) and saturation |
 | `near_patch`, `near_patch_nr`, `near_patch_nphi` | 5.0, 100, 180 | polar patch radius (σ_ξ) and nodes |

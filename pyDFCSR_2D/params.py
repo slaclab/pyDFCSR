@@ -35,7 +35,7 @@ class Integration_params:
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
                          near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
                          threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50,
-                         seam_ratio = 2.0):
+                         seam_ratio = 2.0, prehistory = 0.0):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -442,6 +442,20 @@ class Integration_params:
         # 1e-3 MeV/m on every row for +45 near nodes (progress_facet_bc20.md 11k).
         # 0 disables it (bit-identical to the layout before 2026-11-24).
         self.seam_ratio = float(seam_ratio)
+        # prehistory [m]: synthetic straight-line history before the lattice start. The beam is
+        # first deposited at s = 0, and without this the retarded integral has no sources at
+        # s' < 0, while the 1D entrance transient assumes the beam arrived along an infinite
+        # straight line. A source at distance u before the first bend's entrance, seen from arc
+        # angle phi, is retarded by ~ R phi^3/6 - R^2 phi^4/(8u): the whole straight history
+        # contributes at nearly one retarded z and decays only as 1/u, so a lattice starting at
+        # (or 0.1 m before) the first dipole understates its wake 2x at the exit (chicane B1,
+        # talman_cancellation.md 7.3). With prehistory = L > 0 the far region may reach down to
+        # s' = -L along the straight continuation of the reference orbit (_lattice_vectors),
+        # with zero curvature there, and the history lookup returns the FIRST snapshot for
+        # t < 0 (the interpolant's clamp), i.e. the beam is assumed to have travelled the last
+        # L metres unchanged. Set it to at least the reach (n_formation_length * L_f, or ~2 R phi
+        # for a short strong bend) -- the drift test needed 2 m on the chicane. 0 = off (bit-identical).
+        self.prehistory = float(prehistory)
         self.threads_min_points = int(threads_min_points)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3

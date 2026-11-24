@@ -1861,14 +1861,18 @@ class CSR2D:
         d = min(max(d, 0.0), ip.n_formation_length * self.formation_length)
 
         s4 = s + 3.0 * sigma_z
-        s3 = max(0.0, s - d)
+        # prehistory: the lattice start is not a wall. Sources on the synthetic straight section
+        # s' in [-prehistory, 0) are the first snapshot translated along the initial tangent
+        # (Integration_params.prehistory); 0 keeps the old clamp at s' = 0.
+        lo = -float(getattr(ip, 'prehistory', 0.0) or 0.0)
+        s3 = max(lo, s - d)
         # The far edge is the causal reach measured from s3, and it is clamped at 0
         # because s' < 0 is before the lattice exists -- interpolate1D returns 0 there
         # silently, so nodes below 0 are not merely wasted but invisible. The old
         # s1 = s2 - n_fl*L_f with s2 = s3 - 200 sigma_z reached back 200 sigma_z FURTHER
         # than the retained history supports, and inverted (s1 > s2) whenever s2 went
         # negative while s1 clamped.
-        s1 = max(0.0, s3 - ip.n_formation_length * self.formation_length)
+        s1 = max(lo, s3 - ip.n_formation_length * self.formation_length)
         # In a drift after a bend the source of the exit wake is the bend's own arc,
         # which recedes behind the observer; a fixed n_fl*L_f reach loses it ~1.7 R*phi
         # past the exit and the wake then changes sign (progress.md, 2026-11-03).
@@ -2684,6 +2688,10 @@ class CSR2D:
         rho_el = np.asarray(self.lattice.rho)
         k_el = np.searchsorted(dist, sp_flat, side='right')
         rho_sp = np.where(k_el < dist.size, rho_el[np.minimum(k_el, dist.size - 1)], 0.0)
+        if sp_flat.min() < 0.0:
+            # synthetic pre-history (Integration_params.prehistory): straight, so no curvature
+            # before the lattice start even when it begins with a dipole
+            rho_sp = np.where(sp_flat < 0.0, 0.0, rho_sp)
 
         t_ret = t - r_minus_rp
 

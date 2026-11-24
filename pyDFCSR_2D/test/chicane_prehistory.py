@@ -4,7 +4,7 @@ it? The benchmark lattice has a 0.1 m drift (D0) before B1, and the 2D integral 
 the lattice starts (s' < 0), while the 1D entrance transient assumes an infinite straight line. This runs
 the 2dR recipe with D0 = <L> m up to 0.35 m past B1's exit and compares the B1 wakes with 2dR and 1d_full.
 
-    PYTHONPATH=<repo root> conda run -n pydfcsr python pyDFCSR_2D/test/chicane_prehistory.py [run|analyze] [L] [n_formation_length]
+    PYTHONPATH=<repo root> conda run -n pydfcsr python pyDFCSR_2D/test/chicane_prehistory.py [run|analyze] [L] [n_formation_length] [prehistory]
 """
 import contextlib
 import io
@@ -25,26 +25,33 @@ os.makedirs(os.path.join(C.OUT, 'inputs'), exist_ok=True)
 
 L0 = float(sys.argv[2]) if len(sys.argv) > 2 else 2.0
 NFL = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0      # n_formation_length (reach); 1 is the default
-NAME = f'2dR_D0_{L0:g}' + (f'_nfl{NFL:g}' if NFL != 1.0 else '')
+PRE = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0      # CSR_integration.prehistory [m]: synthetic straight history instead of a real drift
+NAME = (f'2dR_pre{PRE:g}' if PRE else f'2dR_D0_{L0:g}') + (f'_nfl{NFL:g}' if NFL != 1.0 else '')
 
 
 def run():
     f = C.config('2dR')
     cfg = yaml.safe_load(open(f))
     lat = yaml.safe_load(open(cfg['input_lattice']['lattice_input_file']))
-    lat['D0']['L'] = L0
-    lat['D0']['nsep'] = max(1, int(round(L0 / 0.5)))
+    if PRE:
+        L0_eff = 0.1                     # the benchmark lattice as is; the history is synthetic
+    else:
+        L0_eff = L0
+    lat['D0']['L'] = L0_eff
+    lat['D0']['nsep'] = max(1, int(round(L0_eff / 0.5)))
     lf = os.path.join(C.OUT, 'inputs', f'chicane_lattice_D0_{L0:g}.yaml')
     yaml.safe_dump(lat, open(lf, 'w'), sort_keys=False)
     cfg['input_lattice']['lattice_input_file'] = lf
     cfg['CSR_computation']['write_name'] = NAME
     cfg['CSR_integration']['n_formation_length'] = NFL
+    if PRE:
+        cfg['CSR_integration']['prehistory'] = PRE
     f2 = os.path.join(C.OUT, 'inputs', f'{NAME}.yaml')
     yaml.safe_dump(cfg, open(f2, 'w'))
     from pyDFCSR_2D import CSR2D
     t0 = time.time()
     sim = CSR2D(input_file=f2)
-    sim.run(stop_time=L0 + 0.5002 + 0.35)
+    sim.run(stop_time=L0_eff + 0.5002 + 0.35)
     print(f'{NAME}: done in {(time.time() - t0) / 60:.1f} min', flush=True)
 
 
@@ -53,8 +60,8 @@ def analyze():
     import plot_bc20_wakes as P
     R0, R1 = P.load2d('2dR'), P.load2d(NAME)
     D1 = W.load1d_full('1d_full')
-    sh = L0 - 0.1
-    print(f'B1 (0.1-0.6002 m in the benchmark; shifted by {sh:.2f} m with D0 = {L0:g} m): charge-weighted mean W and max |W| [MeV/m]')
+    sh = 0.0 if PRE else L0 - 0.1
+    print(f'B1 (0.1-0.6002 m in the benchmark; shifted by {sh:.2f} m; run {NAME}): charge-weighted mean W and max |W| [MeV/m]')
     print(f'{"s in B1 [m]":>12s} {"<W> 2dR":>9s} {"<W> D0":>9s} {"<W> 1D":>9s} | {"max|W| 2dR":>11s} {"max|W| D0":>10s} {"max|W| 1D":>10s}')
     for r1 in R1:
         s = r1['s'] - sh
@@ -78,14 +85,14 @@ def analyze():
         if d is not None:
             ax.plot((d['z'] - zm) * 1e6, d['W'], color=P.COL['1d'], ls='--', label='1D (infinite straight line before B1)')
         ax.plot((r0['z'] - zm) * 1e6, P.proj(r0, r0['W']), color=P.COL['q'], label='2D 2dR, D0 = 0.1 m')
-        ax.plot((r1['z'] - P.zmid(r1)) * 1e6, P.proj(r1, r1['W']), color=P.COL['old'], label=f'2D, D0 = {L0:g} m' + (f', n_fl = {NFL:g}' if NFL != 1 else ''))
+        ax.plot((r1['z'] - P.zmid(r1)) * 1e6, P.proj(r1, r1['W']), color=P.COL['old'], label=(f'2D, prehistory {PRE:g} m' if PRE else f'2D, D0 = {L0:g} m') + (f', n_fl = {NFL:g}' if NFL != 1 else ''))
         ax.set_title(f'{lab}, s = {r0["s"]:.2f} m', loc='left', fontsize=9)
         ax.set_xlabel('z − z_mid [µm]')
     axs[0].set_ylabel('W [MeV/m]')
     axs[0].legend(fontsize=7, frameon=False)
     fig.suptitle('First bend of the benchmark chicane: the 2D wake with 0.1 m and with 2 m of straight-line history before B1', x=0.01, ha='left', fontsize=10)
     fig.tight_layout()
-    out = os.path.join(C.OUT, f'prehistory_B1_{L0:g}' + (f'_nfl{NFL:g}' if NFL != 1 else '') + '.png')
+    out = os.path.join(C.OUT, f'prehistory_B1_{NAME[4:]}.png')
     fig.savefig(out, dpi=130)
     print('wrote', out)
 
