@@ -34,7 +34,8 @@ class Integration_params:
                          near_adapt_max_nodes = 2000, near_adapt_max_ratio = 1.5,
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
                          near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
-                         threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50):
+                         threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50,
+                         seam_ratio = 2.0):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -427,6 +428,20 @@ class Integration_params:
         # only on beams without sharp features.
         self.far_adapt = bool(far_adapt)
         self.far_adapt_base = int(far_adapt_base)
+        # seam_ratio: continuity of the s' cell across the far/near seam. The near region's
+        # graded cell is near_grade*u; the far region's (in a bend) is a flat
+        # n_formation_length*L_f / (2 far_zbins), 5 mm on BC20. The near-region length d is
+        # set by the chirp-band exit (plus near_floor), which for an observer on the
+        # beam's near-x side (x - xmean < 0 at high tilt) was 3 mm -- so the 0.15 mm cells
+        # at the end of the near region handed over to 5 mm cells, 33x coarser, while the
+        # column integral still varied on a 1-10 mm scale (|r - r'| ~ the transverse
+        # offset). W at the outer x rows was +0.93 / -0.93 / +0.34 MeV/m at 400 far
+        # columns and -0.23 / -0.28 / +0.11 at 800; the horn row's core moved 10%.
+        # With d >= far_cell / (near_grade * seam_ratio) the graded cell reaches
+        # far_cell / seam_ratio before the seam, and 400 and 800 far columns agree to
+        # 1e-3 MeV/m on every row for +45 near nodes (progress_facet_bc20.md 11k).
+        # 0 disables it (bit-identical to the layout before 2026-11-24).
+        self.seam_ratio = float(seam_ratio)
         self.threads_min_points = int(threads_min_points)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve
         # keeps 12). On the BC20 B1RE state 4 and 6 give nodes identical to 12 to the last bit, 3

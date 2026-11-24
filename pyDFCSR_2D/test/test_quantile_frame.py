@@ -29,8 +29,9 @@ def golden():
     return np.load(os.path.join(HERE, 'golden', 'golden_2d.npz'))
 
 
-# u_taper (default 0.5 since 2026-11-12, progress_cancellation.md §4e) is the one default that
-# deliberately changes the deposit; with it off, the old path must still be bit-identical.
+# u_taper (default 0.5 since 2026-11-12, progress_cancellation.md §4e) and seam_ratio (default 2
+# since 2026-11-24, progress_facet_bc20.md §11k) are the two defaults that deliberately change the
+# result; with both off, the old path must still be bit-identical.
 @pytest.mark.parametrize('extra_dep, extra_csr', [
     ({'u_taper': 0.0}, None),
     ({'frame': 'rms', 'smoothing_sigma_z': None, 'u_taper': 0.0}, {'mesh_mode': 'uniform'}),
@@ -41,7 +42,7 @@ def test_defaults_bit_identical(golden, extra_dep, extra_csr):
         from pyDFCSR_2D.params import CSR_params
         if 'mesh_mode' not in CSR_params.configure_params.__code__.co_varnames:
             pytest.skip('mesh_mode not implemented yet')
-    out = make_golden_2d.run_case(extra_dep, extra_csr)
+    out = make_golden_2d.run_case(extra_dep, extra_csr, extra_integ={'seam_ratio': 0.0})
     assert int(out['nkicks']) == int(golden['nkicks'])
     bad = [k for k in golden.files if not np.array_equal(golden[k], out[k])]
     assert not bad, f'differs from the golden fixture: {bad}'
@@ -621,3 +622,40 @@ def test_degenerate_margin_factor():
     v = [f(x, 3.0) for x in np.linspace(0.8, 0.95, 50)]
     assert np.all(np.diff(v) >= 0) and abs(v[0] - 1.0) < 1e-12 and abs(v[-1] - 3.0) < 1e-12
     assert f(1.0, 1.0) == 1.0 and f(1.0, 0.0) == 1.0
+
+
+def test_seam_ratio_extends_near_region_in_bend_only():
+    """seam_ratio floors the near-region length at far_cell / (near_grade * seam_ratio) where the
+    far layout is flat (in a bend) and leaves the exit-transient layout alone (progress_facet_bc20.md
+    §11k): 400 and 800 far columns then agree in the bend to 2e-4, against 2e-3 before."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, None, {'write_wakes': False, 'compute_CSR': 0, 'apply_CSR': 0})
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+    ip = sim.integration_params
+    assert ip.seam_ratio == 2.0
+    sim.formation_length = 0.4
+    s = 0.15
+    far_cell = ip.n_formation_length * sim.formation_length / (2 * ip.far_zbins)
+    sim.inbend, sim.afterbend = True, False
+    ip.seam_ratio = 0.0
+    (s1o, s3o), _ = sim._layout_bounds(s, sim.beam._mean_x)
+    ip.seam_ratio = 2.0
+    (s1n, s3n), _ = sim._layout_bounds(s, sim.beam._mean_x)
+    d_min = far_cell / (ip.near_grade * ip.seam_ratio)
+    assert s - s3n >= d_min - 1e-12 and s - s3n >= s - s3o
+    assert s1n == max(0.0, s3n - ip.n_formation_length * sim.formation_length)
+    # the near-side observer that motivated it: without the floor its near region shrinks
+    (_, s3e), _ = sim._layout_bounds(s, sim.beam._mean_x - 5 * sim.beam._sigma_x)
+    assert s - s3e >= d_min - 1e-12
+    # past a bend exit the far layout is graded already: unchanged
+    sim.inbend, sim.afterbend = False, True
+    ip.seam_ratio = 0.0
+    bo = sim._layout_bounds(s, sim.beam._mean_x)
+    ip.seam_ratio = 2.0
+    assert sim._layout_bounds(s, sim.beam._mean_x) == bo

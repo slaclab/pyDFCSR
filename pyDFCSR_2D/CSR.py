@@ -1846,6 +1846,17 @@ class CSR2D:
         d = ((10.0 * sigma_x + x - b._mean_x) * abs(cos2a)
              / max(abs(sin2a), ip.branch_sin_min))
         d = max(d, ip.near_floor * sigma_z)
+        if (getattr(ip, 'seam_ratio', 0.0) and ip.near_grade
+                and not (ip.causal_clip and self._exit_transient())):
+            # Seam continuity: keep grading the near region until its cell near_grade*u has
+            # reached 1/seam_ratio of the far region's flat cell, so the far columns never
+            # inherit structure finer than they can carry (Integration_params.seam_ratio).
+            # Only where the far layout IS flat (in a bend); past a bend exit the far region
+            # is itself graded at near_grade from the causal edge, so the seam is continuous
+            # already and extending the near region there only moved the 0.4% node-phase
+            # jitter of the golden drift kicks.
+            far_cell = ip.n_formation_length * self.formation_length / max(2 * ip.far_zbins, 3)
+            d = max(d, far_cell / (ip.near_grade * ip.seam_ratio))
         # and never reach back further than the retained history supports
         d = min(max(d, 0.0), ip.n_formation_length * self.formation_length)
 

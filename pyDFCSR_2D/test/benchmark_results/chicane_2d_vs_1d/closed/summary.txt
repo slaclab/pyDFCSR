@@ -17,19 +17,19 @@ Runs (name: class, schedule, CSR settings):
 The 2D run with drift_cutoff = 0 is NOT rerun: its far-drift wake is the known failure mode
 (progress.md, top TODO), and the 2D code has not changed since chicane_1d2d/ recorded it.
 
-runs available: off, 2dC, 2dC_noT, 2dC_xavg, 2dP, 2dPm, 2dP_W1, 2dP_noT, 1d, 1d_full
+runs available: off, 2dC, 2dC_noT, 2dC_xavg, 2dP, 2dPm, 2dP_W1, 2dR, 2dR_noT, 2dP_noT, 1d, 1d_full
 
-chicane exit, vs CSR off                         2dC           2dP       2dP_noT        2dP_W1          2dPm       2dC_noT      2dC_xavg            1d       1d_full     CSR off
-mean CSR energy change [keV]               -2652.775     -2687.365     -2656.325     -2705.020     -2687.523     -2622.379     -2661.257     -1138.928     -1745.800
-projected sigma_E change [keV]              -269.576      -317.817      -372.770      -307.945      -317.620      -330.150      -263.721      -346.296      -302.737
-core slice sigma_E [keV]                     124.881       133.603       264.764       141.953       133.548       251.009       244.062       109.515       115.721     105.308
-change of core slice sigma_E [keV]            19.573        28.295       159.456        36.645        28.240       145.701       138.754         4.207        10.413
-change of core slice sigma_E [%]              18.587        26.869       151.419        34.798        26.817       138.357       131.761         3.995         9.888
-emittance growth, eta-corr. [um]               0.497         0.494         0.947         0.490         0.494         0.934         0.513         0.261         0.549
-core slice emittance [um]                      1.012         1.009         1.007         0.999         1.009         1.008         1.025         0.997         0.996       0.998
-final sigma_z [um]                            20.812        20.807        20.754        20.801        20.807        20.758        20.812        20.683        20.672      20.491
-peak current [kA]                              5.801         5.795         5.715         5.834         5.795         5.742         5.789         5.827         5.816       5.991
-runtime [min]                                   28.5          28.8          28.7          43.8          27.7          31.5          31.6           1.4           1.6
+chicane exit, vs CSR off                         2dC           2dP       2dP_noT        2dP_W1           2dR       2dR_noT          2dPm       2dC_noT      2dC_xavg            1d       1d_full     CSR off
+mean CSR energy change [keV]               -2652.775     -2687.365     -2656.325     -2705.020     -2671.779     -2681.901     -2687.523     -2622.379     -2661.257     -1138.928     -1745.800
+projected sigma_E change [keV]              -269.576      -317.817      -372.770      -307.945      -322.008      -368.114      -317.620      -330.150      -263.721      -346.296      -302.737
+core slice sigma_E [keV]                     124.881       133.603       264.764       141.953       134.081       263.064       133.548       251.009       244.062       109.515       115.721     105.308
+change of core slice sigma_E [keV]            19.573        28.295       159.456        36.645        28.773       157.756        28.240       145.701       138.754         4.207        10.413
+change of core slice sigma_E [%]              18.587        26.869       151.419        34.798        27.323       149.805        26.817       138.357       131.761         3.995         9.888
+emittance growth, eta-corr. [um]               0.497         0.494         0.947         0.490         0.490         0.952         0.494         0.934         0.513         0.261         0.549
+core slice emittance [um]                      1.012         1.009         1.007         0.999         1.008         1.006         1.009         1.008         1.025         0.997         0.996       0.998
+final sigma_z [um]                            20.812        20.807        20.754        20.801        20.817        20.762        20.807        20.758        20.812        20.683        20.672      20.491
+peak current [kA]                              5.801         5.795         5.715         5.834         5.794         5.717         5.795         5.742         5.789         5.827         5.816       5.991
+runtime [min]                                   28.5          28.8          28.7          43.8          64.3          63.6          27.7          31.5          31.6           1.4           1.8
 
 mean CSR energy change collected in each element [keV] (from mean_energy along s, minus CSR off):
                        D0       B1       D1       B2       D2       B3       D3       B4       Df
@@ -37,6 +37,8 @@ mean CSR energy change collected in each element [keV] (from mean_energy along s
 2dP                  -0.4     -0.9    -48.0   -109.1    -42.2   -625.7  -1469.1   -239.7   -152.3
 2dP_noT              -0.4     -0.9    -48.1   -109.2    -42.2   -626.7  -1459.3   -218.7   -151.0
 2dP_W1               -0.4     -0.9    -49.7   -109.2    -42.2   -626.4  -1474.3   -249.0   -153.0
+2dR                  -0.4     -0.9    -49.3   -107.6    -40.7   -624.4  -1467.9   -230.7   -149.9
+2dR_noT              -0.4     -0.9    -49.4   -108.9    -42.1   -626.1  -1458.9   -241.5   -153.8
 2dPm                 -0.4     -0.9    -48.0   -109.1    -42.2   -625.7  -1469.1   -239.8   -152.3
 2dC_noT              -0.4     -0.9    -48.9   -109.0    -42.1   -627.5  -1421.2   -221.7   -150.7
 2dC_xavg             -0.4     -0.9    -48.9   -109.4    -42.2   -630.5  -1428.3   -249.1   -151.7

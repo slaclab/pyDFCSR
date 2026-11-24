@@ -37,7 +37,7 @@ def beam_coords(n=20000, seed=7):
     return np.column_stack([x, px, y, py, z, pz])
 
 
-def config(tmp, extra_dep=None, extra_csr=None):
+def config(tmp, extra_dep=None, extra_csr=None, extra_integ=None):
     np.savetxt(os.path.join(tmp, 'beam.txt'), beam_coords())
     lat = {'step_size': 0.05,
            'B1': {'type': 'dipole', 'L': 0.3, 'angle': 0.05, 'E1': 0.0, 'E2': 0.0, 'nsep': 1},
@@ -49,7 +49,7 @@ def config(tmp, extra_dep=None, extra_csr=None):
            'particle_deposition': dict({'xbins': 64, 'zbins': 64, 'xlim': 5, 'zlim': 5,
                                         'smoothing_sigma': 2.0, 'velocity_threhold': 1000},
                                        **(extra_dep or {})),
-           'CSR_integration': {'n_formation_length': 1, 'xbins': 40, 'zbins': 40},
+           'CSR_integration': dict({'n_formation_length': 1, 'xbins': 40, 'zbins': 40}, **(extra_integ or {})),
            'CSR_computation': dict({'compute_CSR': 1, 'apply_CSR': 1, 'transverse_on': 1,
                                     'xbins': 6, 'zbins': 9, 'xlim': 4, 'zlim': 4,
                                     'write_beam': None, 'write_wakes': True,
@@ -60,11 +60,11 @@ def config(tmp, extra_dep=None, extra_csr=None):
     return f
 
 
-def run_case(extra_dep=None, extra_csr=None, parallel=False):
+def run_case(extra_dep=None, extra_csr=None, parallel=False, extra_integ=None):
     """Run the golden case; returns a dict of arrays (see module doc)."""
     with tempfile.TemporaryDirectory() as tmp:
         with contextlib.redirect_stdout(io.StringIO()):
-            sim = CSR2D(input_file=config(tmp, extra_dep, extra_csr), parallel=parallel)
+            sim = CSR2D(input_file=config(tmp, extra_dep, extra_csr, extra_integ), parallel=parallel)
             rec = {'dE': [], 'xk': [], 'xr': [], 'zr': []}
 
             def record():

@@ -211,12 +211,13 @@ With τ the frame tilt (the core fit of the deposition, not the all-particle slo
 ```
 d  = (10 sigma_x + x - mean x) |cos 2a| / max(|sin 2a|, branch_sin_min)    # branch_sin_min = 0.05
 d  = max(d, near_floor sigma_z)                                             # near_floor = 20
+d  = max(d, far_cell / (near_grade seam_ratio))   in a bend; far_cell = n_fl L_f / (2 far_zbins), seam_ratio = 2
 d  = min(d, n_formation_length L_f)
 s4 = s + 3 sigma_z;   s3 = max(0, s - d);   s1 = max(0, s3 - n_formation_length L_f)
 in the drift after a bend (drift_reach): s1 = min(s1, start of that bend)
 ```
 
-The near region (s3, s4) is where the second ("chirp") branch of the integrand, which leaves the beam after d = 10σ_x/|tan 2α|, still lies inside the beam, and where the 1/|r−r′| pole sits; the far region (s1, s3) is the rest of the causal reach. `near_floor` keeps the near region from collapsing at |τ| → 1, and the saturation at |sin 2α| < 0.05 keeps d finite where the two branches merge (|τ| ≪ 1 and ≫ 1). `integration_region.md` §2 tabulates d against τ.
+The near region (s3, s4) is where the second ("chirp") branch of the integrand, which leaves the beam after d = 10σ_x/|tan 2α|, still lies inside the beam, and where the 1/|r−r′| pole sits; the far region (s1, s3) is the rest of the causal reach. `near_floor` keeps the near region from collapsing at |τ| → 1, and the saturation at |sin 2α| < 0.05 keeps d finite where the two branches merge (|τ| ≪ 1 and ≫ 1). `integration_region.md` §2 tabulates d against τ. The `seam_ratio` floor (2026-11-24) makes the s′ cell continuous across the far/near seam: the near region's graded cell is `near_grade`·u, the far region's is flat, and without the floor an observer on the near-x side of a tilted beam (x − x̄ < 0, |cos 2α/sin 2α| ≈ 5 at τ ≈ 10) had d = 3 mm, so 0.15 mm cells handed over to 5 mm cells while the column integral still varied on the 1–10 mm scale of the observer's transverse distance from the charge. On Indranil's loss beam at B2RE the far-column count then moved W by 18% at the outer rows and 10% in the horn row's core; with the floor, 400 and 800 far columns agree to 0.5% of max|W| (progress_facet_bc20.md §11k). The reach itself is converged at `n_formation_length` = 1: doubling and tripling it at constant far cell moves the mean wake by 0.01–0.03%; at fixed `far_zbins` it coarsens the far cell and that, not the reach, is what changes the result (−1.35% at 10 mm cells).
 
 Far-region nodes (`_far_region_nodes`): in a bend, 2 × `far_zbins` = 400 uniform nodes (grading assumes a 1/u decay that a tilted beam in a bend does not have: at shear 20, 10–99% of the far integral sat at the far end). After a bend exit the source is the arc still inside the dipole, a strip far upstream and everything below it identically zero, so the layout is: a 64-point causal-edge scan for the lowest s′ whose band has nonzero width (`_causal_edge`), a uniform fine window of `far_cell` (10) σ_z cells over `far_window` (1) L_f above it (3 to `far_fine_max` = 500 nodes), then log grading toward s3 with ratio 1 + `near_grade`. `prev_bend_reach` adds, inside a bend, the previous bend's exit tail with the same layout (1D: −0.05 MeV/m at the chicane's B4 entrance).
 
@@ -366,7 +367,20 @@ Figure: `pyDFCSR_2D/test/benchmark_results/quantile_frame/dipole_gauss_check.png
 | 2dC | −48.9 | −109.0 | −42.1 | −627.3 | −1428.6 | −243.8 | −151.9 |
 | 2dP | −48.0 | −109.1 | −42.2 | −625.7 | −1469.1 | −239.7 | −152.3 |
 
-The two 2D recipes agree to 1.3% in energy and 0.6% in emittance. The transverse force matters for the core slice energy spread and the emittance (the `_noT` columns), where the 2D result with the force is closer to 1D than without it. `2dPm` (the same with `xi_band_margin_degenerate`) reproduces 2dP to the printed digits (total −2687.5 vs −2687.4 keV; progress_facet_bc20.md §9m), so the passage through |τ| ≈ 1 in B2/B3 contributes nothing measurable here. Note that the 2D energy loss is 1.5× the 1D one; most of the difference is in D3, the drift after the third bend, where the compressed beam is strongly tilted. Figures: `pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/compare_2dP_zproj.png`, `closed/along_s.png`; full table `closed/summary.txt`.
+The two 2D recipes agree to 1.3% in energy and 0.6% in emittance. The transverse force matters for the core slice energy spread and the emittance (the `_noT` columns), where the 2D result with the force is closer to 1D than without it. `2dPm` (the same with `xi_band_margin_degenerate`) reproduces 2dP to the printed digits (total −2687.5 vs −2687.4 keV; progress_facet_bc20.md §9m), so the passage through |τ| ≈ 1 in B2/B3 contributes nothing measurable here. Note that the 2D energy loss is 1.5× the 1D one; most of the difference is in D3, the drift after the third bend, where the compressed beam is strongly tilted.
+
+**Rerun with the reference recipe (2026-11-24, runs `2dR`, `2dR_noT`, `1d_full`).** The same chicane with the current code and the BC20 reference integration (`near_adapt`, `near_adapt_x`, `far_adapt_x`, `xbins` 100, `ibp_check` 3; deposition and mesh as 2dP), before the `seam_ratio` floor of §5.2:
+
+| at the exit, vs CSR off | 2dR (2D, full) | 2dR_noT (2D, no transverse force) | 1d_full | 2dP (2026-11-12) |
+|---|---|---|---|---|
+| mean energy change [keV] | −2672 | −2682 | −1746 | −2687 |
+| projected σ_E change [keV] | −322 | −368 | −303 | −318 |
+| core slice σ_E change [keV] | +28.8 | +157.8 | +10.4 | +28.3 |
+| emittance growth, η-corrected [µm] | 0.490 | 0.952 | 0.549 | 0.494 |
+| peak current [kA] (CSR off 5.99) | 5.79 | 5.72 | 5.82 | 5.80 |
+| per element, B1 / D1 / B2 / D2 / B3 / D3 / B4 / Df [keV] | −0.9 / −49 / −108 / −41 / −624 / −1468 / −231 / −150 | −0.9 / −49 / −109 / −42 / −626 / −1459 / −242 / −154 | −3 / −66 / −8.5 / −70 / −139 / −933 / −366 / −161 | −0.9 / −48 / −109 / −42 / −626 / −1469 / −240 / −152 |
+
+The reference recipe reproduces 2dP to 0.6% in the total energy loss and 1% in the emittance growth; the largest per-element difference is B4 (−231 vs −240 keV, 4%), the bend where the beam is shortest and most tilted. `ibp_check` raised no warning in 489 steps, so the by-parts and shipped forms agreed to 1e-3 at every checked mesh point. The 1D model agrees with 2D in B1, D2 and Df, is 4× smaller in B3–D3 (the strongly tilted compressed beam) and 1.5× larger in B4. Without the transverse force the energy loss is the same within 0.4% but the core slice energy spread is 5.5× and the emittance growth 1.9× the full-force values: the 1D emittance (0.549 µm) is bracketed by the two 2D results, and the full 2D result is the closer one (§5.7 of `talman_cancellation.md`). Run times (serial, 64 min each, with two 2D runs and the test suite sharing the machine; 2dP ran alone in 28.8 min) are not a measurement of the recipe's cost. Figures: `pyDFCSR_2D/test/benchmark_results/chicane_2d_vs_1d/closed/compare_2dP_zproj.png`, `closed/along_s.png`; full table `closed/summary.txt`.
 
 ### 9.3 FACET-II BC20, Sergei's beam
 
@@ -499,6 +513,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | `xbins` | 200 | uniform x′ nodes per band |
 | `zbins` | 200 | near-region node count when `near_cell` = 0; also caps |
 | `far_zbins` | 200 | far-region nodes (2× in a bend) |
+| `seam_ratio` | 2.0 | in a bend, near-region length ≥ far_cell/(near_grade·seam_ratio) so the s′ cell is continuous across the seam; 0 = old layout |
 | `near_cell`, `near_grade` | 0.25, 0.05 | near-region cell in σ_ξ and geometric growth |
 | `near_floor`, `branch_sin_min` | 20.0, 0.05 | near-region length floor (σ_z) and saturation |
 | `near_patch`, `near_patch_nr`, `near_patch_nphi` | 5.0, 100, 180 | polar patch radius (σ_ξ) and nodes |
