@@ -433,6 +433,20 @@ The loss beam costs 2.2× per point because its 100-fold horn edges flag most ne
 
 ---
 
+
+**Rerun with the boundary and mesh fixes (2026-11-25, runs `loss_v2`, `gain_v2`).** Indranil's lattice starts at the first dipole, so v1 had no straight-line history before B1LE. v2 adds `prehistory: 45` (40 Rφ of B1LE) with the straight-section reach (inside bends only), `mesh_z_quantile: 0.001`, and 160 z mesh nodes for the loss beam:
+
+| energy change vs CSR off [MeV] | B1LE | →Q2ER | B2RE | drift | B1RE | D32 | total | εnx (3rd) [µm] | time |
+|---|---|---|---|---|---|---|---|---|---|
+| loss v2 | −1.88 | −9.87 | −4.27 | −3.45 | −3.57 | −2.68 | −23.83 | 55.9 | 191 min, 6 ranks |
+| loss v1 | −0.91 | −8.73 | −4.34 | −3.37 | −3.43 | −2.52 | −22.38 | 55.7 | 305 min, 3 ranks |
+| loss 1D | −2.18 | −13.46 | −3.16 | −3.68 | −3.79 | −3.24 | −27.33 | 63.6 | 9 min |
+| gain v2 | −0.011 | −0.138 | −0.090 | −0.068 | −0.014 | −0.019 | −0.329 | 15.7 | 143 min, 3 ranks |
+| gain v1 | −0.004 | −0.113 | −0.083 | −0.069 | −0.015 | −0.020 | −0.301 | 15.7 | 205 min, 3 ranks |
+| gain 1D | −0.001 | −0.191 | −0.022 | −0.127 | −0.007 | −0.049 | −0.396 | 15.9 | 9 min |
+
+For the loss beam the first-bend gap to 1D drops from 58% to 14%; downstream of Q2ER v1 and v2 agree within 0.16 MeV per section. For the gain beam, whose CSR is small, the 2D first-bend energy is dominated by the ρ·div v (potential-energy) term of the converging beam that 1D does not have. (v1 ran with the libfabric sockets provider, which is part of its longer run time.)
+
 ### 9.5 Where a wake point's time goes, and what was gained (2026-11-23)
 
 cProfile on the pickled BC20 loss state at 37.74 m (B2RE, |τ| = 4.8, 12 × 80 mesh), 24 points, 110 ms per point before the changes below:
