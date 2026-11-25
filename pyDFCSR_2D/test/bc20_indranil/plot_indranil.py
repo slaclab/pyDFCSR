@@ -2,7 +2,7 @@
 Wake maps, projected wakes, roughness and the end-beam table for Indranil's gain / loss beams
 (run_indranil.py), reusing the BC20 plot machinery with this lattice's landmarks.
 
-    conda run -n pydfcsr python pyDFCSR_2D/test/bc20_indranil/plot_indranil.py <beam> [cmp_run]
+    conda run -n pydfcsr python pyDFCSR_2D/test/bc20_indranil/plot_indranil.py <beam> [cmp_run] [run]
 
 <beam> gain | loss: the 2D run; cmp_run (default the same run) is the second 2D run drawn in the
 projections (e.g. gain_k2); the 1D run <beam>_1d is drawn at its nearest kick. Writes to
@@ -59,7 +59,12 @@ def table(beam, run):
     k = [names.index(e) for e in ENDS]
     print(f'\n{beam}: energy change per section [MeV] (vs CSR off) and the end beam')
     print(f'{"run":10s} {"->q2er":>8s} {"b2re":>8s} {"drift":>8s} {"b1re":>8s} {"D32":>8s} {"total":>8s} {"rms dE":>7s} {"enx 1st/3rd":>12s} {"spike slice":>12s} {"kicks":>5s} {"min":>5s}')
-    for lab, x in ((run, d),) + (((f'{beam}_1d', d1),) if d1 is not None else ()):
+    rows = [(run, d)]
+    if run != beam and os.path.exists(os.path.join(P.RUNS, f'{beam}.npz')):
+        rows.append((beam, np.load(os.path.join(P.RUNS, f'{beam}.npz'))))      # the earlier (v1) 2D run
+    if d1 is not None:
+        rows.append((f'{beam}_1d', d1))
+    for lab, x in rows:
         dE = (x['exit_mean'][:, 5] - off['exit_mean'][:, 5]) * p0c / 1e6
         cum = dE[k]
         sec = np.diff(np.concatenate([[0.0], cum]))
@@ -84,10 +89,12 @@ def table(beam, run):
         print(f'   {lab:10s}: final sigma_z {z.std()*1e6:.1f} um, I_pk {I.max()/1e3:.1f} kA, FWHM {(half[-1]-half[0]+1)*0.5:.1f} um')
 
 
-def main(beam, cmp_run=None):
-    run = beam
+def main(beam, cmp_run=None, run=None):
+    # run: the 2D run drawn (default <beam>); cmp_run: the second 2D run in the projections
+    # (default the drawn run). E.g. main('loss', 'loss', 'loss_v2') draws loss_v2 against loss.
+    run = run or beam
     cmp_run = cmp_run or run
-    P.LABEL.update({run: f'2D {beam} (reference recipe)', cmp_run: f'2D {cmp_run}', f'{beam}_1d': f'1D {beam}'})
+    P.LABEL.update({run: f'2D {run} (reference recipe)', cmp_run: f'2D {cmp_run}', f'{beam}_1d': f'1D {beam}'})
     P.RUN = run
     Rq, Ro = P.load2d(run), P.load2d(cmp_run)
     D1 = P.load1d(f'{beam}_1d') if os.path.exists(os.path.join(P.RUNS, f'{beam}_1d.npz')) else {}
