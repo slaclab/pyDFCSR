@@ -1,5 +1,11 @@
 import argparse
 import os
+import sys
+
+# mpi4py is imported before pyDFCSR_2D.CSR (which defaults this too): on macOS without it the libfabric
+# sockets provider spins two kernel threads per rank and each rank spent half its CPU in the kernel
+if sys.platform == 'darwin':
+    os.environ.setdefault('FI_PROVIDER', 'tcp')
 
 from mpi4py import MPI
 

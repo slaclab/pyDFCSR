@@ -1,0 +1,89 @@
+# pyDFCSR 2D configuration for Indranil's BC20 beams (lattice_bc20w_c_*, 1M-particle gain/loss beams).
+# This is the setup of the 2026-11-25 reruns (gain_v2 / loss_v2), branch near_adapt (commit cdb2dd3 or later).
+#
+# Run (Mac, MPICH env; FI_PROVIDER=tcp avoids libfabric's kernel-spinning sockets provider, which cost
+# half of every rank's CPU):
+#     FI_PROVIDER=tcp mpirun -np 6 python pyDFCSR_2D/pyDFCSR_mpi_run.py bc20_indranil_recommended.yaml
+#
+# Edit the four lines marked EDIT. Everything not listed is at its default.
+
+input_beam:
+  style: from_file
+  beamfile: beam_loss_bmadx.txt          # EDIT: bmad-x text beam (x px y py z pz)
+  charge: 1.59964e-09                    # EDIT: bunch charge [C]
+  energy: 9.827066e+09                   # EDIT: reference momentum P0C [eV] (we used the beam's mean p)
+
+input_lattice:
+  lattice_input_file: lattice_bc20w_c_0.060000_000000.yaml   # EDIT
+
+step_control:
+  mode: auto
+  kick_interval: midpoint
+  n_sub: 400
+  kick_placement: csr1d          # kicks placed where a fast 1D pre-pass sees the CSR
+  kick_tol: 0.005
+  kick_h_max: 0.5
+  kick_prepass_particles: 20000  # pre-pass on a subsample
+  kick_kappa_refine: 4           # extra kicks where the step profile refines (waists, edges)
+  kick_h_exit: 0.1               # <= 10 cm kick spacing over R*phi after each bend exit
+
+particle_deposition:
+  method: bspline_comoving       # required: older configs without it silently use the legacy deposit
+  xbins: 100
+  zbins: 300
+  xlim: 5
+  zlim: 5
+  smoothing_sigma: 2.0
+  poly_degree: 1
+  velocity_threhold: 1000        # (sic, the code's spelling)
+  vx_model: affine
+  curvature: true
+  curv_zlim: 4.0
+  frame: auto                    # decided once from the initial beam: loss -> quantile (double horn), gain -> peak
+  frame_quantile: 0.005
+  frame_margin: 0.1
+  peak_halfwidth: 3.0
+  peak_taper: 2.0
+  smoothing_sigma_z: 6.5
+  smoothing_res_fwhm: 0.1        # caps the z smoothing at 0.1 x the peak FWHM
+
+CSR_integration:
+  n_formation_length: 1          # keep at 1 (see note); convergence check = double far_zbins, not n_fl
+  far_zbins: 200                 # far region in a bend: 2*far_zbins uniform s' columns over n_fl*L_f
+  xbins: 100
+  zbins: 200
+  near_cell: 0.25
+  near_adapt: true               # adaptive near-region s' nodes (features ahead of the observer)
+  near_adapt_x: true             # adaptive x' nodes where a horn is crossed obliquely
+  far_adapt_x: true              # same in the far region (removed the transverse-force speckle)
+  seam_ratio: 2.0                # default; continuous s' cell across the far/near boundary
+  prehistory: 45.0               # NEW: the lattice starts at B1LE -> synthetic straight history before it
+                                 #      (>= 40 R*phi of B1LE; without it the first-bend 2D wake was 58% low)
+  reach_straight: 40.0           # default; straight section before a bend, for observers inside the bend
+  reach_slip_max: 5.0            # default
+  ibp_check: 3                   # consistency check of the integrand at 3 mesh points per kick (warns only)
+  drift_cutoff: 0.0
+  tangent_bands: true
+  drift_reach: true
+  drift_snap_thin: 0.01
+  far_fine_max: 500
+  band_jacobian_min: 0.2
+  prev_bend_reach: true
+  prev_bend_grade: 0.02
+
+CSR_computation:
+  compute_CSR: 1
+  apply_CSR: 1
+  transverse_on: 1
+  mesh_mode: charge              # wake-mesh nodes follow the charge
+  xbins: 12
+  zbins: 160                     # loss beam: 160 (1 um horns need ~FWHM/10 cells; 80 nodes left the kick 12-18% off).
+                                 # gain beam: 40 is enough
+  xlim: 4
+  zlim: 4
+  mesh_x_quantile: 0.002         # x rows on the 0.2-99.8% span; use 0.01 if the edge rows look odd in the maps
+  mesh_z_quantile: 0.001         # NEW: z axis on the 0.1-99.9% span, so the sparse tail does not take nodes
+  write_beam: null
+  write_wakes: true
+  write_name: bc20_loss
+  workdir: ./output
