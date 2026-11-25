@@ -1808,9 +1808,9 @@ class CSR2D:
         (Integration_params.reach_straight): inside the bend slip = a^3/(6R^2) with a the arc
         length past the entrance; in the drift x past the exit the straight sources slip a
         further x phi^2/2 and fall out of the bunch within a fraction of R phi.
-        The straight section is integrated as its own graded region below the regular layout
-        (_straight_region_nodes), inside the bend and in the drift after it alike; the retention
-        floor and check use the same reach.
+        Inside the bend only (see below). The straight section is integrated as its own graded
+        region below the regular layout (_straight_region_nodes); the retention floor and check use
+        the same reach.
         """
         ip = self.integration_params
         rs = getattr(ip, 'reach_straight', 0.0)
@@ -1823,18 +1823,17 @@ class CSR2D:
         a = float(s) - float(sb)
         if a <= 0.0:
             return None
-        if self.inbend:
-            phi = a / R
-            slip = R * phi ** 3 / 6.0
-        elif self.afterbend:
-            Lb = abs(float(getattr(self, 'phi_rec', 0.0) or 0.0)) * R      # the bend's arc length
-            phi = Lb / R
-            x = a - Lb
-            if x < 0.0:
-                return None
-            slip = R * phi ** 3 / 6.0 + x * phi * phi / 2.0
-        else:
+        if not self.inbend:
+            # NOT in the drift after the bend: there the frozen straight history is seen from a
+            # different straight line, each column contributes ~ phi^2 lambda'/u and the sum grows
+            # as ln(reach) -- measured on Indranil's gain beam 0.19 m past B1LE, -0.18 MeV/m per
+            # doubling of the reach out to 170 m (55x the 1D wake at 40 R phi), with or without the
+            # velocity terms. Its value is set by the real length of the upstream straight, not by
+            # local physics, so the regular layout (n_formation_length * L_f) is kept there. Inside
+            # the bend the same contribution converges as 1/U (talman_cancellation.md 7.7).
             return None
+        phi = a / R
+        slip = R * phi ** 3 / 6.0
         if slip > ip.reach_slip_max * self.beam._sigma_z:
             return None
         return a + rs * R * phi

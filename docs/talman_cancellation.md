@@ -211,7 +211,7 @@ On the pickled B1-exit state of the synthetic-history run (a = 0.5 m into the be
 | max \|W\| [MeV/m] | 0.0689 | 0.0705 | 0.0747 | 0.0788 | 0.0815 | 0.0831 | 0.0844 |
 | far nodes | 400 | 438 | 584 | 876 | 1313 | 1897 | 3065 |
 
-The straight-section contribution converges as U/(U + Rφ): 20 Rφ for 95%, and the far node count grows linearly. Its sources are far from the observer and retarded by nearly the same Rφ³/6, so the column integral is a smooth ~1/u² in u = s − s′, which geometric grading resolves with a few dozen nodes. `CSR_integration.reach_straight` (default 40, in units of Rφ) integrates [entrance − reach_straight·Rφ, entrance) as its own region, graded in u with ratio 1 + near_grade, below the regular layout (which is unchanged), inside the bend and in the drift after it, while the straight sources are retarded within `reach_slip_max` (5) σ_z of the bunch — inside the bend Rφ³/6, past the exit plus xφ²/2, so it switches itself off within ~Rφ past the exit and never fires deep in a long bend. With a 2 σ_z cap it switched off 0.18 m past the B1 exit while 1D was still growing (⟨W⟩ −0.020 against 1D −0.038 at 0.78 m; with 5 σ_z −0.033). The region never goes below the previous bend's exit: `prev_bend_reach` already integrates everything from the previous bend's entrance, so in a chicane or in BC20 the rule acts only on the first bend and the drift after it (checked on the BC20 B2RE state: bit-identical). Same state:
+The straight-section contribution converges as U/(U + Rφ): 20 Rφ for 95%, and the far node count grows linearly. Its sources are far from the observer and retarded by nearly the same Rφ³/6, so the column integral is a smooth ~1/u² in u = s − s′, which geometric grading resolves with a few dozen nodes. `CSR_integration.reach_straight` (default 40, in units of Rφ) integrates [entrance − reach_straight·Rφ, entrance) as its own region, graded in u with ratio 1 + near_grade, below the regular layout (which is unchanged), for observers inside the bend only (§7.7), while the straight sources are retarded within `reach_slip_max` (5) σ_z of the bunch — inside the bend Rφ³/6, past the exit plus xφ²/2, so it switches itself off within ~Rφ past the exit and never fires deep in a long bend. With a 2 σ_z cap it switched off 0.18 m past the B1 exit while 1D was still growing (⟨W⟩ −0.020 against 1D −0.038 at 0.78 m; with 5 σ_z −0.033). The region never goes below the previous bend's exit: `prev_bend_reach` already integrates everything from the previous bend's entrance, so in a chicane or in BC20 the rule acts only on the first bend and the drift after it (checked on the BC20 B2RE state: bit-identical). Same state:
 
 | reach_straight [Rφ] | 0 | 5 | 10 | 20 | 40 | 100 (clipped at 20 m) |
 |---|---|---|---|---|---|---|
@@ -231,7 +231,10 @@ The graded region reproduces the fixed-cell result (−0.0163 at 10 m with 43 no
 against −0.0039 / 0.042 at the exit in the original 2dR run. Inside the bend the 2D peak wake is the 1D one to 1%; the mean is 20% below 1D at the exit, and 0.3 m after the exit 2D is 37% above 1D in the mean and in the peak — the drift after a bend is where the two formulations differ (§7.2, item 5). With `prehistory` ≥ reach_straight·Rφ the synthetic history supplies the straight section when the lattice has none. Default on (bit-identical where it does not fire, which includes the golden dipole: its 0.3 m bend has an exit slip of 2.5 σ_z); `reach_straight: 0` turns it off.
 
 
-### 7.6 The whole chicane with the pre-history (run `2dRp`, 2026-11-24)
+### 7.6 The whole chicane with the pre-history (run `2dRp`, 2026-11-24) — SUPERSEDED, see §7.7
+
+This first `2dRp` applied the straight-section rule in the drift after B1 as well, where it is log-divergent (§7.7); its D1 numbers (−70 keV, "matching" 1D's −66) contain that artefact. A rerun with the rule restricted to the bend is in progress; the table rows below will be replaced.
+
 
 `2dR` with `prehistory: 20` (and the straight-section reach rule, default on); everything else identical. Figures `wake_maps_long_2dRp.png`, `wake_maps_trans_2dRp.png`, `wake_zproj_2dRp.png` (2dRp against 2dR and 1D), `wake_xproj_2dRp.png`, `wakes_along_s_2dRp.png`, table `wake_table_2dRp.txt`, in the same directory as §7.
 
@@ -240,3 +243,18 @@ against −0.0039 / 0.042 at the exit in the original 2dR run. Inside the bend t
 - **B4 changed by 14%** (−264 vs −231 keV; 1D −366) with no change in its integration: the extra 24 keV of energy loss in B1–D1 changes the chirp the chicane compresses, and B4 sees a different bunch. The total moves from −2672 to −2727 keV (+2%), the core slice energy spread change from +28.8 to +16.9 keV (closer to the 1D +10.4), the emittance growth from 0.490 to 0.526 µm (1D 0.549), the peak current is unchanged.
 
 The transverse-force conclusions of §5 and §7.2 are unaffected: the Coulomb (Talman) term in the bends is the same, and the emittance with the full force stays within 5% of 1D against 1.9× without it.
+
+
+### 7.7 The straight history seen from the drift after a bend diverges (2026-11-24)
+
+Indranil's gain beam (σ_z 235 µm, B1LE Rφ = 1.06 m) showed, in the first v2 run, a peak wake of 2.4 MeV/m 0.2–0.5 m past B1LE against 0.04 in 1D and in v1. On the pickled state 0.19 m past the exit (`test/bc20_indranil/gain_drift_artefact.py`, `straight_reach_divergence.py`), three mesh points, W [MeV/m] against the straight section covered:
+
+| straight covered [m] | 0 | 5.3 | 10.6 | 21 | 42 | 85 | 170 |
+|---|---|---|---|---|---|---|---|
+| drift, 0.19 m past B1LE (gain), point 2 | −0.0003 | −0.187 | −0.375 | −0.559 | −0.739 | −0.917 | −1.095 |
+| drift, point 3 | −0.011 | −0.262 | −0.475 | −0.665 | −0.847 | −1.026 | −1.205 |
+| inside the bend, chicane B1 exit, point 1 | −0.0298 | −0.0406 | −0.0451 | −0.0477 | −0.0492 | −0.0499 | −0.0503 |
+
+In the drift every doubling of the reach adds the same −0.18 MeV/m: the contribution grows as ln(reach) and has no limit. It is the main (density-gradient) term — switching the velocity terms off in that region changes it by 1%. Mechanism: for an observer on the outgoing line, a source column on the incoming line at distance u is crossed by the retarded band at an angle φ, so ∫∂ρ/∂x′ dx′ along the band no longer cancels but leaves φ·∂ρ/∂z, and the geometric factor (n − n′)·(r − r′)/|r − r′|² is ~φ/u: each column contributes ~φ²λ′/u. Inside the bend the observer's direction keeps turning towards the sources and the same contribution converges as 1/U (third row).
+
+Consequences: (i) `reach_straight` now acts only for observers inside the bend; in the drift after it the regular layout (n_formation_length·L_f, including `prehistory` sources inside that reach) is used, as before. (ii) The 2D wake just after the first bend therefore depends on how much straight history is assumed — physically, on the real length of the straight upstream (or on γ: the γ → ∞ formulation drops the 1/γ² terms that would cut the logarithm off at u ~ γd). The 1D drift formula has no such term and is finite. With the restriction, chicane B1 → D1 (prehistory 20): ⟨W⟩ 0.06 / 0.18 / 0.30 m past the exit −0.0145 / −0.0195 / −0.0379 MeV/m against 1D −0.0283 / −0.0375 / −0.0386; inside B1 unchanged (exit −0.0167 / peak 0.0855 vs 1D −0.0212 / 0.0861). (iii) The first `2dRp` chicane run and the first gain_v2 run (killed) contained the drift artefact; both are being rerun. The loss_v2 run is unaffected (its slip at the B1LE exit, 90 µm, already exceeds 5σ_z, so the rule never fired in its drifts). Open physics question for the paper: what the 2D theory predicts for the field of a long straight history at an off-line observer when the 1/γ² terms are kept.

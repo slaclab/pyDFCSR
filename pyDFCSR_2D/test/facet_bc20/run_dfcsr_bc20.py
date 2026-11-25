@@ -182,6 +182,12 @@ def main(name):
     rank = 0
     if RUNS[name]['cls'] == '2d':
         try:
+            # mpi4py is imported here before pyDFCSR_2D.CSR, which is where FI_PROVIDER=tcp is
+            # defaulted on macOS: without it the libfabric sockets provider spins kernel threads
+            # and each rank spent 54% of its CPU in the kernel (Indranil v2 runs, 2026-11-24)
+            import sys as _sys
+            if _sys.platform == 'darwin':
+                os.environ.setdefault('FI_PROVIDER', 'tcp')
             from mpi4py import MPI
             parallel = MPI.COMM_WORLD.Get_size() > 1
             rank = MPI.COMM_WORLD.Get_rank()

@@ -699,11 +699,10 @@ def test_prehistory_extends_the_reach_below_the_lattice_start():
 
 
 def test_straight_section_reach_in_the_first_bend():
-    """reach_straight: inside a bend (a = s - entrance) and in the drift after it, the straight section
-    before the entrance is integrated as a separate region down to reach_straight * R phi before the
-    entrance, geometrically graded in u = s - s', while its retardation (a^3/(6R^2), + x phi^2/2 past
-    the exit) is within reach_slip_max sigma_z; off deep in the bend and with reach_straight 0
-    (talman_cancellation.md §7.5)."""
+    """reach_straight: inside a bend (a = s - entrance), the straight section before the entrance is
+    integrated as a separate region down to reach_straight * R phi before the entrance, geometrically
+    graded in u = s - s', while its retardation a^3/(6R^2) is within reach_slip_max sigma_z; off deep in
+    the bend, in the drift after it (log-divergent there, §7.7) and with reach_straight 0."""
     import contextlib
     import io
     import tempfile
@@ -734,12 +733,10 @@ def test_straight_section_reach_in_the_first_bend():
     # deep in the bend the straight sources are retarded out of the bunch: off
     s_deep = (6 * 36.0 * ip.reach_slip_max * sz) ** (1 / 3) * 1.01
     assert sim._geo_reach(s_deep) is None
-    # in the drift after the bend: on just past the exit, off once x phi^2/2 has carried the slip out
+    # never in the drift after the bend: the frozen straight history diverges as ln(reach) there (§7.7)
     sim.inbend, sim.afterbend = False, True
     Lb = 0.03 * 6.0
-    assert sim._geo_reach(Lb + 0.01) is not None
-    x_off = (ip.reach_slip_max * sz - 6.0 * 0.03 ** 3 / 6.0) / (0.03 ** 2 / 2.0)
-    assert sim._geo_reach(Lb + x_off * 1.05) is None
+    assert sim._geo_reach(Lb + 0.01) is None
     # off
     ip.reach_straight = 0.0
     sim.inbend, sim.afterbend = True, False
