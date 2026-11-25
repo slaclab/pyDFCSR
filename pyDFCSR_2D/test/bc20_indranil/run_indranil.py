@@ -12,7 +12,8 @@ recipe of progress_facet_bc20.md 9n:
     mpirun -np 3 python ../test/bc20_indranil/run_indranil.py gain        (pydfcsr-mpi)
     mpirun -np 3 python ../test/bc20_indranil/run_indranil.py loss
   variants: <beam>_1d (CSR1D, same schedule), <beam>_off (CSR off), <beam>_k2 (kick_tol 0.0025, h_exit
-  0.05: ~2x the kicks, for the schedule convergence check)
+  0.05: ~2x the kicks, for the schedule convergence check), <beam>_v2 (prehistory 45 m + straight-section
+  reach + mesh_z_quantile, loss with 160 z nodes; 2026-11-24)
 
 The beams are the openPMD files converted to bmad-x text (convert in /tmp/convert_indranil.py:
 P0C = mean p, z from position/z or -c(t - <t>)); the files' own pmd_beamphysics format predates the
@@ -50,9 +51,17 @@ DEP_BEAM = {'gain': DEP, 'loss': dict(DEP, frame='quantile')}
 # and a 12 x 80 wake mesh for loss: with 40 z nodes the finest spacing (0.79 um) was coarser than FWHM/3 of
 # its 1.1-1.3 um peak (CSR2D warning at the first kick)
 MESH_BEAM = {'gain': MESH, 'loss': dict(MESH, zbins=80)}
+# v2 (2026-11-24, progress_facet_bc20.md 11n-11o): the lattice starts AT b1le, so the 2D integral had no
+# straight-line history before the first bend (1D assumes an infinite one): prehistory 45 m = 40 R phi of
+# b1le (R 47.1 m, 1.063 m long), with the straight-section reach rule (default). mesh_z_quantile 0.001 (via
+# RD.Q_MESH) keeps the sparse tail from taking z nodes, and the loss beam's 1 um horns need 160 z nodes
+# (the 80-node kick was 12-18% rms off a 320-node reference at s = 0.15).
+INTEG_V2 = dict(INTEG, prehistory=45.0)
 RUNS = {}
 for b in BEAMS:
     RUNS[b] = dict(cls='2d', beam=b, transverse=1, sc=KP, dep=DEP_BEAM[b])
+    RUNS[f'{b}_v2'] = dict(cls='2d', beam=b, transverse=1, sc=KP, dep=DEP_BEAM[b], integ=INTEG_V2,
+                           mesh=dict(MESH_BEAM[b], zbins=160 if b == 'loss' else MESH_BEAM[b]['zbins']))
     RUNS[f'{b}_k2'] = dict(cls='2d', beam=b, transverse=1, sc=KP2, dep=DEP_BEAM[b])
     RUNS[f'{b}_1d'] = dict(cls='1d', beam=b, sc=KP)
     RUNS[f'{b}_off'] = dict(cls='1d', beam=b, sc=KP, csr=dict(compute_CSR=0, apply_CSR=0))
@@ -77,10 +86,10 @@ def config(name):
     cfg['step_control'] = dict(mode='auto', kick_interval='midpoint', n_sub=400, **r.get('sc', {}))
     cfg['CSR_computation'].update(workdir=OUT, write_name=name, write_wakes=True, write_beam=None,
                                   compute_CSR=1, apply_CSR=1, transverse_on=r.get('transverse', 1))
-    cfg['CSR_computation'].update(MESH_BEAM[r['beam']])
+    cfg['CSR_computation'].update(r.get('mesh', MESH_BEAM[r['beam']]))
     cfg['CSR_computation'].update(r.get('csr', {}))
     cfg['particle_deposition'] = dict(r.get('dep', DEP))
-    cfg['CSR_integration'] = dict(RD.PIN_2D_INTEG, **INTEG)
+    cfg['CSR_integration'] = dict(RD.PIN_2D_INTEG, **r.get('integ', INTEG))
     if r['cls'] == '1d':
         cfg['CSR_1D'] = dict(nbins=300, nsmooth=2, drift_cutoff=0.0, bin_mode='peak', bins_per_fwhm=20)
     os.makedirs(os.path.join(OUT, 'inputs'), exist_ok=True)

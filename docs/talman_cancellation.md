@@ -117,17 +117,19 @@ Runs `2dR` (2D, full force), `2dR_noT` (2D, transverse force off) and `1d_full` 
 
 ### 7.1 Exit and per-element tables
 
-| at the exit, vs CSR off | 2D full (2dR) | 2D, no transverse force (2dR_noT) | 1D (1d_full) |
-|---|---|---|---|
-| mean energy change [keV] | −2672 | −2682 | −1746 |
-| projected σ_E change [keV] | −322 | −368 | −303 |
-| core slice σ_E change [keV] | +28.8 | +157.8 | +10.4 |
-| emittance growth, η-corrected [µm] | 0.490 | 0.952 | 0.549 |
-| peak current [kA] (CSR off 5.99) | 5.79 | 5.72 | 5.82 |
+| at the exit, vs CSR off | 2D full (2dR) | 2D full + pre-history (2dRp, §7.6) | 2D, no transverse force (2dR_noT) | 1D (1d_full) |
+|---|---|---|---|---|
+| mean energy change [keV] | −2672 | −2727 | −2682 | −1746 |
+| projected σ_E change [keV] | −322 | −334 | −368 | −303 |
+| core slice σ_E change [keV] | +28.8 | +16.9 | +157.8 | +10.4 |
+| emittance growth, η-corrected [µm] | 0.490 | 0.526 | 0.952 | 0.549 |
+| peak current [kA] (CSR off 5.99) | 5.79 | 5.80 | 5.72 | 5.82 |
+| run time, serial [min] | 64 | 104 (machine shared with 9 MPI ranks) | 64 | 1.8 |
 
 | energy change per element [keV] | B1 | D1 | B2 | D2 | B3 | D3 | B4 | Df |
 |---|---|---|---|---|---|---|---|---|
 | 2D full | −0.9 | −49 | −108 | −41 | −624 | −1468 | −231 | −150 |
+| 2D full + pre-history | −3.2 | −70 | −108 | −44 | −624 | −1463 | −264 | −151 |
 | 2D, no transverse force | −0.9 | −49 | −109 | −42 | −626 | −1459 | −242 | −154 |
 | 1D | −3.0 | −66 | −8.5 | −70 | −139 | −933 | −366 | −161 |
 
@@ -227,3 +229,14 @@ The graded region reproduces the fixed-cell result (−0.0163 at 10 m with 43 no
 | max \|W\| 2D / 1D | 0.0218 / 0.0216 | 0.0725 / 0.0735 | 0.0855 / 0.0861 | 0.0886 / 0.0855 | 0.0859 / 0.0764 | 0.0869 / 0.0640 |
 
 against −0.0039 / 0.042 at the exit in the original 2dR run. Inside the bend the 2D peak wake is the 1D one to 1%; the mean is 20% below 1D at the exit, and 0.3 m after the exit 2D is 37% above 1D in the mean and in the peak — the drift after a bend is where the two formulations differ (§7.2, item 5). With `prehistory` ≥ reach_straight·Rφ the synthetic history supplies the straight section when the lattice has none. Default on (bit-identical where it does not fire, which includes the golden dipole: its 0.3 m bend has an exit slip of 2.5 σ_z); `reach_straight: 0` turns it off.
+
+
+### 7.6 The whole chicane with the pre-history (run `2dRp`, 2026-11-24)
+
+`2dR` with `prehistory: 20` (and the straight-section reach rule, default on); everything else identical. Figures `wake_maps_long_2dRp.png`, `wake_maps_trans_2dRp.png`, `wake_zproj_2dRp.png` (2dRp against 2dR and 1D), `wake_xproj_2dRp.png`, `wakes_along_s_2dRp.png`, table `wake_table_2dRp.txt`, in the same directory as §7.
+
+- **B1 and D1 now match 1D.** Energy collected in B1: −3.2 keV against −3.0 in 1D (was −0.9); in D1: −70 against −66 (was −49). At the B1 exit ⟨W⟩ is −0.0167 against −0.0212 MeV/m in 1D with the same peak (0.0855 vs 0.0861); 0.3 m into D1 2D is 37% above 1D (−0.053 vs −0.039), and by the middle of D1 the two are back to the 2dR values (−0.0062, identical to 2dR; 1D −0.0094). The first-bend part of the 2D–1D comparison was a boundary artefact; the rest of D1 was not.
+- **B2, B3 and D3 are unchanged**, as they must be: their straight sections are the drifts that `prev_bend_reach` already integrates from the previous bend's entrance, so the rule does not fire there. ⟨W⟩ at B2 mid −0.1648 vs −0.1649, B3 exit −1.901 vs −1.912, D3 end −0.231 vs −0.233 (the small differences come through the beam).
+- **B4 changed by 14%** (−264 vs −231 keV; 1D −366) with no change in its integration: the extra 24 keV of energy loss in B1–D1 changes the chirp the chicane compresses, and B4 sees a different bunch. The total moves from −2672 to −2727 keV (+2%), the core slice energy spread change from +28.8 to +16.9 keV (closer to the 1D +10.4), the emittance growth from 0.490 to 0.526 µm (1D 0.549), the peak current is unchanged.
+
+The transverse-force conclusions of §5 and §7.2 are unaffected: the Coulomb (Talman) term in the bends is the same, and the emittance with the full force stays within 5% of 1D against 1.9× without it.
