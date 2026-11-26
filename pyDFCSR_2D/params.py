@@ -35,7 +35,8 @@ class Integration_params:
                          near_adapt_x = False, near_adapt_x_rounds = 4, near_adapt_x_max = 4,
                          near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
                          threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50,
-                         seam_ratio = 2.0, prehistory = 0.0, reach_straight = 40.0, reach_slip_max = 5.0):
+                         seam_ratio = 2.0, prehistory = 0.0, reach_straight = 40.0, reach_slip_max = 5.0,
+                         drift_causal_reach = True, drift_causal_grade = 0.005, drift_causal_scan = 128):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -477,6 +478,23 @@ class Integration_params:
         # Needs the history: a lattice starting at its first bend also needs prehistory.
         # reach_straight = 0 disables the rule (bit-identical).
         self.reach_straight = float(reach_straight)
+        # drift_causal_reach: in the drift after a bend, the regular layout has the n_formation_length = 1
+        # reach (back to that bend's entrance through drift_reach) whatever n_formation_length is;
+        # everything earlier -- the previous bend, the straight between the two -- is integrated as
+        # its own region from the causal edge (the lowest s' whose retarded band still meets the bunch,
+        # _causal_edge with drift_causal_scan samples) up to there, geometrically graded in u = s - s' at
+        # 1 + drift_causal_grade. Indranil's L1-17.6284 beam 1.5 m past B3RE: the B3LE arc and the 0.8 m
+        # between B3LE and B3RE changed <W> from +0.066 to -0.188 MeV/m and were dropped at n_fl = 1 (the
+        # reach stopped at B3RE's entrance and its history was discarded); the region reproduces the
+        # n_fl = 6 brute-force value to 0.1% with ~100 columns. It is bounded below by s' = 0 (never the
+        # synthetic prehistory, whose straight-line term diverges seen from a drift, talman 7.7) and by
+        # the retained history; the retention keeps the previous bend from n_formation_length * L_f before
+        # its entrance. Large n_formation_length in a drift used to move the exit-transient fine window off
+        # the last bend's arc (65% wrong 1.4 m past B1RE at n_fl = 6); the fixed drift reach removes that.
+        # False = the old drift layout (bit-identical).
+        self.drift_causal_reach = bool(drift_causal_reach)
+        self.drift_causal_grade = float(drift_causal_grade)
+        self.drift_causal_scan = int(drift_causal_scan)
         self.reach_slip_max = float(reach_slip_max)
         self.threads_min_points = int(threads_min_points)
         # fixed-point iterations of the band solve in the column scan (the integration's own solve

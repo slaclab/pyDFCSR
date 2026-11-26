@@ -411,6 +411,12 @@ class CSR2D:
         pb = self._prev_bend_reach_start()
         if pb is not None:
             f = pb if f is None else min(f, pb)
+        dp = getattr(self, 'drift_prev_start', None)
+        if (getattr(self.integration_params, 'drift_causal_reach', False) and self._exit_transient()
+                and dp is not None):
+            # drift_causal_reach: the previous bend (and n_fl*L_f before it) is still a source here
+            fd = max(0.0, float(dp) - self.integration_params.n_formation_length * self.formation_length)
+            f = fd if f is None else min(f, fd)
         g = self._geo_reach(self.beam.position + 3.0 * self.beam._sigma_z)
         if g is not None:
             # straight-section reach (Integration_params.reach_straight) for the bunch head, not
@@ -606,6 +612,8 @@ class CSR2D:
                 # (Integration_params.reach_straight)
                 self.prev_bend_end = ((getattr(self, 'bend_start_rec', 0.0) + getattr(self, 'bend_len_rec', 0.0))
                                       if self.afterbend else None)
+                # kept through the drift after this bend (drift_causal_reach retention)
+                self.drift_prev_start = self.prev_bend_start
                 self.bend_len_rec = L
                 self.afterbend = True
                 self.R_rec = R
@@ -1838,6 +1846,30 @@ class CSR2D:
             return None
         return a + rs * R * phi
 
+    def _drift_causal_nodes(self, s, x, t, s1):
+        """
+        s' nodes of the causal drift region [edge, s1) below the regular drift layout, or None
+        (Integration_params.drift_causal_reach): only in the drift after a bend, from the lowest s'
+        whose retarded band still meets the bunch, bounded by s' = 0 and the retained history.
+        """
+        ip = self.integration_params
+        if not (getattr(ip, 'drift_causal_reach', False) and self._drift_reach_start() is not None):
+            return None
+        tl = self.DF_tracker.time_log
+        h0 = max(0.0, float(tl[0]) if len(tl) else 0.0)
+        if not h0 < s1 - 1e-9:
+            return None
+        lo = self._causal_edge(s, x, t, h0, s1, n_scan=ip.drift_causal_scan)
+        if lo is None or not lo < s1 - 1e-9:
+            return None
+        if lo <= h0 + 1e-12 and h0 > 0.0:
+            # still alive at the oldest retained snapshot: the history, not causality, ends the region
+            self._drift_causal_clipped = getattr(self, '_drift_causal_clipped', 0) + 1
+        g = ip.drift_causal_grade
+        u_lo, u_hi = max(s - s1, 1e-12), s - lo
+        k = max(int(np.ceil(np.log(u_hi / u_lo) / np.log1p(g))), 2)
+        return np.unique(s - np.minimum(u_lo * (1.0 + g) ** np.arange(k + 1), u_hi))
+
     def _straight_region_lo(self, s):
         """
         Lower s' bound of the straight-section extension for an observer at s, or None:
@@ -1989,6 +2021,12 @@ class CSR2D:
         # scan in _far_region_nodes then trims it to where the source still contributes.
         s_bend = self._drift_reach_start()
         if s_bend is not None:
+            if getattr(ip, 'drift_causal_reach', False):
+                # the regular exit-transient layout always has the n_formation_length = 1 reach in a drift,
+                # so its fine window stays on the last bend's arc whatever n_fl is (at n_fl = 6 it slid
+                # into D31 and B1RE's exit wake came out 65% wrong); earlier sources go to the causal
+                # drift region (Integration_params.drift_causal_reach)
+                s1 = max(lo, s3 - self.formation_length)
             s1 = min(s1, s_bend)
         return ((s1, s3), (s3, s4))
 
@@ -2475,6 +2513,9 @@ class CSR2D:
                 if lo_pre < lo_cur - 1e-12:
                     parts.append(self._integrate_xi_region(s, x, t, self._straight_region_nodes(s, lo_pre, lo_cur),
                                                            ignore_vx, None, scale_bands=True))
+            sp_drift = self._drift_causal_nodes(s, x, t, s1)
+            if sp_drift is not None:
+                parts.append(self._integrate_xi_region(s, x, t, sp_drift, ignore_vx, None, scale_bands=True))
             if radii is not None:
                 parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
 

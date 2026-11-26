@@ -38,10 +38,6 @@ def main(run, targets, s_start=None):
 
     def kick():
         pos = sim.beam.position
-        if s_start is not None and pos < s_start - 1e-9:
-            n = (sim.CSR_params.xbins, sim.CSR_params.zbins)
-            sim.dE_dct, sim.x_kick = np.zeros(n), np.zeros(n)
-            return
         due = [t for t in targets if t not in done and pos >= t - 1e-9]
         if due:
             done.extend(due)
@@ -58,6 +54,11 @@ def main(run, targets, s_start=None):
                     setattr(sim, k, v)
             if len(done) == len(targets):
                 raise D.Stop
+        if s_start is not None and pos < s_start - 1e-9:
+            # CSR off before s_start (zero kicks; states before s_start are dumped too, with a CSR-off beam)
+            n = (sim.CSR_params.xbins, sim.CSR_params.zbins)
+            sim.dE_dct, sim.x_kick = np.zeros(n), np.zeros(n)
+            return
         return orig()
     if sim.parallel:
         sim.calculate_2D_CSR_parallel = kick

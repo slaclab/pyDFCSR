@@ -786,3 +786,39 @@ def test_mesh_z_quantile_drops_the_sparse_tail():
     b.apply_wakes(dE, np.zeros_like(dE), xr, zr, 1.0, 0, x_shift=None, clamp_x=True, clamp_z=False)
     assert np.all(b.particle.pz == pz0)
     b.particle.z[:] = z_save
+
+
+def test_drift_causal_reach_region_and_fixed_drift_reach():
+    """drift_causal_reach: in the drift after a bend the regular layout keeps the n_fl = 1 reach whatever
+    n_formation_length is, and the sources below it get their own region from the causal edge, bounded by
+    s' = 0 and the retained history; nothing in the drift after the first bend of a lattice starting at it
+    (progress_facet_bc20.md §11q)."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D.CSR import CSR2D
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, None, {'write_wakes': False, 'compute_CSR': 0, 'apply_CSR': 0})
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+    ip = sim.integration_params
+    assert ip.drift_causal_reach
+    sim.formation_length = 0.4
+    sim.inbend, sim.afterbend = False, True
+    sim.bend_start_rec, sim.R_rec, sim.phi_rec = 0.5, 6.0, 0.05
+    s, x = 1.2, sim.beam._mean_x
+    b1 = sim._layout_bounds(s, x)
+    ip.n_formation_length = 6
+    b6 = sim._layout_bounds(s, x)
+    assert b1 == b6                         # the drift layout does not depend on n_formation_length
+    ip.drift_causal_reach = False
+    assert sim._layout_bounds(s, x)[0][0] < b6[0][0]
+    ip.drift_causal_reach, ip.n_formation_length = True, 1
+    # no previous history below s' = 0: no region
+    sim.bend_start_rec = 0.0
+    (s1, _), _ = sim._layout_bounds(s, x)
+    assert sim._drift_causal_nodes(s, x, s, s1) is None
+    # inside a bend: never
+    sim.inbend = True
+    assert sim._drift_causal_nodes(s, x, s, 0.3) is None
