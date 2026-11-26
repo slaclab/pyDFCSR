@@ -36,7 +36,8 @@ class Integration_params:
                          near_adapt_scan_iter = 4, far_adapt_x = True, integrand_kernel = 'numba',
                          threads = 1, threads_min_points = 20000, far_adapt = False, far_adapt_base = 50,
                          seam_ratio = 2.0, prehistory = 0.0, reach_straight = 40.0, reach_slip_max = 5.0,
-                         drift_causal_reach = True, drift_causal_grade = 0.005, drift_causal_scan = 128):
+                         drift_causal_reach = True, drift_causal_grade = 0.005, drift_causal_scan = 128,
+                         x_adapt = 'error', x_adapt_tol = 1e-3, x_adapt_rounds = 4):
         # Default 1 since 2026-11-06 (was 4): what every validated chicane run used, now that
         # drift_reach and prev_bend_reach cover the bends explicitly. NOT yet checked against
         # 4 with the current defaults -- a 1 vs 2 vs 4 comparison was started and paused
@@ -493,6 +494,25 @@ class Integration_params:
         # the last bend's arc (65% wrong 1.4 m past B1RE at n_fl = 6); the fixed drift reach removes that.
         # False = the old drift layout (bit-identical).
         self.drift_causal_reach = bool(drift_causal_reach)
+        # x_adapt: how near_adapt_x / far_adapt_x refine the x' nodes of a column.
+        #   'density'  re-evaluate columns where the retarded DENSITY jumps by > near_adapt_eps * rho_max
+        #              between nodes (rho_max over the whole region), nodes following the density gradient.
+        #   'error'    estimate each column's x' quadrature error from the integrand itself: the column is
+        #              evaluated on xbins nodes and on the midpoints (trapezoid T_n -> T_2n, error ~ |T_2n -
+        #              T_n|/3), for W and F; the columns with the largest s'-weighted errors are halved again
+        #              (up to x_adapt_rounds times) until the error left in the unrefined ones is below
+        #              x_adapt_tol of the region's gross sum_j w_j |T_j| (each component). One criterion for the
+        #              horn aliasing the density test was made for AND the geometry the density test cannot
+        #              see: in B1RE near |tau| = 1 of Indranil's L1-17.6284 beam the density test left the mean
+        #              wake 18% off at 100 nodes (progress_facet_bc20.md 11q-r). Default since 2026-11-26:
+        #              on that state 100 nodes + 'error' match a 1600-node reference to 0.1% in W at 0.4x the
+        #              time of 100 + 'density', and on the loss beam's B2RE horns W 0.06% / F 0.2% at 0.5x.
+        #              Applies to every far-type region (far, previous bend, straight section, drift causal).
+        self.x_adapt = str(x_adapt)
+        if self.x_adapt not in ('density', 'error'):
+            raise ValueError(f"CSR_integration.x_adapt must be 'density' or 'error', got {x_adapt!r}")
+        self.x_adapt_tol = float(x_adapt_tol)
+        self.x_adapt_rounds = int(x_adapt_rounds)
         self.drift_causal_grade = float(drift_causal_grade)
         self.drift_causal_scan = int(drift_causal_scan)
         self.reach_slip_max = float(reach_slip_max)

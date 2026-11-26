@@ -11,9 +11,12 @@ xi = np.asarray(sim.CSR_xrange_transformed); h = np.gradient(xi); n, L = xi.size
 wx = np.clip(1.0 / ((n - 1) * h) - 0.3 / L, 0, None) * h; wx /= wx.sum()
 print(f'{run} s={pos:.3f}, tau {sim._frame_tilt():+.3f}, {len(idx)} mesh points')
 res = {}
-for lab, kw in (('100 + adaptive (recipe)', dict(xbins=100)), ('200 + adaptive', dict(xbins=200)), ('400 + adaptive', dict(xbins=400)),
-                ('400 uniform', dict(xbins=400, far_adapt_x=False, near_adapt_x=False)), ('800 uniform', dict(xbins=800, far_adapt_x=False, near_adapt_x=False)),
-                ('1600 uniform (reference)', dict(xbins=1600, far_adapt_x=False, near_adapt_x=False))):
+CASES = (('100 + density (old recipe)', dict(xbins=100)), ('400 + density (current)', dict(xbins=400)),
+         ('100 + error 1e-3', dict(xbins=100, x_adapt='error', x_adapt_tol=1e-3)),
+         ('100 + error 3e-4', dict(xbins=100, x_adapt='error', x_adapt_tol=3e-4)),
+         ('50 + error 1e-3', dict(xbins=50, x_adapt='error', x_adapt_tol=1e-3)),
+         ('1600 uniform (reference)', dict(xbins=1600, far_adapt_x=False, near_adapt_x=False)))
+for lab, kw in CASES:
     old = {a: getattr(ip, a) for a in kw}
     for a, v in kw.items(): setattr(ip, a, v)
     t1 = time.time(); r = np.array([sim.get_CSR_wake(pos + sim.CSR_zmesh[k], sim.CSR_xmesh[k]) for k in idx]); dt = time.time() - t1
@@ -25,4 +28,4 @@ wrow = np.repeat(wx, len(range(0, nz, stride)))
 for lab, (r, dt) in res.items():
     dW, dF = np.abs(r[:, 0] - ref[:, 0]), np.abs(r[:, 1] - ref[:, 1])
     mw, mw0 = (wrow * r[:, 0]).sum() / wrow.sum(), (wrow * ref[:, 0]).sum() / wrow.sum()
-    print(f'   {lab:26s}: max|dW| {dW.max()/W0*100:5.2f}%  rms {np.sqrt(np.mean(dW**2))/W0*100:5.2f}%  max|dF| {dF.max()/F0*100:5.2f}%  rms {np.sqrt(np.mean(dF**2))/F0*100:5.2f}%  (of max|ref|); mean W {mw:+.4f} vs {mw0:+.4f}; {dt:4.0f} s')
+    print(f'   {lab:28s}: max|dW| {dW.max()/W0*100:5.2f}%  rms {np.sqrt(np.mean(dW**2))/W0*100:5.2f}%  max|dF| {dF.max()/F0*100:5.2f}%  rms {np.sqrt(np.mean(dF**2))/F0*100:5.2f}%  (of max|ref|); mean W {mw:+.4f} vs {mw0:+.4f}; {dt:4.0f} s')

@@ -20,8 +20,7 @@ def mean(fl, **kw):
     t1 = time.time(); m = sum(W8[a, b] * sim.get_CSR_wake(pos + sim.CSR_zmesh[k], sim.CSR_xmesh[k])[0] for a, b, k in pts)
     for a, v in old.items(): setattr(ip, a, v)
     return m, time.time() - t1
-for lab, kw in (('recipe: xbins 100 + adaptive x\'', {}), ('xbins 400 + adaptive x\'', dict(xbins=400)),
-                ('xbins 400, adaptive off', dict(xbins=400, far_adapt_x=False, near_adapt_x=False)),
-                ('xbins 1600, adaptive off', dict(xbins=1600, far_adapt_x=False, near_adapt_x=False))):
+for lab, kw in (('100 + density (old recipe)', {}), ('400 + density', dict(xbins=400)),
+                ('100 + error 1e-3', dict(x_adapt='error')), ('1600 uniform', dict(xbins=1600, far_adapt_x=False, near_adapt_x=False))):
     r = [mean(fl, **kw) for fl in (1, 6)]
-    print(f'   {lab:32s}: FL 1 {r[0][0]:+.5f}  FL 6 {r[1][0]:+.5f}  (FL6-FL1 {r[1][0]-r[0][0]:+.5f}; {r[0][1]:.0f}/{r[1][1]:.0f} s)', flush=True)
+    print(f'   {lab:28s}: FL 1 {r[0][0]:+.5f}  FL 6 {r[1][0]:+.5f}  (FL6-FL1 {r[1][0]-r[0][0]:+.5f}; {r[0][1]:.0f}/{r[1][1]:.0f} s)', flush=True)

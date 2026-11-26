@@ -822,3 +822,20 @@ def test_drift_causal_reach_region_and_fixed_drift_reach():
     # inside a bend: never
     sim.inbend = True
     assert sim._drift_causal_nodes(s, x, s, 0.3) is None
+
+
+def test_x_adapt_error_converges_and_is_default():
+    """x_adapt 'error' (default): per-column x' refinement from the trapezoid error estimate; on the golden
+    case with near_adapt_x it reproduces a 640-node uniform x' quadrature far better than the density test
+    at the same base count (progress_facet_bc20.md §11r)."""
+    import make_golden_2d
+    from pyDFCSR_2D.params import Integration_params
+    assert Integration_params().x_adapt == 'error'
+    base = {'near_adapt': True, 'near_adapt_x': True, 'xbins': 20}
+    ref = make_golden_2d.run_case({}, None, extra_integ={'near_adapt': True, 'near_adapt_x': False,
+                                                         'far_adapt_x': False, 'xbins': 640})
+    err = make_golden_2d.run_case({}, None, extra_integ=dict(base, x_adapt='error'))
+    den = make_golden_2d.run_case({}, None, extra_integ=dict(base, x_adapt='density'))
+    d = lambda o: max(np.abs(o[f'dE_{i}'] - ref[f'dE_{i}']).max() / np.abs(ref[f'dE_{i}']).max() for i in range(int(ref['nkicks'])))
+    assert d(err) < 1e-2
+    assert d(err) < d(den)

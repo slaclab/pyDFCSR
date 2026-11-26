@@ -37,9 +37,9 @@ BASE = os.path.join(ROOT, 'example', 'input', 'facet_bc20_config.yaml')
 # xbins 200 -> 100 on 2026-11-24: on the loss B2RE state 1.35% instead of 0.97% of the horn's W at the worst
 # mesh cell against the 8x reference, 0.19% rms, 15% less wake time; the x' refinement resolves the horns
 # (progress_facet_bc20.md 11i)
-# xbins 400 (was 100 since 11i): near |tau| = 1 in B1RE of a strongly compressed beam 100 x' nodes + adaptive
-# refinement left the mean wake 18% off and made it depend on n_formation_length (progress_facet_bc20.md 11q)
-PIN_2D_INTEG = dict(n_formation_length=1, xbins=400, zbins=200, drift_cutoff=0.0, tangent_bands=True,
+# xbins 100 with the error-based x' refinement (x_adapt 'error', the default since 2026-11-26): matches 1600
+# uniform nodes to 0.1% where 100 + the density test was 18% off (B1RE, progress_facet_bc20.md 11r)
+PIN_2D_INTEG = dict(n_formation_length=1, xbins=100, zbins=200, drift_cutoff=0.0, tangent_bands=True,
                     drift_reach=True, drift_snap_thin=0.01, far_fine_max=500, band_jacobian_min=0.2,
                     prev_bend_reach=True, prev_bend_grade=0.02, near_cell=0.25,
                     # shipped-vs-by-parts check at 3 mesh points per kick (~one wake point of cost): a

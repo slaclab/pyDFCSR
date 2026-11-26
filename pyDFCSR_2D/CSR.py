@@ -1554,11 +1554,13 @@ class CSR2D:
             # the refinement off, and on the loss beam that brought the aliased cells back
             # (max |dW| 34% of the horn's W at 200 nodes, ibp_nodes.py).
             do_adapt_x = bool(adapt_x and ip.near_adapt and ip.near_adapt_x)
-            ex = {} if (ibp or do_adapt_x) else None
+            ex = {} if (ibp or (do_adapt_x and getattr(ip, 'x_adapt', 'density') == 'density')) else None
             gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
                                             ignore_vx=ignore_vx, taper=taper, extras=ex)
             refined = None
-            if do_adapt_x:
+            if do_adapt_x and getattr(ip, 'x_adapt', 'density') == 'error':
+                dxp_col, refined = self._adapt_x_error(s, x, t, sp, lo, width, gz, gx, ignore_vx, taper)
+            elif do_adapt_x:
                 gz, gx, dxp_col, refined = self._adapt_x_columns(s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper)
             # A zero-width column has dxp = 0 and contributes nothing. Select it out
             # rather than multiplying by zero, so a degenerate node that landed on
@@ -1589,6 +1591,68 @@ class CSR2D:
             z = np.zeros((nx, len(sp)))
             return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
         return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
+
+    def _adapt_x_error(self, s, x, t, sp, lo, width, gz, gx, ignore_vx, taper):
+        """
+        x_adapt = 'error': per-column x' quadrature from the integrand's own error estimate.
+
+        gz, gx are the integrands on the xbins uniform nodes of every column (lo + k h). Each
+        round adds the midpoints of the current intervals of the columns still flagged, so the
+        trapezoid sum is refined in place, T_2m = T_m / 2 + (h / 2) sum f(mid), and the error of the
+        finer sum is estimated as |T_2m - T_m| / 3. The first round covers every live column; after
+        it, the columns are ranked by their s'-weighted error w_j e_j and the smallest set whose
+        removal leaves at most x_adapt_tol * sum_j w_j |T_j| (W and F separately) is refined again,
+        up to x_adapt_rounds rounds in all. Returns ((iz, ix), refined) with refined = every live
+        column, since all of them now carry at least the 2n-node value.
+        """
+        ip = self.integration_params
+        nx, ncol = gz.shape
+        alive = width > 0.0
+        h = np.where(alive, width / (nx - 1), 0.0)
+        Tz = np.trapz(gz, axis=0) * h
+        Tx = np.trapz(gx, axis=0) * h
+        m = nx - 1                                          # intervals per column (same for all live ones)
+        wcol = np.zeros(ncol)
+        if ncol > 1:
+            d = np.diff(sp); wcol[:-1] += 0.5 * d; wcol[1:] += 0.5 * d
+        else:
+            wcol[:] = 1.0
+        wcol = np.abs(wcol)
+        cols = np.flatnonzero(alive)
+        h_c = h.copy()
+        m_c = np.full(ncol, m)
+        n_eval = 0
+        for rnd in range(max(ip.x_adapt_rounds, 1)):
+            if cols.size == 0:
+                break
+            mm = int(m_c[cols].max())                       # columns refined together have the same count
+            k = np.arange(mm) + 0.5
+            xn = lo[None, cols] + k[:, None] * h_c[None, cols]
+            sn = np.broadcast_to(sp[cols][None, :], xn.shape).copy()
+            fz, fx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xn, sp=sn, ignore_vx=ignore_vx, taper=taper)
+            n_eval += xn.size
+            Tz_new = 0.5 * Tz[cols] + 0.5 * h_c[cols] * fz.sum(axis=0)
+            Tx_new = 0.5 * Tx[cols] + 0.5 * h_c[cols] * fx.sum(axis=0)
+            ez = np.abs(Tz_new - Tz[cols]) / 3.0
+            ex_ = np.abs(Tx_new - Tx[cols]) / 3.0
+            Tz[cols], Tx[cols] = Tz_new, Tx_new
+            h_c[cols] *= 0.5
+            m_c[cols] *= 2
+            # which columns still carry too much of the error: per component, the largest weighted errors
+            # until what is left unrefined is within tolerance of the region's gross sum
+            keep = np.zeros(cols.size, dtype=bool)
+            for e, T in ((ez, Tz), (ex_, Tx)):
+                we = wcol[cols] * e
+                budget = ip.x_adapt_tol * float(np.sum(wcol * np.abs(T)))
+                if not we.sum() > budget:
+                    continue
+                order = np.argsort(-we)
+                rest = we.sum() - np.cumsum(we[order])
+                nk = int(np.searchsorted(-rest, -budget)) + 1
+                keep[order[:nk]] = True
+            cols = cols[keep]
+        self._last_adapt_x = dict(cols=int(alive.sum()), evals=n_eval, unconverged=int(cols.size))
+        return (Tz, Tx), alive
 
     def _adapt_x_columns(self, s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper):
         """
@@ -2499,8 +2563,12 @@ class CSR2D:
             pb = self._prev_bend_reach_start()
             if pb is not None and pb < s1:
                 sp_prev = self._prev_region_nodes(s, pb, s1)
+                # x' refinement here too (far_adapt_x): without it the previous bend's tail, seen through
+                # the oblique band from inside the next bend, stayed on xbins uniform nodes, while at a
+                # larger n_formation_length the same sources sit in the refined far region -- that, not
+                # the reach, made B1RE depend on n_fl (progress_facet_bc20.md 11r)
                 parts.append(self._integrate_xi_region(s, x, t, sp_prev, ignore_vx, None,
-                                                       scale_bands=True))
+                                                       scale_bands=True, adapt_x=self.integration_params.far_adapt_x))
             # reach_straight in the drift after a bend: the straight section before that bend's
             # entrance is still a source (retarded by R phi^3/6 + x phi^2/2, decaying as 1/u) for
             # a fraction of R phi past the exit. Below the exit-transient layout, as its own
@@ -2512,10 +2580,12 @@ class CSR2D:
                 lo_cur = min(lo_cur, float(self.bend_start_rec))      # never the arc itself
                 if lo_pre < lo_cur - 1e-12:
                     parts.append(self._integrate_xi_region(s, x, t, self._straight_region_nodes(s, lo_pre, lo_cur),
-                                                           ignore_vx, None, scale_bands=True))
+                                                           ignore_vx, None, scale_bands=True,
+                                                           adapt_x=self.integration_params.far_adapt_x))
             sp_drift = self._drift_causal_nodes(s, x, t, s1)
             if sp_drift is not None:
-                parts.append(self._integrate_xi_region(s, x, t, sp_drift, ignore_vx, None, scale_bands=True))
+                parts.append(self._integrate_xi_region(s, x, t, sp_drift, ignore_vx, None, scale_bands=True,
+                                                       adapt_x=self.integration_params.far_adapt_x))
             if radii is not None:
                 parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
 
