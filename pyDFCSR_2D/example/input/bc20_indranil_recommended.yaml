@@ -1,5 +1,5 @@
 # pyDFCSR 2D configuration for Indranil's BC20 beams (lattice_bc20w_c_*, 1M-particle gain/loss beams).
-# This is the setup of the 2026-11-25 reruns (gain_v2 / loss_v2), branch near_adapt (commit cdb2dd3 or later).
+# Setup of the 2026-11-26 confirmation runs (b176_fix_fl1/_fl6), branch near_adapt (commit 48bbf02 or later).
 #
 # Run (Mac, MPICH env; FI_PROVIDER=tcp avoids libfabric's kernel-spinning sockets provider, which cost
 # half of every rank's CPU):
@@ -50,7 +50,7 @@ particle_deposition:
 CSR_integration:
   n_formation_length: 1          # keep at 1 (see note); convergence check = double far_zbins, not n_fl
   far_zbins: 200                 # far region in a bend: 2*far_zbins uniform s' columns over n_fl*L_f
-  xbins: 100
+  xbins: 400                     # x' nodes per band: 100 is not converged in B1RE near |tau| = 1 (mean W 18% off)
   zbins: 200
   near_cell: 0.25
   near_adapt: true               # adaptive near-region s' nodes (features ahead of the observer)
@@ -70,6 +70,7 @@ CSR_integration:
   band_jacobian_min: 0.2
   prev_bend_reach: true
   prev_bend_grade: 0.02
+  drift_causal_reach: true       # default; drift after a bend also sees the previous bend (B3LE after B3RE)
 
 CSR_computation:
   compute_CSR: 1

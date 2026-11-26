@@ -447,6 +447,16 @@ The loss beam costs 2.2× per point because its 100-fold horn edges flag most ne
 
 For the loss beam the first-bend gap to 1D drops from 58% to 14%; downstream of Q2ER v1 and v2 agree within 0.16 MeV per section. For the gain beam, whose CSR is small, the 2D first-bend energy is dominated by the ρ·div v (potential-energy) term of the converging beam that 1D does not have. (v1 ran with the libfabric sockets provider, which is part of its longer run time.)
 
+
+**n_formation_length, end to end (2026-11-26, Indranil's L1-17.6284 beam).** With the far cell held fixed, Indranil's FL scan rose by 3.5–12% from FL 1 to FL 6 (recipe with 100 x′ nodes). Kick-state tests traced it to three things, none of them missing reach inside a bend: the previous bend not seen in the drift after a bend pair (fixed by `drift_causal_reach`), the drift layout breaking at large FL (fixed: the drift layout now has the FL-1 reach), and 100 x′ nodes near |τ| = 1 in B1RE (now 400). Full runs with both fixes and 400 x′ nodes:
+
+| section [MeV] | B1LE | D1 | B2LE | B3LE–B3RE | D18–D24 | B2RE | D30 | D31 | B1RE | D32 | total |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| FL 1 | −1.723 | −1.134 | −1.434 | −1.001 | −0.941 | −4.715 | −2.356 | −1.184 | −3.260 | −2.007 | −23.81 |
+| FL 6 | −1.723 | −1.133 | −1.434 | −1.169 | −0.980 | −4.717 | −2.329 | −1.217 | −3.250 | −2.011 | −24.02 |
+
+FL 6 − FL 1 = −0.21 MeV (0.9%, against +11.8% before), 0.17 MeV of it inside B3RE from the straight before B3LE, which `prev_bend_reach` does not cover (it starts at the previous bend's entrance). Run time 6.0 h (FL 1) and 7.6 h (FL 6) at 6 ranks each, the two sharing the machine.
+
 ### 9.5 Where a wake point's time goes, and what was gained (2026-11-23)
 
 cProfile on the pickled BC20 loss state at 37.74 m (B2RE, |τ| = 4.8, 12 × 80 mesh), 24 points, 110 ms per point before the changes below:
