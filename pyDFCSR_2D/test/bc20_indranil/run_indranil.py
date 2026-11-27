@@ -34,7 +34,9 @@ sys.path.insert(0, os.path.join(ROOT, 'test', 'facet_bc20'))
 DATA = os.path.join(ROOT, 'example', 'BC20_Indranil')
 OUT = os.path.join(ROOT, 'test', 'benchmark_results', 'bc20_indranil', 'runs')
 LATTICE = os.path.join(DATA, 'lattice_bc20w_c_0.060000_000000.yaml')
-BEAMS = {'gain': 'beam_gain_bmadx.txt', 'loss': 'beam_loss_bmadx.txt'}
+BEAMS = {'gain': 'beam_gain_bmadx.txt', 'loss': 'beam_loss_bmadx.txt',
+         'b176': 'beam_L1-17.6284_bmadx.txt'}        # Indranil's FL-scan beam (progress_facet_bc20.md 11q)
+BEAM_H5 = {'b176': 'Beams_L1-17.6284_L2-32.2325_N1000000_BEGBC20_929.5371m.h5'}
 Q = {'gain': 1.5996736e-9, 'loss': None}          # filled from the conversion log by main (loss read from file)
 
 import run_dfcsr_bc20 as RD  # noqa: E402
@@ -47,10 +49,10 @@ KP2 = dict(KP, kick_tol=0.0025, kick_h_exit=0.05)
 # the loss beam is 65 um long with a sharp 42 kA peak on a broad body: the peak window (+-3 FWHM) kept
 # 20% of the charge and the 1D estimate put 85% of the loss in the dropped 80% (first kick, log_loss_peak).
 # It gets the quantile frame (whole bunch; 300 bins over ~80 um = 0.27 um cells), gain the peak frame.
-DEP_BEAM = {'gain': DEP, 'loss': dict(DEP, frame='quantile')}
+DEP_BEAM = {'gain': DEP, 'loss': dict(DEP, frame='quantile'), 'b176': dict(DEP, frame='auto')}
 # and a 12 x 80 wake mesh for loss: with 40 z nodes the finest spacing (0.79 um) was coarser than FWHM/3 of
 # its 1.1-1.3 um peak (CSR2D warning at the first kick)
-MESH_BEAM = {'gain': MESH, 'loss': dict(MESH, zbins=80)}
+MESH_BEAM = {'gain': MESH, 'loss': dict(MESH, zbins=80), 'b176': dict(MESH, zbins=160)}
 # v2 (2026-11-24, progress_facet_bc20.md 11n-11o): the lattice starts AT b1le, so the 2D integral had no
 # straight-line history before the first bend (1D assumes an infinite one): prehistory 45 m = 40 R phi of
 # b1le (R 47.1 m, 1.063 m long), with the straight-section reach rule (default). mesh_z_quantile 0.001 (via
@@ -71,7 +73,7 @@ def beam_meta(b):
     """charge and P0C of the converted beam: the conversion log is not kept, recompute from the h5"""
     import glob
     import h5py
-    f = sorted(glob.glob(os.path.join(DATA, f'beam_{b}_*.h5')))[0]
+    f = os.path.join(DATA, BEAM_H5[b]) if b in BEAM_H5 else sorted(glob.glob(os.path.join(DATA, f'beam_{b}_*.h5')))[0]
     h = h5py.File(f, 'r')
     p = np.sqrt(sum(h['momentum/' + k][()] ** 2 for k in 'xyz'))
     return float(np.sum(h['weight'][()])), float(p.mean())

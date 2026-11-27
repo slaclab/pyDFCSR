@@ -455,7 +455,7 @@ For the loss beam the first-bend gap to 1D drops from 58% to 14%; downstream of 
 | FL 1 | −1.723 | −1.134 | −1.434 | −1.001 | −0.941 | −4.715 | −2.356 | −1.184 | −3.260 | −2.007 | −23.81 |
 | FL 6 | −1.723 | −1.133 | −1.434 | −1.169 | −0.980 | −4.717 | −2.329 | −1.217 | −3.250 | −2.011 | −24.02 |
 
-FL 6 − FL 1 = −0.21 MeV (0.9%, against +11.8% before), 0.17 MeV of it inside B3RE from the straight before B3LE, which `prev_bend_reach` does not cover (it starts at the previous bend's entrance). Run time 6.0 h (FL 1) and 7.6 h (FL 6) at 6 ranks each, the two sharing the machine.
+FL 6 − FL 1 = −0.21 MeV (0.9%, against +11.8% before), 0.17 MeV of it inside B3RE from the straight before B3LE, which `prev_bend_reach` does not cover (it starts at the previous bend's entrance). Run time 6.0 h (FL 1) and 7.6 h (FL 6) at 6 ranks each, the two sharing the machine. With the new default (100 x′ nodes + `x_adapt: error`): FL 1 −23.83, FL 6 −24.04 MeV (0.9%), 0.11% from the 400-node run, in 2.6 h and 3.2 h (2.3× faster). 1D gives −28.58 MeV.
 
 ### 9.5 Where a wake point's time goes, and what was gained (2026-11-23)
 

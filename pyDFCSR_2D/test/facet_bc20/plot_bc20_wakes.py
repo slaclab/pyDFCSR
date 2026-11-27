@@ -184,18 +184,22 @@ def along_s(Rq, Ro, D1, fname):
                    for r in Rq])
     Fq = np.array([np.interp(zg, (r['z'] - zmid(r)) * 1e6, proj(r, r['F']), left=np.nan, right=np.nan)
                    for r in Rq])
-    W1 = np.full_like(Wq, np.nan)
-    for i, r in enumerate(Rq):
-        d = D1.get(round(r['s'], 6))
-        if d is not None:
-            W1[i] = np.interp(zg, (d[0] - zmid(r)) * 1e6, d[1], left=np.nan, right=np.nan)
-    peak = lambda A: np.nanmax(np.abs(A), axis=1)
+    # the 1D run on its OWN kicks (its schedule can differ from the 2D one), placed on the 2D kick-number axis
+    # by interpolating s; z relative to the nearest 2D kick's mesh centre
     idx = np.arange(len(s))
+    s1 = np.array(sorted(D1)) if D1 else np.zeros(0)
+    W1 = np.full((s1.size, zg.size), np.nan)
+    for i, k in enumerate(s1):
+        d = D1[k]; r = Rq[nearest(Rq, k)]
+        W1[i] = np.interp(zg, (d[0] - zmid(r)) * 1e6, d[1], left=np.nan, right=np.nan)
+    x1 = np.interp(s1, s, idx)
+    peak = lambda A: np.nanmax(np.abs(A), axis=1)
     fig = plt.figure(figsize=(15, 11))
     gs = fig.add_gridspec(5, 1, height_ratios=[0.22, 0.9, 1, 1, 1], hspace=0.14)
     axL = fig.add_subplot(gs[0])
     axs = [fig.add_subplot(gs[i], sharex=axL) for i in range(1, 5)]
     ele = [r['ele'] for r in Rq]
+    ele = [e.upper().split('_')[0] for e in ele]          # Indranil's lattices use lower-case, split names
     for i, e in enumerate(ele):
         if e.startswith('B') or e.startswith('WIG'):
             axL.axvspan(i - 0.5, i + 0.5, color='#c3c2b7' if e.startswith('B') else '#e4e3df', lw=0)
@@ -209,7 +213,7 @@ def along_s(Rq, Ro, D1, fname):
     ax.semilogy(idx, peak(Wq), color=COL['q'], lw=1.4, label=LABEL.get(RUN, RUN))
     ax.semilogy(idx, [np.abs(proj(Ro[nearest(Ro, x)], Ro[nearest(Ro, x)]['W'])).max() for x in s],
                 color=COL['old'], lw=1.2, label=LABEL.get(CMP, CMP))
-    ax.semilogy(idx, peak(W1), color=COL['1d'], lw=1.2, ls='--', label=LABEL.get(RUN1, RUN1))
+    ax.semilogy(x1, peak(W1), color=COL['1d'], lw=1.2, ls='--', label=LABEL.get(RUN1, RUN1))
     ax.set_ylabel('max |W(z)| [MeV/m]')
     ax.legend(fontsize=8, frameon=False, loc='upper left')
     ax.grid(color=GRID, lw=0.5)
@@ -217,7 +221,9 @@ def along_s(Rq, Ro, D1, fname):
                        (axs[2], W1, '1D: W(z), each kick normalised'),
                        (axs[3], Fq, f'{LABEL.get(RUN, RUN)}: transverse force F(z), each kick normalised')):
         N = M / np.nanmax(np.abs(M), axis=1, keepdims=True)
-        ax.pcolormesh(idx, zg, N.T, cmap=CMAP, norm=TwoSlopeNorm(0, -1, 1), shading='nearest', rasterized=True)
+        xs = x1 if M is W1 else idx
+        if xs.size:
+            ax.pcolormesh(xs, zg, N.T, cmap=CMAP, norm=TwoSlopeNorm(0, -1, 1), shading='nearest', rasterized=True)
         ax.set_ylabel('z − z_mid [µm]')
         ax.set_title(lab, loc='left', fontsize=9)
     for ax in [axL] + axs[:-1]:

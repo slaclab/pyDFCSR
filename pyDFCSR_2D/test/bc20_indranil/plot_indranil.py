@@ -94,8 +94,8 @@ def main(beam, cmp_run=None, run=None):
     # (default the drawn run). E.g. main('loss', 'loss', 'loss_v2') draws loss_v2 against loss.
     run = run or beam
     cmp_run = cmp_run or run
-    P.LABEL.update({run: f'2D {run} (reference recipe)', cmp_run: f'2D {cmp_run}', f'{beam}_1d': f'1D {beam}'})
-    P.RUN = run
+    P.LABEL.update({run: f'2D {run}', cmp_run: f'2D {cmp_run}', f'{beam}_1d': f'1D {beam}_1d'})
+    P.RUN, P.CMP, P.RUN1 = run, cmp_run, f'{beam}_1d'
     Rq, Ro = P.load2d(run), P.load2d(cmp_run)
     D1 = P.load1d(f'{beam}_1d') if os.path.exists(os.path.join(P.RUNS, f'{beam}_1d.npz')) else {}
     tag = f'_{run}'
