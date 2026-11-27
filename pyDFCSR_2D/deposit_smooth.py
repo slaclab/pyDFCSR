@@ -235,9 +235,6 @@ class DF_tracker_comoving:
         self.DF_log = deque([])
         self.time_log = deque([])
         self.sigma_xi_log = deque([])
-        self.sigma_z_log = deque([])
-        self.poly_coeffs_log = deque([])
-        self.clipped_log = deque([])
 
         # ---- ring buffer for the five large field arrays -------------------------
         # The deque only changes by one append and a few poplefts per step, but
@@ -937,9 +934,6 @@ class DF_tracker_comoving:
                             self.z_bar, self.sigma_z, self.curv_c2, self.curv_c3))
         self.time_log.append(self.t)
         self.sigma_xi_log.append(self.sigma_xi)
-        self.sigma_z_log.append(self.sigma_z)
-        self.poly_coeffs_log.append(self.poly_coeffs)
-        self.clipped_log.append(self.clipped)
         self.end_time = self.t
 
     def thin_previous(self, tol, max_gap=np.inf):
@@ -982,8 +976,7 @@ class DF_tracker_comoving:
             return False, err
         self._ring[:, h - 2] = self._ring[:, h - 1]
         self._ring_head -= 1
-        for dq in (self.DF_log, self.time_log, self.sigma_xi_log, self.sigma_z_log,
-                   self.poly_coeffs_log, self.clipped_log):
+        for dq in (self.DF_log, self.time_log, self.sigma_xi_log):
             last = dq.pop(); dq.pop(); dq.append(last)
         return True, err
 
@@ -993,9 +986,6 @@ class DF_tracker_comoving:
             self._ring_tail += 1        # must stay in lockstep with DF_log
             self.time_log.popleft()
             self.sigma_xi_log.popleft()
-            self.sigma_z_log.popleft()
-            self.poly_coeffs_log.popleft()
-            self.clipped_log.popleft()
             self.start_time = self.time_log[0]
 
     def append_interpolant(self, formation_length, n_formation_length,
@@ -1094,12 +1084,3 @@ class DF_tracker_comoving:
     # transverse integration nodes on the density rather than on a sigma_x-wide
     # rectangle. Mirrors the metadata DF_tracker_smooth exposes directly.
     # ------------------------------------------------------------------
-    def xi_extent(self, k):
-        """(xi_lo, xi_hi) of snapshot k's grid, in the tilt-removed frame."""
-        return (self.xi_bar_arr[k] + self.u_start * self.sigma_xi_arr[k],
-                self.xi_bar_arr[k] + self.u_end * self.sigma_xi_arr[k])
-
-    def z_extent(self, k):
-        """(z_lo, z_hi) of snapshot k's grid."""
-        return (self.z_bar_arr[k] + self.w_start * self.sigma_z_arr[k],
-                self.z_bar_arr[k] + self.w_end * self.sigma_z_arr[k])

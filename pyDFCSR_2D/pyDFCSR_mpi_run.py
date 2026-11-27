@@ -11,7 +11,6 @@ from mpi4py import MPI
 
 from pyDFCSR_2D import CSR2D
 
-# from mpi4py.futures import MPIPoolExecutor
 
 
 comm = MPI.COMM_WORLD

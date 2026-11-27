@@ -350,21 +350,6 @@ def retention_schedule(lattice_config, sigma0, n_formation_length, safety=1.25,
     s, vz, rho = propagate_var_z(lattice_config, sigma0, n_sub=n_sub)
     sz = np.sqrt(np.maximum(vz, 0.0))
 
-    keys = list(lattice_config.keys())[1:]
-    lengths = np.array([float(lattice_config[k]['L']) for k in keys])
-    edges = np.cumsum(lengths)
-    is_bend = np.array([lattice_config[k].get('type') == 'dipole'
-                        and float(lattice_config[k].get('angle', 0.0)) != 0.0
-                        for k in keys])
-    # R per element, and the cumulative pre-first-bend drift length at each element
-    R_el = np.where(is_bend,
-                    np.abs(lengths / np.where(is_bend, np.array(
-                        [float(lattice_config[k].get('angle', 1.0)) for k in keys]),
-                        1.0)),
-                    np.nan)
-    first_bend = int(np.argmax(is_bend)) if is_bend.any() else len(keys)
-    predrift = np.cumsum(lengths)
-
     L_f = formation_length_profile(lattice_config, s, sz, rho)
 
     start_point = np.maximum(0.0, s - n_formation_length * safety * L_f)

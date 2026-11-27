@@ -1,9 +1,8 @@
-import numpy as np
-from bmadx.constants import C_LIGHT, M_ELECTRON, E_CHARGE
-from bmadx.structures import Particle
-import numpy as np
-import torch
 import sys
+
+import numpy as np
+from bmadx.constants import C_LIGHT, M_ELECTRON
+from bmadx.structures import Particle
 
 
 # Modified from https://github.com/bmad-sim/Bmad-X
@@ -76,14 +75,14 @@ def bmadx_particles_to_openpmd(particle: Particle, charge):
         pmd_beamphysics.ParticleGroup
     """
     lib = sys.modules[type(particle.x).__module__]
-    if lib == np:
+    if lib is np:
         x = particle.x
         px = particle.px
         y = particle.y
         py = particle.py
         z = particle.z
         pz = particle.pz
-    elif lib == torch:
+    elif lib.__name__ == 'torch':
         x = particle.x.detach().numpy()
         px = particle.px.detach().numpy()
         y = particle.y.detach().numpy()

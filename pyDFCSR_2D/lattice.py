@@ -35,7 +35,6 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     distance = np.zeros(Nelement)        # distance[i] is the distance between the entrance and the end of ith element
     rho = np.zeros(Nelement)
     nsep = np.zeros(Nelement)
-    #s = np.zeros(Nelement*Nsample + 1)
     count = 0
     for key in ele_keys:
         current_element = lattice_config[key]
@@ -47,23 +46,16 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
 
         if count == 0:
             distance[count] = L
-            #s[count*Nsample: (count + 1)*Nsample + 1] = np.linspace(0, L, Nsample + 1)
         else:
             distance[count] = L + distance[count - 1]
-            # this is to make sure that the edge of each elements is sampled in s
-            #s[count*Nsample + 1: (count + 1)*Nsample + 1] = np.linspace(distance[count - 1], distance[count], Nsample + 1)[1:]
         count += 1
-    #s[-1] = distance[-1]
 
-    #Todo: I change the definition of s to be equidistant. However, it cannot garanteed that the edge of each element is included.
+    # s is equidistant, so element edges are not necessarily sample points
     L_lattice = distance[-1]     # total length of the lattice
     s = np.linspace(0, L_lattice, Nsample)                     # coordinates along s to calculate the reference traj
-    interval = np.mean(np.diff(s))
     coords = np.zeros((Nsample, Ndim))
     tau_vec = np.zeros((Nsample, Ndim))
     n_vec = np.zeros((Nsample, Ndim))
-
-    #rho = np.zeros(Nelement*Nsample + 1)
 
     element_infer = 0      # pointer to which element we are in
     count = 1
@@ -252,23 +244,11 @@ class Lattice():
         self._positions_record = self.schedule.s_nodes
         self._total_steps = self.schedule.n_nodes
         self.steps_per_element = self.schedule.steps_per_element(self.Nelement)
-        self._CSR_steps_index = self.schedule.kick_indices
-        self._CSR_steps_count = len(self._CSR_steps_index)
 
 
     @property
     def lattice_length(self):
         return self._lattice_length
-
-    @property
-    def CSR_steps_index(self):
-        return self._CSR_steps_index
-
-
-
-
-
-
 
     @property
     def total_steps(self):

@@ -145,12 +145,6 @@ class StepSchedule:
     def kick_indices(self):
         return np.flatnonzero(self.is_kick)
 
-    # ---- compatibility aliases, so existing consumers keep working ----------------------
-    @property
-    def positions_record(self):
-        """What lattice._positions_record used to be."""
-        return self.s_nodes
-
     def steps_per_element(self, n_element=None):
         """
         Steps attributed to each element.

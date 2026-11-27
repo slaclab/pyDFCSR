@@ -8,7 +8,7 @@ def twiss_from_bmadx_particles(p):
     twiss['norm_emit'] = twiss['emit'] * p.p0c / p.mc2
     out = {}
     for k in twiss:
-        out[k + f'_x'] = twiss[k]
+        out[k + '_x'] = twiss[k]
 
         # Actual calc
     twiss = twiss_dispersion_calc(np.cov([p.y, p.py, p.pz]))
@@ -18,7 +18,7 @@ def twiss_from_bmadx_particles(p):
 
     out2 = {}
     for k in twiss:
-        out2[k + f'_y'] = twiss[k]
+        out2[k + '_y'] = twiss[k]
 
     out.update(out2)
 

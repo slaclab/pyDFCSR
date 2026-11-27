@@ -322,7 +322,6 @@ class CSR2D:
         """
         return abs(float(self.lattice.distance[ele_count]) - s_end) <= 1.0e-6
 
-#    @profile
     def build_retention_plan(self):
         """
         Precompute how far back the history must reach at every point in the lattice.
@@ -509,7 +508,6 @@ class CSR2D:
         # initialization(). Under mode 'legacy' the schedule reproduces the old uniform node set,
         # kick cadence and steps_per_element exactly.
         sched = self.lattice.schedule
-        DL = self.lattice.step_size
         ele_count = 0
         skip_ele = False
         self.inbend = False
@@ -519,9 +517,6 @@ class CSR2D:
         for ele in list(self.lattice.lattice_config.keys())[1:]:
 
             self.lattice.update(ele)
-            # Todo: add sextupole, maybe Bmad Tracking?
-            # -----------------------load current lattice params-----------------#
-            # Pre-process the lattice params
             L = self.lattice.lattice_config[ele]['L']
             type = self.lattice.lattice_config[ele]['type']
             steps = self.lattice.steps_per_element[ele_count]
@@ -530,7 +525,6 @@ class CSR2D:
             ####### A step over the boundary of the elements, deal with the part of the step in the previous element
             if (not skip_ele) and ele_count > 0:
                 DL_1 = self.lattice.distance[ele_count - 1] - self.beam.position   # The remaining distance in last element
-                #Todo: Bmadx seems to have some problems when DL is very
                 if DL_1 > 1.0e-6:
                 # calculate the part in the previous element
                     element = self.get_bmadx_element(ele=ele_prev, DL=DL_1, exit=True)
@@ -578,9 +572,7 @@ class CSR2D:
                 self.inbend = False
                 self.prev_bend_start = None
 
-                #Todo: Verify the formation length in the drift. The phi-dependent
-                # out-of-bend form in get_formation_length is not used; the in-bend
-                # expression with the recorded R is used instead.
+                # in a drift L_f keeps the in-bend expression with the last bend's R
                 if not self._refresh_formation_length(R):
                     # first drift in the lattice, before any bend
                     self.formation_length += L
@@ -760,7 +752,6 @@ class CSR2D:
                     return
 
             ele_prev = ele
-            type_prev = type
 
             ele_count += 1
 
@@ -848,7 +839,6 @@ class CSR2D:
             zrange = np.linspace(mean_z - zlim * sig_z, mean_z + zlim * sig_z, zbins)
             xrange = np.linspace(mean_x - xlim * sig_x, mean_x + xlim * sig_x, xbins)
 
-        # Todo: check the order
         xmesh_transform, zmesh = np.meshgrid(xrange, zrange, indexing='ij')
 
         xmesh_transform = xmesh_transform.flatten()
@@ -959,22 +949,13 @@ class CSR2D:
         vb = c[0] + c[1] * xt + c[2] * wq + c[3] * wq ** 2 + c[4] * wq ** 3
         return T * vx_src + (1.0 - T) * vb
     
-#    @profile
     def calculate_2D_CSR(self):
 
         N = self.CSR_params.xbins*self.CSR_params.zbins
         self.dE_dct = np.zeros((N,))
         self.x_kick = np.zeros((N,))
 
-        start_time = time.time()
         for i in range(N):
-
-            #if i == 210:
-            #    print(i)
-
-            #if i%int(N//10) == 0:
-            #    print('Complete', str(np.round(i/N*100,2)), '%')
-
             s = self.beam.position + self.CSR_zmesh[i]
             x = self.CSR_xmesh[i]
 
@@ -1117,7 +1098,6 @@ class CSR2D:
         tr = self.DF_tracker
         if not getattr(tr, 'curvature', False):
             return 0.0
-        from .deposit_smooth import _curv_g_vec
         n_t = tr.poly_coeffs_interp.shape[0]
         k, a = lookup_vec(t_ret, tr.t_arr, tr.is_uniform, tr.min_x, tr.delta_x, n_t)
         k1 = np.minimum(k + 1, n_t - 1)
@@ -2553,7 +2533,6 @@ class CSR2D:
                 g.attrs['mesh_mode'] = self.CSR_params.mesh_mode
                 g.create_dataset('x_axis_transformed', data=np.asarray(self.CSR_xrange_transformed))
                 g.create_dataset('z_axis', data=np.asarray(self.CSR_zrange))
-#    @profile
     def update_statistics(self, step):
         twiss = self.beam.twiss
         self.statistics['twiss']['alpha_x'][step] = twiss['alpha_x']

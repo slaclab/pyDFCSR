@@ -2,12 +2,10 @@ import numpy as np
 from distgen import Generator
 from .physical_constants import MC2
 from scipy.interpolate import RegularGridInterpolator
-from bmadx import Particle, M_ELECTRON
-#from bmadx.pmd_utils import openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
+from bmadx import Particle
 from .interfaces import  openpmd_to_bmadx_particles, bmadx_particles_to_openpmd
 from .tracking import track as track_element
 from pmd_beamphysics import ParticleGroup
-#from line_profiler_pycharm import profile
 from .twiss import  twiss_from_bmadx_particles
 class Beam():
     """
@@ -168,10 +166,6 @@ class Beam():
                                  self.particle.s, self.particle.p0c, self.particle.mc2)
 
         self.update_status()
-
-    def frog_leap(self):
-        # Todo: track half step, apply kicks, track another half step
-        pass
 
     @property
     def mean_x(self):
