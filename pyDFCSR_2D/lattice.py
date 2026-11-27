@@ -66,7 +66,7 @@ def get_reference_traj(lattice_config, Nsample = 5000, Ndim = 2):
     # Todo: High Priority! check the sign of n_vec
     n_vec[0, 0] = np.sin(theta_0)
     n_vec[0, 1] = -1 * np.cos(theta_0)
-    keys = list(lattice_config.keys())[1:]
+    keys = ele_keys
     for st in s[1:]:
         if st > distance[element_infer]:
             element_infer += 1

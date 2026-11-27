@@ -60,6 +60,33 @@ class History:
                    blend_code=int(tr.frame_blend_code), curv_wl=float(tr.curv_zlim))
 
 
+def history_from_tensors(tr, times, fields, frames, device):
+    """
+    A History from per-snapshot tensors (the differentiable run): fields[k] = (rho, rho_u, rho_w,
+    vx, vx_u), frames[k] = the frame dict of torch_backend.deposit.get_DF_rms. Grid constants and
+    the time-grid bookkeeping are the tracker's (DF_tracker_comoving.build_interpolant,
+    _build_moment_arrays).
+    """
+    from ..lookup import is_uniform_times
+    n_t = len(times)
+    t_np = np.asarray(times, dtype=np.float64)
+    fstack = torch.stack([torch.stack(f, dim=-1) for f in fields])
+    st = lambda k: torch.stack([torch.as_tensor(fr[k], dtype=F64, device=device) for fr in frames])
+    poly = st('poly_coeffs')
+    sigma_xi, sigma_z, z_bar, xi_bar = st('sigma_xi'), st('sigma_z'), st('z_bar'), st('xi_bar')
+    tau = poly[:, 0]
+    var_z = sigma_z ** 2
+    return History(fields=fstack, poly=poly, xi_bar=xi_bar, sigma_xi=sigma_xi, z_bar=z_bar,
+                   sigma_z=sigma_z, var_z=var_z, cov=tau * var_z, var_x=sigma_xi ** 2 + tau ** 2 * var_z,
+                   x_bar=tau * z_bar + poly[:, -1] + xi_bar, curv_c2=st('curv_c2'), curv_c3=st('curv_c3'),
+                   t_arr=torch.as_tensor(t_np, dtype=F64, device=device),
+                   is_uniform=bool(is_uniform_times(t_np)), min_t=float(t_np[0]),
+                   delta_t=float((t_np[-1] - t_np[0]) / (n_t - 1)) if n_t > 1 else 1.0,
+                   u_start=float(tr.u_start), delta_u=float(tr.delta_u),
+                   w_start=float(tr.w_start), delta_w=float(tr.delta_w),
+                   blend_code=int(tr.frame_blend_code), curv_wl=float(tr.curv_zlim))
+
+
 @dataclass
 class Orbit:
     table: torch.Tensor           # (n, 6): X0, Y0, n_x, n_y, tau_x, tau_y on the uniform s table
@@ -74,6 +101,57 @@ class Orbit:
                                  lat.tau_vec[:, 0], lat.tau_vec[:, 1]])
         return cls(table=_t(table, device), min_s=float(lat.min_x), delta_s=float(lat.delta_x),
                    dist=_t(lat.distance, device), rho_el=_t(lat.rho, device))
+
+    @classmethod
+    def from_lattice_params(cls, lat, params, device):
+        """
+        The orbit table of lattice.get_reference_traj rebuilt in torch, with bend angles that may
+        be tensors (params {(element, 'angle'): tensor}), so the CSR geometry is differentiable in
+        them. Same samples and the same element-per-sample rule as the numpy table (the sample that
+        crosses an element boundary takes the next element's rule), the same straight pad.
+        """
+        cfg = lat.lattice_config
+        names = [k for k in cfg if k != 'step_size']
+        s = np.asarray(lat.s, dtype=float)
+        n_lat = int(np.searchsorted(s, lat.distance[-1], side='right'))     # samples up to the end
+        n_lat = min(max(n_lat, 2), s.size)
+        ds = torch.as_tensor(np.diff(s[:n_lat]), dtype=F64, device=device)
+        # element of each step k (1..n_lat-1): the first element whose end is >= s_k
+        e_k = np.minimum(np.searchsorted(np.asarray(lat.distance), s[1:n_lat], side='left'), len(names) - 1)
+        angle, length = [], []
+        for nm in names:
+            c = cfg[nm]
+            a = params.get((nm, 'angle'), c.get('angle', 0.0)) if c['type'] == 'dipole' else 0.0
+            angle.append(torch.as_tensor(a, dtype=F64, device=device))
+            length.append(float(c['L']))
+        angle = torch.stack(angle)
+        length = torch.as_tensor(length, dtype=F64, device=device)
+        is_bend = torch.as_tensor([cfg[nm]['type'] == 'dipole' for nm in names], device=device)
+        e_t = torch.as_tensor(e_k, device=device)
+        bend = is_bend[e_t]
+        safe_angle = torch.where(is_bend, angle, torch.ones_like(angle))
+        phi = torch.where(bend, ds * angle[e_t] / length[e_t], torch.zeros_like(ds))
+        theta = torch.cat([torch.zeros(1, dtype=F64, device=device), torch.cumsum(phi, 0)])
+        th0 = theta[:-1]
+        r = length[e_t] / safe_angle[e_t]
+        dx = torch.where(bend, r * (torch.sin(th0 + phi) - torch.sin(th0)), ds * torch.cos(th0))
+        dy = torch.where(bend, r * (torch.cos(th0) - torch.cos(th0 + phi)), ds * torch.sin(th0))
+        zero = torch.zeros(1, dtype=F64, device=device)
+        X = torch.cat([zero, torch.cumsum(dx, 0)])
+        Y = torch.cat([zero, torch.cumsum(dy, 0)])
+        # straight pad past the end, as in get_reference_traj
+        n_pad = s.size - n_lat
+        if n_pad:
+            arc = torch.as_tensor(s[n_lat:] - s[n_lat - 1], dtype=F64, device=device)
+            th = theta[-1]
+            X = torch.cat([X, X[-1] + arc * torch.cos(th)])
+            Y = torch.cat([Y, Y[-1] + arc * torch.sin(th)])
+            theta = torch.cat([theta, th.expand(n_pad)])
+        table = torch.stack([X, Y, torch.sin(theta), -torch.cos(theta), torch.cos(theta), torch.sin(theta)], dim=1)
+        rho_el = torch.where(is_bend, angle / length, torch.zeros_like(angle))
+        return cls(table=table, min_s=float(lat.min_x), delta_s=float(lat.delta_x),
+                   dist=torch.as_tensor(np.asarray(lat.distance, dtype=float), dtype=F64, device=device),
+                   rho_el=rho_el)
 
     def vectors(self, s):
         """

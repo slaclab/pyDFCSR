@@ -110,3 +110,67 @@ bit-identical. Whole wake meshes on four BC20 states, measured in one process ea
 
 For the torch backend the layout is now ~10% of numba's serial time, down from 22–34%. What remains
 is mostly the band-solve arithmetic, which can move to the device (P2c).
+
+## 3. P3: the differentiable run (2026-11-27)
+
+**How it works.** `torch_backend.diff.CSR2DDiff` is CSR2D with a torch shadow of the beam. The numpy
+CSR2D still makes every structural decision, on the detached values of the torch beam, and is
+re-synchronised to them after every step:
+- the schedule and element pieces;
+- history retention and thinning;
+- the deposition's fit masks;
+- the wake mesh;
+- the s′ layout, x′ bands and refinement choices.
+
+The torch side recomputes every value with gradients:
+- **Tracking:** bmadx on torch particles. Element parameters can be tensors (`params` =
+  {(element, key): tensor}, key K1, K2, angle, E1, E2). p0c and mc2 are tensors as well, because the
+  quadrupole's z correction takes `sqrt` of them.
+- **Deposition:** `torch_backend.deposit.get_DF_rms`, a port of `get_DF` for the rms frame.
+  - The cubic B-spline deposit is a custom autograd Function: its backward is the B-spline gather of
+    the adjoint grid with B3′, and it saves only the coordinates.
+  - The FFT smoothing and spectral derivatives use `torch.fft`.
+  - The tilt, curvature and vx fits use the normal equations. The fit masks are detached.
+- **Wake:** the P1 evaluator on a history built from the snapshot tensors (`history_from_tensors`).
+  The observer vx comes from the torch interpolant.
+- **Kick:** a torch port of `RegularGridInterpolator`'s bilinear lookup. Particles are mapped into
+  the mesh with the detached tilt fit and ridge, evaluated at the differentiable coordinates. That
+  is the consistent derivative of "kick = W at the particle", with the mesh nodes fixed in absolute
+  coordinates.
+- **Geometry:** with an angle parameter, the reference-orbit table and the element curvatures of
+  the CSR integral are rebuilt in torch from cumulative arcs (`Orbit.from_lattice_params`). It
+  agrees with `get_reference_traj` to 1e-14.
+
+`structure=` replays a previous run's per-kick structure: the mesh, the kick-lookup frame and the
+layout. With it, a finite difference sees exactly the map the gradient differentiates. Without it,
+moving mesh and quadrature nodes add discretisation-level terms that the gradient, taken at fixed
+structure, correctly leaves out.
+
+**Forward.** On the golden case CSR2DDiff equals CSR2D to 4e-16 in the final beam.
+
+**Gradients against central differences, structure replayed** (loss = 1e6·⟨pz⟩ + 1e3·σ_px of the
+final beam):
+
+| case | derivative | AD vs FD |
+|---|---|---|
+| golden (B1 + D1), 20k particles | random direction in all 6×20k initial coordinates | 2.4e-7 (h = 1e-6) |
+| golden | bend angle (tracking only) | 1.3e-7 |
+| D0, Q1, B1, S1, D1 | bend angle (tracking + CSR geometry) | 3.2e-6 (h = 1e-5·angle) |
+| same | quad K1 | 6.1e-7 |
+| same | sextupole K2 (a 1e-7 derivative) | 4.5e-5 (round-off limited) |
+
+The finite differences converge to the AD values only linearly in h before round-off takes over
+(coordinates: 1.8e-4 at h = 1e-4, 4.3e-5 at 1e-5, 2.4e-7 at 1e-6). The kick lookup is piecewise
+bilinear, and particles cross mesh cells within ±h. The AD value is the derivative of the smooth
+pieces.
+
+**Cost** (golden, 20k particles, 8 kicks, Mac CPU): forward 17–19 s with the graph (9 s without),
+backward 52–55 s. Memory was not an issue at this size. Checkpointing (plan §4) is needed for long
+lattices and 1e5+ particles.
+
+**Not yet differentiable:** windowed frames (quantile/peak: the window weights would be detached,
+the rest ports as for rms), element lengths (they move the schedule), MPI.
+
+Tests: `test/test_torch_diff.py`: deposition vs numpy plus `gradcheck`, orbit table vs numpy,
+forward vs CSR2D, and one end-to-end directional derivative in (angle, K1, coordinates) against
+central differences (1e-4).
