@@ -23,6 +23,7 @@ def degenerate_margin_factor(sin2a, factor, lo=0.8, hi=0.95):
 
 
 class BandsMixin:
+
     def _lattice_vectors(self, sval):
         """
         (X0, Y0, n_x, n_y, tau_x, tau_y) of the reference orbit at arc length(s) sval.
@@ -230,15 +231,9 @@ class BandsMixin:
             2.0 * tau0 / (1.0 + tau0 * tau0),
             self.integration_params.xi_band_margin_degenerate)
 
-        # BOTH roots are always taken. The branch degeneracy of thesis 4.4.2 is a
-        # property of the tilt at the RETARDED time a(s'), which varies column to
-        # column -- the retarded tilt sweeps +19.4 -> -0.22 -> -19.8 across one near
-        # region -- so it cannot be decided from a(s) at the observation point. Doing
-        # so discarded 28-31% of the wake wherever it fired.
-        # The per-column decision needs no new logic: on a degenerate column the
-        # second root either fails the _eq424 guards (rad < 0, l <= 0) and is parked
-        # dead, or lands on top of the first and is collapsed to zero width by
-        # _disjoint_bands.
+        # Both roots, always: the branch degeneracy depends on the RETARDED tilt, which varies column
+        # to column, so it cannot be decided at the observer. On a degenerate column the second root
+        # fails the _eq424 guards or collapses onto the first in _disjoint_bands.
         bands, diag = [], []
         for sign in (-1.0, +1.0):
             xp = np.full(sp.shape, float(x))
@@ -278,24 +273,11 @@ class BandsMixin:
             half = 0.5 * (tr.u_end - tr.u_start) * s_xi * margin
             jmin = self.integration_params.band_jacobian_min
             if jmin and scale_bands:
-                # The band is sized in lab x', but the beam is sized in u at the
-                # retarded time, and z_ret moves with x' through |r - r'|:
-                #     du/dx' = (1 - tau * d|r-r'|/dx') / sigma_xi
-                # (the frame's own change across one band is second order). Where the
-                # line of sight is oblique to a tilted beam -- columns in a bend seen
-                # from the drift after it -- |J| falls to ~0.25, so +-10 sigma_xi of x'
-                # covers only +-2.5 sigma_xi of the beam (18% of the D3 far integral
-                # missed). Scale the band by 1/|J| so it covers the same +-xlim*margin
-                # in u everywhere, and so the same nodes per beam width.
+                # the band is sized in lab x' but the beam in u, with du/dx' = J/sigma_xi; where the line
+                # of sight is oblique (J ~ 0.25) widen by 1/|J| so it covers the same +-xlim*margin in u
                 half = half / np.maximum(np.abs(J), jmin)
-            # A dead branch carries no density whatever band it is given, so it gets
-            # zero width and _integrate_xi_region drops its contribution outright.
-            # Its position still has to be finite and sane: on a dead column the
-            # fixed point had no root to converge to and can wander (45 m has been
-            # observed), which contributes nothing but produces absurd node
-            # coordinates in debug output and risks landing on the 1/|r-r'| pole.
-            # Park it a few band widths off the observation point instead: finite,
-            # in a zero-density region, and never exactly at r = 0.
+            # a dead branch gets zero width, parked a few band widths off the observer (finite, in
+            # zero density, never on the pole)
             parked = x + 4.0 * half
             bands.append((np.where(live, centre - half, parked),
                           np.where(live, centre + half, parked)))

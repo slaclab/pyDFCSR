@@ -12,6 +12,7 @@ from .interp3D import interpolate3D_comoving_fields, interpolate3D_comoving_ibp
 
 
 class WakeMixin:
+
     def get_CSR_wake(self, s, x, debug=False):
         """
         (dE/dct, x kick) at the observer (s, x): the band-localised integral over every s'
@@ -81,13 +82,8 @@ class WakeMixin:
             dxp = width / (nx - 1)
 
             ip = self.integration_params
-            # the x' refinement (near_adapt_x / far_adapt_x) and the by-parts form now coexist: a
-            # refined column -- one where the retarded density jumps between x' nodes, i.e. a horn
-            # crossed obliquely -- keeps the shipped form on its own refined nodes (the by-parts
-            # form's gain is where the density is smooth across the band), every other column
-            # takes the by-parts integrand on the uniform nodes. Until 2026-11-23 ibp switched
-            # the refinement off, and on the loss beam that brought the aliased cells back
-            # (max |dW| 34% of the horn's W at 200 nodes, ibp_nodes.py).
+            # a column refined in x' keeps the shipped form on its own nodes (with the error-based
+            # refinement that is every live column, so ibp acts only where refinement is off)
             do_adapt_x = bool(adapt_x and ip.near_adapt and ip.near_adapt_x)
             ex = {} if ibp else None
             gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh, taper=taper, extras=ex)
@@ -234,7 +230,7 @@ class WakeMixin:
         xp_flat = xp.ravel()
 
         vx = self._comoving_fields(np.array([x]), np.array([s - t]), np.array([t]))[3][0]
-        if self._quantile_frame():
+        if self._windowed_frame():
             vx = self._observer_vx(x, s - t, vx)
 
         (X0_s, Y0_s, n_vec_s_x, n_vec_s_y,

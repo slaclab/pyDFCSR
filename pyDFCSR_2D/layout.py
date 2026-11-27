@@ -21,6 +21,7 @@ def graded_u(u_near, u_far, g, k_min=0, close=False):
 
 
 class LayoutMixin:
+
     def _band_alive(self, s, x, t, sp):
         """Whether the retarded band has nonzero width, for each s' in the array."""
         sp = np.atleast_1d(np.asarray(sp, float))
@@ -35,30 +36,10 @@ class LayoutMixin:
         Lowest s' in [sp_far, sp_near] whose retarded band still has nonzero width.
 
         Below this the retarded source has slipped outside the bunch and every column is
-        identically zero, so integrating there is pure cost. ONE vectorised scan, and
-        the LAST DEAD node below the first alive one is returned -- deliberately
-        conservative, since truncating a live domain is a one-sided error that cannot
-        average out, while starting one cell early costs one cell.
-
-        Three things rule out anything cleverer, all measured:
-
-        - NOT a root-find. The alive mask is *not* monotone: at shear 20 it has a dead
-          gap inside the live region at 2 of 40 mesh points, so bisection can land in
-          the gap and return an edge far above the true one. "First alive from below"
-          on a scan has no such failure mode.
-        - NOT a closed form. The edge is where the retarded z leaves the deposition
-          window, and the slippage that sets it is exact only on the ray the band
-          actually sits on. Inverting it analytically on the x' = x ray is free
-          (0.06 ms) and matches this to 4 far-cells at zero tilt, but at shear 20 the
-          band sits at x' = +2.9..3.6 mm against an observer at x = -71 um, and the
-          wrong chord put the edge 37 mm too high -- rel L2 1.0 instead of 1.3e-03.
-        - NOT refined further. A 44-step scalar bisection located the edge to 1e-14 m
-          and cost 75% of a whole wake point, for a number that is then discretised
-          onto a far_cell*sigma_z = 673 um grid. Padding the target by 2 full zlim
-          moves the answer by 0.3%.
-
-        Returns sp_far if the first sample is already alive, or None if the whole
-        interval is dead.
+        identically zero. One vectorised scan; the last dead node below the first live one is
+        returned, conservatively (truncating a live domain is a one-sided error). Not a
+        root-find, a closed form or a refinement -- see docs/code_notes.md.
+        Returns sp_far if the first sample is already alive, None if the whole interval is dead.
         """
         grid = np.linspace(sp_far, sp_near, n_scan)
         alive = self._band_alive(s, x, t, grid)
@@ -70,122 +51,49 @@ class LayoutMixin:
 
     def _layout_bounds(self, s, x):
         """
-        The two s' integration regions for the xi_bands path.
+        The two s' regions, far (s1, s3) and near (s3, s4), for the observer at (s, x).
 
-        Only the region EXTENT is decided here. Whether the two Eq 4.24 branches are
-        resolvable is a per-column property of the retarded tilt a(s'), so it is left
-        to _retarded_xi_bands; the extent cannot be, since it defines s3 itself.
-
-        Two regions, not three. The old middle seam s2 = s3 - 200 sigma_z dated from the
-        legacy decomposition, where it marked where the +-20 sigma_x WIDE transverse
-        window stopped being needed. With per-column ribbons there is no wide window, so
-        s2 no longer separates anything physical -- but because every region got the same
-        NODE COUNT while their lengths differed ~45x, it was still acting as a crude
-        two-level grading (cells 45.7 / 1.0 / 0.1 sigma_z). Merging the two far regions
-        naively therefore LOST accuracy (3-10x at matched cost); the replacement is
-        _far_region_nodes, which grades the merged region explicitly and is 28x better
-        than the old split at a bend-exit transient for the same node count.
-
-        Everything is keyed on sin 2a and cos 2a, never on tan 2a and never on |tau|:
-
-          sin 2a = 2 tau/(1 + tau^2)      cos 2a = (1 - tau^2)/(1 + tau^2)
-
-        Both are bounded and pole-free, whereas tan 2a = 2 tau/(1 - tau^2) has a pole at
-        |tau| = 1. Thesis 4.4.2 notes that x2 = x - (s-s')tan(2a) degenerates to x2 = x
-        at a = 0 AND at a = +-pi/2, so the chirp branch merges into the narrow one in
-        BOTH limits -- and |sin 2a| is small in both, so a single test catches them.
-
-        The legacy (xi_bands = False) decomposition in get_CSR_wake is deliberately left
-        alone; it keys on |tan_theta| <= 1, which fires where the branches are maximally
-        SEPARATED and which sent the near region swinging
-        d = 99.9 mm -> 807.7 mm -> (branch flip) s3 = s - 50.9 um -> 99.9 mm
-        within ~1 mm of path length across a longitudinal waist.
+        Only the extent is decided here; which Eq 4.24 branches exist is a per-column property of
+        the retarded tilt, left to _retarded_xi_bands. Everything is keyed on sin 2a and cos 2a,
+        which are pole-free, never on tan 2a or |tau| (docs/DFCSR_2D_methods.md §5.2,
+        docs/code_notes.md).
         """
         ip = self.integration_params
         b = self.beam
         sigma_z, sigma_x = b._sigma_z, b._sigma_x
-        # Use the SAME tilt the density frame uses (core fit) rather than beams.slope
-        # (all particles). They disagree most exactly where the correlation vanishes.
+        # the tilt of the density frame (core fit), not beams.slope (all particles)
         tau = self._frame_tilt()
 
         sin2a = 2.0 * tau / (1.0 + tau * tau)
         cos2a = (1.0 - tau * tau) / (1.0 + tau * tau)
 
-        # Near-region length as ONE continuous expression, with no branch on it at all.
-        # An earlier version switched the extent formula at branch_sin_min and
-        # reintroduced a discontinuity (125 mm -> 0.347 mm across the threshold).
-        #
-        #   d = (10 sigma_x + x - xmean) |cos 2a| / max(|sin 2a|, branch_sin_min)
-        #
-        # This is the legacy d = (10 sigma_x + x - xmean)/|tan 2a| wherever the branches
-        # are resolvable, and it saturates at branch_sin_min as sin 2a -> 0, where the
-        # branches merge and d stops meaning anything.
-        #
-        # It is then floored at near_floor sigma_z, which is NOT cosmetic. As |tau| -> 1,
-        # cos 2a -> 0 and the chirp band becomes vertical, so it does exit the beam at
-        # once -- but d is the length of the NEAR region, which must also contain the
-        # NARROW band and the neighbourhood of the 1/|r-r'| pole. Sizing it from the
-        # chirp exit alone starves both. Measured at shear 50, 0.80 m into the dipole
-        # (tau = -0.999, cos 2a = 8.8e-4): the upstream reach collapsed to 15 um =
-        # 0.009 sigma_z against sigma_z = 1744 um, so 1-2 of the 88 graded nodes landed
-        # on the causal side and the pole sat 15 um from the region edge, leaving
-        # region 2's uniform 1.74 mm cells to carry it. The wake went visibly blocky.
-        # The floor is the s3 = s - 20 sigma_z that the deleted |tan theta| <= 1 branch
-        # used to provide; removing that branch in 6o dropped it silently, and 6f's
-        # coarser s grid (tau = -1.225 then -0.814) stepped over the region where it
-        # matters -- the defect only bites within ~1% of |tau| = 1.
-        #
-        # The (x - xmean) term is kept deliberately: the chirp branch starts at the
-        # observation point, so one starting near the beam edge exits sooner than one
-        # starting at the centre, and d legitimately varies ~1.9x across a wake mesh.
-        # Dropping it makes the wake look ~4x smoother at fixed resolution, but the two
-        # variants converge to the same answer (rel L2 0.045 -> 0.0017 as zbins/xbins
-        # refine), so that smoothness is per-column node-layout jitter being removed
-        # from the roughness METRIC, not accuracy being gained. Optimising the metric
-        # rather than the answer is not worth losing the correct exit condition.
+        # Near-region length d: where the chirp branch leaves the beam, one continuous expression
+        # saturated at branch_sin_min where the branches merge, floored at near_floor sigma_z so the
+        # near region always holds the narrow band and the pole (docs/code_notes.md).
         d = ((10.0 * sigma_x + x - b._mean_x) * abs(cos2a)
              / max(abs(sin2a), ip.branch_sin_min))
         d = max(d, ip.near_floor * sigma_z)
         reach = ip.n_formation_length * self.formation_length
         if (ip.seam_ratio and ip.near_grade
                 and not (ip.causal_clip and self._exit_transient())):
-            # Seam continuity: keep grading the near region until its cell near_grade*u has
-            # reached 1/seam_ratio of the far region's flat cell, so the far columns never
-            # inherit structure finer than they can carry (Integration_params.seam_ratio).
-            # Only where the far layout IS flat (in a bend); past a bend exit the far region
-            # is itself graded at near_grade from the causal edge, so the seam is continuous
-            # already and extending the near region there only moved the 0.4% node-phase
-            # jitter of the golden drift kicks.
+            # seam continuity: the near region's graded cell reaches 1/seam_ratio of the far region's
+            # flat cell before the seam (bends only; past an exit the far layout is graded already)
             far_cell = ip.n_formation_length * self.formation_length / max(2 * ip.far_zbins, 3)
             d = max(d, far_cell / (ip.near_grade * ip.seam_ratio))
         # and never reach back further than the retained history supports
         d = min(max(d, 0.0), reach)
 
         s4 = s + 3.0 * sigma_z
-        # prehistory: the lattice start is not a wall. Sources on the synthetic straight section
-        # s' in [-prehistory, 0) are the first snapshot translated along the initial tangent
-        # (Integration_params.prehistory); 0 keeps the old clamp at s' = 0.
+        # the far reach may extend onto the synthetic straight pre-history s' in [-prehistory, 0)
         lo = -ip.prehistory
         s3 = max(lo, s - d)
-        # The far edge is the causal reach measured from s3, and it is clamped at 0
-        # because s' < 0 is before the lattice exists -- interpolate1D returns 0 there
-        # silently, so nodes below 0 are not merely wasted but invisible. The old
-        # s1 = s2 - n_fl*L_f with s2 = s3 - 200 sigma_z reached back 200 sigma_z FURTHER
-        # than the retained history supports, and inverted (s1 > s2) whenever s2 went
-        # negative while s1 clamped.
         s1 = max(lo, s3 - reach)
-        # In a drift after a bend the source of the exit wake is the bend's own arc,
-        # which recedes behind the observer; a fixed n_fl*L_f reach loses it ~1.7 R*phi
-        # past the exit and the wake then changes sign (progress.md, 2026-11-03).
-        # drift_reach extends the far edge back to the bend's entrance; the causal-edge
-        # scan in _far_region_nodes then trims it to where the source still contributes.
+        # drift_reach: past a bend the exit wake's source is the arc itself, so the far edge reaches
+        # back to its entrance (the causal-edge scan trims it)
         s_bend = self._drift_reach_start()
         if s_bend is not None:
             if ip.drift_causal_reach:
-                # the regular exit-transient layout always has the n_formation_length = 1 reach in a drift,
-                # so its fine window stays on the last bend's arc whatever n_fl is (at n_fl = 6 it slid
-                # into D31 and B1RE's exit wake came out 65% wrong); earlier sources go to the causal
-                # drift region (Integration_params.drift_causal_reach)
+                # the n_fl = 1 reach in a drift whatever n_fl is; earlier sources: _drift_causal_nodes
                 s1 = max(lo, s3 - self.formation_length)
             s1 = min(s1, s_bend)
         return ((s1, s3), (s3, s4))
@@ -211,16 +119,7 @@ class LayoutMixin:
         a, b = bounds[-1]
         want = int(round(abs(b - a) / target))
         cap = 100 * ip.zbins
-        # Warn once per run when the cap binds. It binds where |tan 2 alpha| collapses
-        # -- near a bend entrance the chirp band can stretch to d = 10 sigma_x /
-        # |tan 2 alpha| ~ 150 mm while the cell stays at sigma_xi, asking for ~25000
-        # columns. Silently clipping that returns an under-resolved wake that looks
-        # perfectly plausible, which is exactly how it went unnoticed once already.
-        # ... but only when this count is what the near region will actually use.
-        # With near_grade set, _near_region_nodes discards `want` entirely and builds a
-        # graded grid whose finest cell IS near_cell*sigma_xi, so the cap never binds
-        # and warning about it is not merely noise: it reports a resolution loss that
-        # is not happening, and advises "use graded nodes" when they are already on.
+        # the cap can bind only without grading (with near_grade the count is not used)
         graded = bool(ip.near_grade)
         if want > cap and not graded:
             self._note('near_cap', f'WARNING: near-region nodes capped at {cap} (wanted {want}); near-region '
@@ -235,24 +134,10 @@ class LayoutMixin:
         s' nodes for the merged far region, spanning sp_far (= s1, the causal reach
         s - n_formation_length*L_f) up to sp_near (= s3, where the near region starts).
 
-        TWO constructions, because the far integrand has two quite different shapes:
-
-        IN A BEND (or before any bend) -- UNIFORM at 2*far_zbins nodes. This is the
-        cost-neutral replacement for the old (s1,s2)+(s2,s3) pair, which gave each
-        sub-region far_zbins nodes. It is deliberately NOT log-graded: grading assumes
-        the contribution decays as 1/u away from the observer, and in a bend at high
-        tilt it does not -- measured at shear 20, 0.30 m in, 10-99% of the far integral
-        sits at u/L_f = 0.12-0.56, i.e. near the FAR end, where distance grading is
-        coarsest. Pure log grading there gave rel L2 1.79 against 5.3e-02 for the old
-        layout, and refining near_grade 0.05 -> 0.005 only reached 1.2e-02 at 456 nodes.
-
-        PAST A BEND EXIT -- causal clip, then a uniform fine window, then log grading.
-        Here the source is the arc still inside the dipole, so the contribution is a
-        narrow band far upstream (u/L_f ~ 2.7-3.1, 10-99% of it inside ~0.3 L_f) and
-        everything below the causal edge is identically zero. Log grading alone put a
-        single 30 mm cell across the entire contribution and was 400x worse than the old
-        layout; with the window it is 28x better at the same node count. See
-        _exit_transient, _causal_edge and Integration_params.
+        In a bend: 2*far_zbins uniform columns (not graded: at high tilt most of the far integral sits
+        near the far end). Past a bend exit: the causal edge, a uniform fine window of
+        far_window*L_f at far_cell*sigma_z above it, then graded towards the near region
+        (docs/DFCSR_2D_methods.md §5.2, docs/code_notes.md).
         """
         ip = self.integration_params
         if sp_near <= sp_far:
@@ -261,10 +146,6 @@ class LayoutMixin:
         if transient is None:
             transient = self._exit_transient()
         if not (ip.causal_clip and transient):
-            # Not an exit transient: uniform, and no band solve. The causal edge would
-            # be redundant here anyway -- measured in a bend it sits at u ~ 1.0 L_f
-            # (0.994 at shear 0, 0.783 at shear 20), which is what n_formation_length
-            # already provides.
             n = max(2 * ip.far_zbins, 3)
             return self._record_far_nodes(np.linspace(sp_far, sp_near, n))
 
@@ -273,9 +154,7 @@ class LayoutMixin:
         if e is not None:
             lo = min(max(e, sp_far), sp_near)
             if e <= sp_far:
-                # The edge should be the tighter limit; if the reach binds instead, the
-                # integral is truncated by the history budget rather than by causality.
-                # Honest, but a different limitation -- count it rather than hide it.
+                # the reach, not causality, ended the region: counted
                 self._count('far_clip_at_reach')
 
         parts = []
@@ -284,9 +163,7 @@ class LayoutMixin:
             top = min(lo + ip.far_window * self.formation_length, sp_near)
             cell = ip.far_cell * self.beam._sigma_z
             if ip.far_fine_max:
-                # cap the fine-window node count: far_cell*sigma_z is set by the bunch,
-                # but the band it resolves scales with L_f, so a short bunch (sigma_z
-                # 19 um in D3) put 3300 nodes in a window that ~300 resolve to 3e-4
+                # far_fine_max caps the fine window (short bunches asked for thousands of nodes)
                 cell = max(cell, (top - lo) / ip.far_fine_max)
             n_fine = int(np.clip(round((top - lo) / cell) + 1, 3, 100 * ip.far_zbins))
             parts.append(np.linspace(lo, top, n_fine))
@@ -316,16 +193,9 @@ class LayoutMixin:
         observation point, geometric growth outside. Built independently on each
         side, because the near region straddles s' = s.
 
-        Rationale: for u larger than the transverse offsets, |r - r'| ~ u, so the
-        per-column contribution falls as 1/u and equal contributions come from equal
-        logarithmic intervals. Uniform nodes are therefore under-resolved where the
-        accuracy is set and over-resolved where the cost is, forcing
-        N ~ u_max/sigma_xi -- which is why the count had to scale with tilt. Graded,
-        N ~ 1/near_grade + ln(u_max/u*)/ln(1+near_grade), growing only
-        logarithmically with tilt.
-
-        The outer integral uses np.trapz(..., x=sp), which handles the non-uniform
-        spacing correctly.
+        For u beyond the transverse offsets the column contribution falls as 1/u, so equal
+        logarithmic intervals contribute equally: the node count grows as ln(u_max) with tilt
+        instead of linearly.
         """
         ip = self.integration_params
         floor = ip.near_cell * self.beam._sigma_x_transform
@@ -547,11 +417,8 @@ class LayoutMixin:
 
     def _straight_region_nodes(self, s, lo, hi):
         """
-        s' nodes for the straight-section extension [lo, hi) below the regular layout
-        (reach_straight). Its sources are far from the observer and their retarded z is nearly
-        constant, so the column integral is a smooth ~1/u^2 in u = s - s': geometric grading in u
-        with ratio 1 + near_grade, ~ln(u_lo/u_hi)/near_grade nodes (41 for 10 m behind a 0.5 m
-        bend at 5%), where the fixed far cell would need thousands.
+        s' nodes of the straight-section region [lo, hi): the column integral is a smooth ~1/u^2 there,
+        so it is graded in u at 1 + near_grade (a few dozen nodes for 10 m).
         """
         g = self.integration_params.near_grade or 0.05
         return np.unique(s - graded_u(max(s - hi, 1e-9), s - lo, g, close=True))
@@ -579,19 +446,12 @@ class LayoutMixin:
 
     def _geo_reach(self, s):
         """
-        Entrance-transient reach for an observer at s, measured back from s, or None.
+        Straight-section reach for an observer inside a bend, measured back from s, or None.
 
-        The straight section the beam came along before the last bend entrance is a source
-        retarded by ~ R phi^3/6 (phi = arc angle traversed) whose contribution decays only as
-        1/u with the distance u before the entrance, so it is needed out to
-        reach_straight * R phi, i.e. reach = (s - entrance) + reach_straight * R phi. It is
-        applied while that retardation is within reach_slip_max sigma_z of the bunch
-        (Integration_params.reach_straight): inside the bend slip = a^3/(6R^2) with a the arc
-        length past the entrance; in the drift x past the exit the straight sources slip a
-        further x phi^2/2 and fall out of the bunch within a fraction of R phi.
-        Inside the bend only (see below). The straight section is integrated as its own graded
-        region below the regular layout (_straight_region_nodes); the retention floor and check use
-        the same reach.
+        The straight before the bend's entrance is a source retarded by R phi^3/6 whose
+        contribution decays only as 1/u, so it is integrated out to reach_straight * R phi before
+        the entrance while that retardation is below reach_slip_max sigma_z
+        (docs/DFCSR_2D_methods.md §5.2). Never in the drift after the bend (below).
         """
         ip = self.integration_params
         rs = ip.reach_straight
@@ -605,13 +465,7 @@ class LayoutMixin:
         if a <= 0.0:
             return None
         if not self.inbend:
-            # NOT in the drift after the bend: there the frozen straight history is seen from a
-            # different straight line, each column contributes ~ phi^2 lambda'/u and the sum grows
-            # as ln(reach) -- measured on Indranil's gain beam 0.19 m past B1LE, -0.18 MeV/m per
-            # doubling of the reach out to 170 m (55x the 1D wake at 40 R phi), with or without the
-            # velocity terms. Its value is set by the real length of the upstream straight, not by
-            # local physics, so the regular layout (n_formation_length * L_f) is kept there. Inside
-            # the bend the same contribution converges as 1/U (talman_cancellation.md 7.7).
+            # in the drift the frozen straight history diverges as ln(reach) (talman_cancellation.md 7.7)
             return None
         phi = a / R
         slip = R * phi ** 3 / 6.0

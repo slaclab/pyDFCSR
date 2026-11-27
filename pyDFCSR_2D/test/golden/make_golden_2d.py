@@ -82,6 +82,8 @@ def run_case(extra_dep=None, extra_csr=None, parallel=False, extra_integ=None):
                    frame=np.r_[tr.poly_coeffs, tr.xi_bar, tr.sigma_xi, tr.z_bar, tr.sigma_z,
                                tr.curv_c2, tr.curv_c3],
                    beam=np.array([p.x, p.px, p.y, p.py, p.z, p.pz]))
+        if getattr(sim, 'ibp_check_log', None):
+            out['ibp_check_log'] = np.array(sim.ibp_check_log, dtype=float)
     return out
 
 

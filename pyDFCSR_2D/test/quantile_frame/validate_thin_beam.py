@@ -109,7 +109,7 @@ def run_2d(kind, variant, zobs):
                 sim.x_kick = np.zeros_like(sim.dE_dct)
             sim.calculate_2D_CSR = no_wake
             sim.run()
-        if sim._quantile_frame():
+        if sim._windowed_frame():
             sim.get_CSR_mesh()               # beam vx fit for the observer
         t0 = time.time()
         W = np.array([sim.get_CSR_wake(sim.beam.position + zz, 0.0)[0] for zz in zobs])

@@ -168,6 +168,12 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
             raise ValueError('particle_deposition.poly_degree must be 1: the two-branch band solver (Eq 4.24) '
                              'assumes a straight beam axis')
         self.integration_params = Integration_params(input.get('CSR_integration'))
+        ip = self.integration_params
+        if ip.ibp and ip.near_adapt and ip.near_adapt_x:
+            self._note('ibp_refined', '  [CSR2D] note: CSR_integration.ibp acts only on columns without x\' '
+                       'refinement, and near_adapt_x refines every column of its regions (far_adapt_x: all '
+                       'regions), so the by-parts form is used only where both are off. ibp_check still '
+                       'compares the two forms on uniform nodes.')
 
         if 'CSR_computation' in input:
             self.CSR_params = CSR_params(input['CSR_computation'])
@@ -216,6 +222,7 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         #Todo: add more flexible unit conversion, for both charge and energy
         self.CSR_scaling = 8.98755e3 * self.beam.charge # charge in C (8.98755e-6 MeV/m for 1nC/m^2)
         self.init_statistics()
+
     def init_statistics(self):
         Nstep = self.lattice.total_steps
         self.statistics = {}
@@ -684,7 +691,7 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
             self.calculate_2D_CSR_parallel()
         else:
             self.calculate_2D_CSR()
-        if self._quantile_frame() and self._is_root():
+        if self._windowed_frame() and self._is_root():
             self._quantile_diagnostics()
         if self.CSR_params.apply_CSR:
             # the arc this kick stands for (docs/code_notes.md): centred on the node for midpoint
@@ -811,10 +818,10 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         self.CSR_zmesh = zmesh
         self.CSR_zrange = zrange
         self.CSR_xrange_transformed = xrange
-        if self._quantile_frame():
+        if self._windowed_frame():
             self._fit_beam_vx()
 
-    def _quantile_frame(self):
+    def _windowed_frame(self):
         # frames 'quantile' and 'peak' share the windowed machinery (taper, mesh, observer vx, log)
         return self.DF_tracker.frame in ('quantile', 'peak')
 
@@ -1037,6 +1044,7 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
                 g.attrs['mesh_mode'] = self.CSR_params.mesh_mode
                 g.create_dataset('x_axis_transformed', data=np.asarray(self.CSR_xrange_transformed))
                 g.create_dataset('z_axis', data=np.asarray(self.CSR_zrange))
+
     def update_statistics(self, step):
         twiss = self.beam.twiss
         self.statistics['twiss']['alpha_x'][step] = twiss['alpha_x']
@@ -1060,6 +1068,7 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         self.statistics['mean_x'][step] = self.beam._mean_x
         self.statistics['mean_z'][step] = self.beam._mean_z
         self.statistics['mean_energy'][step] = self.beam.mean_energy
+
     def _write_schedule(self, hf):
         """
         Record the REALISED step schedule in the output.

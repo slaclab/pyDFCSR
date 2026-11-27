@@ -8,6 +8,7 @@ import numpy as np
 
 
 class IBPMixin:
+
     @staticmethod
     def _ibp_chi(J, J0):
         """Partition weight of the shipped form: 1 for |J| <= J0, 0 for |J| >= 2 J0, C2 between."""
@@ -57,21 +58,9 @@ class IBPMixin:
         g = (gz.ravel() - (1.0 - chi) * main - dQ * rho - Q0 * ex['B'] * Rx).reshape(shape)
         Qr = (Q0 * rho).reshape(shape)
         bnd = Qr[-1] - Qr[0]
-        # Column-wise choice of form. The identity holds column by column, so a column can keep
-        # the shipped form without any boundary term. Where J gets small on a node that carries
-        # charge, the chi partition inside the column becomes a steep ramp in x' (J changes at
-        # A (1 - R_x^2)/R near the observer, A ~ the beam tilt) whose chi and 1 - chi pieces
-        # cancel each other, so the by-parts column is far less converged than the shipped one.
-        # Measured on the chicane, frozen at B3 (tau = -30) and D3 (tau = -49): with the
-        # partition alone the by-parts wake was off by up to 30x at 3200 nodes. So a column uses
-        # the by-parts form only if |J| > 2 J0 at every node with charge; chi then vanishes there
-        # except on empty nodes, where it only guards the 1/J.
-        #
-        # J must also keep ONE SIGN over the whole column. Along a column R_x is monotonic and A
-        # varies slowly, so J crosses zero at most once, but at high tilt it can do so between
-        # two nodes: chicane D3 (tau = -49), a column 40 um from the observer has J from -20 to
-        # +20, its 200 nodes miss the crossing (smallest sampled |J| 3.0), and the 1/J pole
-        # between them made that one column 100x too large. A sign test sees it at any node count.
+        # Per column, the by-parts form is used only if |J| > 2 J0 at every node with charge and J keeps
+        # one sign along the column; otherwise the column keeps the shipped form (where J is small the
+        # chi partition becomes a steep cancelling ramp, and a sign change between nodes is a 1/J pole).
         live = (rho > 1e-6 * max(float(rho.max()), 1e-300)).reshape(shape)
         Jr = J.reshape(shape)
         Jc = np.where(live, np.abs(Jr), np.inf).min(axis=0)
@@ -87,8 +76,9 @@ class IBPMixin:
 
     def _ibp_consistency_check(self):
         """
-        Both forms at a few points of the mesh's centre row, at ibp_check_xbins x' nodes.
-        See Integration_params.ibp_check. Appends (s, relative L2 difference, points used,
+        Both forms at a few points of the mesh's centre row, at ibp_check_xbins uniform x' nodes.
+        The x' refinement is off during the check: a refined column keeps the shipped form, and with
+        the error-based refinement every live column is refined, so the two totals would be equal. Appends (s, relative L2 difference, points used,
         points skipped, largest zone share) to ibp_check_log.
 
         Also recorded per kick: the largest share of the main term's sum|node| in columns that
@@ -103,8 +93,8 @@ class IBPMixin:
         nz = self.CSR_params.zbins
         ix = self.CSR_params.xbins // 2
         js = np.unique(np.round(np.linspace(0, nz - 1, n + 2)[1:-1]).astype(int))
-        saved = (ip.ibp, ip.xbins)
-        ip.ibp, ip.xbins = True, ip.ibp_check_xbins
+        saved = (ip.ibp, ip.xbins, ip.near_adapt_x)
+        ip.ibp, ip.xbins, ip.near_adapt_x = True, ip.ibp_check_xbins, False
         a, b, fz = [], [], []
         skipped = 0
         try:
@@ -119,7 +109,7 @@ class IBPMixin:
                 a.append(self._last_wake_shipped)
                 b.append(dE)
         finally:
-            ip.ibp, ip.xbins = saved
+            ip.ibp, ip.xbins, ip.near_adapt_x = saved
         a, b = np.array(a), np.array(b)
         d = (float(np.linalg.norm(a - b) / max(np.linalg.norm(b), 1e-300)) if len(a)
              else float('nan'))

@@ -11,7 +11,7 @@ PAD_FRACTION = 0.02
 PAD_MIN_SAMPLES = 8
 
 
-def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
+def get_reference_traj(lattice_config, Nsample = 5000, Ndim = 2):
     """
     A function to get the reference trajectory of partices with given lattice configuration
     :param lattice_config: dictionary
@@ -28,7 +28,7 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
     # Element keys, selected BY NAME rather than by position. This used to be
     # `list(lattice_config.keys())[1:]`, i.e. "everything after the first key", which assumed
     # step_size came first. yaml.dump sorts keys alphabetically by default, which moves step_size
-    # to the END and made get_referece_traj die with
+    # to the END and made get_reference_traj die with
     # "TypeError: 'float' object is not subscriptable". It bit twice during this work.
     ele_keys = [k for k in lattice_config if k != 'step_size']
     Nelement = len(ele_keys)
@@ -141,6 +141,9 @@ def get_referece_traj(lattice_config, Nsample = 5000, Ndim = 2):
 
     return s, rho, distance, nsep, coords, n_vec, tau_vec
 
+
+get_referece_traj = get_reference_traj      # the old spelling
+
 class Lattice():
     """
     lattice class to read lattice file and get information like reference trajectory
@@ -171,7 +174,7 @@ class Lattice():
         # Todo: check input for lattice
         assert 'step_size' in input, f'Required input parameter step_size to {self.__class__.__name__}.__init__(**kwargs) was not found.'
     def get_ref_traj(self, Nsample = 2000):
-        self.s, self.rho, self.distance, self.nsep, self.coords, self.n_vec, self.tau_vec = get_referece_traj(lattice_config = self.lattice_config, Nsample = Nsample)
+        self.s, self.rho, self.distance, self.nsep, self.coords, self.n_vec, self.tau_vec = get_reference_traj(lattice_config = self.lattice_config, Nsample = Nsample)
 
         self._lattice_length = self.distance[-1]
 

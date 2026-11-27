@@ -26,7 +26,7 @@ pyDFCSR tracks a bunch of macro-particles through a lattice of dipoles, drifts, 
 
 ### 1.2 Coordinates
 
-The beam is described in the Frenet–Serret frame of the reference orbit: s is the arc length, x the offset along the normal n(s), z = s − ct the longitudinal position inside the bunch (head at +z). The lab-frame position of a source point is r′ = r₀(s′) + x′ n(s′); r₀, n and the tangent τ are tabulated once from the lattice (`lattice.get_referece_traj`, 2000 samples per element, padded past the end with a straight line and, since b15f71a, continued straight before the start). "2D" means the integrals over the source run over (x′, s′) only: the vertical extent of the bunch is not represented, which is appropriate when the bunch is much wider in the bending plane than vertically, the situation in a bunch compressor.
+The beam is described in the Frenet–Serret frame of the reference orbit: s is the arc length, x the offset along the normal n(s), z = s − ct the longitudinal position inside the bunch (head at +z). The lab-frame position of a source point is r′ = r₀(s′) + x′ n(s′); r₀, n and the tangent τ are tabulated once from the lattice (`lattice.get_reference_traj`, 2000 samples per element, padded past the end with a straight line and, since b15f71a, continued straight before the start). "2D" means the integrals over the source run over (x′, s′) only: the vertical extent of the bunch is not represented, which is appropriate when the bunch is much wider in the bending plane than vertically, the situation in a bunch compressor.
 
 ### 1.3 The longitudinal force
 
@@ -117,11 +117,11 @@ Particles are deposited with cubic B-spline weights (`histogram_bspline_2d`: eac
 ```
 vx_model 'affine':  fit px ≈ c0 + b u + g1 w + g2 w^2 + g3 w^3 on the core, subtract it before depositing,
                     deposit the residual, add the fit back analytically (held flat beyond |w| = fit_zlim)
-vx      = smooth(rho v_res) / (max(rho_s, 0) + eps) + fit,      eps = (1/2pi) / velocity_threhold
+vx      = smooth(rho v_res) / (max(rho_s, 0) + eps) + fit,      eps = (1/2pi) / velocity_threshold
 dvx/du  = spectral derivative of vx, times the mask (rho_+/(rho_+ + eps))^3
 ```
 
-The affine model exists because the fitted part is noise-free and exact for the linear x–p_x correlations a lattice produces, while the deposited residual carries the shot noise; before it, the whole velocity field came from the ratio of two noisy deposits (progress.md, "Validation of `tangent_bands` and `vx_model: affine`"). The floor ε keeps the ratio finite where the density is small and the mask tapers ∂v_x/∂x to zero there. `velocity_threhold` defaults to 5; every BC20 and chicane configuration uses 1000. Both the floor and the mask clamp the density at zero since 8a66afa (§3.4 explains why).
+The affine model exists because the fitted part is noise-free and exact for the linear x–p_x correlations a lattice produces, while the deposited residual carries the shot noise; before it, the whole velocity field came from the ratio of two noisy deposits (progress.md, "Validation of `tangent_bands` and `vx_model: affine`"). The floor ε keeps the ratio finite where the density is small and the mask tapers ∂v_x/∂x to zero there. `velocity_threshold` (the old spelling `velocity_threhold` is still accepted) defaults to 5; every BC20 and chicane configuration uses 1000. Both the floor and the mask clamp the density at zero since 8a66afa (§3.4 explains why).
 
 ### 3.3 Frames: rms, quantile, peak, auto
 
@@ -548,7 +548,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | `fit_zlim` | 3.0 | same | core for the tilt and v_x fits, in σ_z |
 | `curvature`, `curv_zlim` | True, 4.0 | same | cubic curvature shear of the frame |
 | `vx_model` | affine | same | fitted + residual velocity field |
-| `velocity_threhold` | 5 | 1000 | floor ε = (1/2π)/value on the velocity ratio |
+| `velocity_threshold` | 5 | 1000 | floor ε = (1/2π)/value on the velocity ratio |
 | `u_taper` | 0.5 | same | deposit taper before the ±xlim edge, in σ_ξ |
 | `frame_blend` | orient | same | how the frame is blended between snapshots |
 

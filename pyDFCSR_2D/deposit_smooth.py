@@ -223,6 +223,14 @@ class DF_tracker_comoving:
     could not do because it baked p'_k in per snapshot.
     """
 
+    velocity_threhold = property(lambda self: self.velocity_threshold,        # the old spelling
+                                 lambda self, v: setattr(self, 'velocity_threshold', v))
+
+    def __setstate__(self, state):
+        if 'velocity_threhold' in state:           # pickled before the rename
+            state['velocity_threshold'] = state.pop('velocity_threhold')
+        self.__dict__.update(state)
+
     def __init__(self, input_dic=None):
         self.configure_params(**(input_dic or {}))
         self.verbose = True          # CSR2D sets False on MPI ranks other than 0
@@ -238,19 +246,8 @@ class DF_tracker_comoving:
         self.time_log = deque([])
         self.sigma_xi_log = deque([])
 
-        # ---- ring buffer for the five large field arrays -------------------------
-        # The deque only changes by one append and a few poplefts per step, but
-        # build_interpolant used to rebuild the whole stack with
-        # np.array([e[k] for e in DF_log]) -- O(N) copying for an O(1) change, every
-        # step. Since N is bounded by the history window n_fl*L_f/step_size, total
-        # cost went as (1/step_size)^2, and allocating a fresh 164 MB set of arrays
-        # every step drove peak RSS to 8.75 GB at 200^2, which is what blocked the
-        # fine stepping 6x showed is needed at a waist.
-        #
-        # Storage is preallocated and written one slice at a time. The live region is
-        # kept CONTIGUOUS (compacted when the cursor reaches the end) rather than
-        # wrapping modularly, so the interpolant is a zero-copy VIEW and
-        # interpolate3D_comoving_fields needs no change at all.
+        # Ring buffer for the five large field arrays: preallocated, written one slice per push and
+        # kept contiguous (compacted at the end), so the interpolant is a zero-copy view.
         self._ring = None            # (NFIELD, cap, xbins, zbins)
         self._ring_head = 0          # one past the newest live slice
         self._ring_tail = 0          # index of the oldest live slice
@@ -277,7 +274,7 @@ class DF_tracker_comoving:
 
     def configure_params(self, method='bspline_comoving', xbins=128, zbins=128,
                          xlim=5, zlim=5, smoothing_sigma=3.0, poly_degree=1,
-                         velocity_threhold=5, upper_limit=None,
+                         velocity_threshold=5, upper_limit=None, velocity_threhold=None,
                          filter_order=0, filter_window=0, fit_zlim=3.0,
                          clip_warn=1e-3, frame_blend='orient', vx_model='affine',
                          curvature=True, curv_zlim=4.0, smoothing_sigma_z=None,
@@ -308,34 +305,14 @@ class DF_tracker_comoving:
         # Gaussian applied in Fourier space; below ~1 bin it is not band-limited (at 0.5 bins the
         # response at Nyquist is 0.29), so its real-space kernel rings and the smoothed density of a
         # sharp edge goes NEGATIVE by up to ~1e-4 of the peak -- enough to reach the velocity floor
-        # epsilon (1.6e-4 at velocity_threhold 1000) and send vx = rho vx / (rho + eps) and its mask
+        # epsilon (1.6e-4 at velocity_threshold 1000) and send vx = rho vx / (rho + eps) and its mask
         # to infinity (Indranil's loss beam: 7654 MeV/m in W2 at the second kick, 1e20 at the end,
         # progress_facet_bc20.md 11b). The old floor was 0.5.
         self.smoothing_min_bins = float(smoothing_min_bins)
-        # Which normalized frame the fixed (u, w) grid is laid in, per snapshot:
-        # 'rms'       w = (z - mean)/std over all particles (the original frame)
-        # 'quantile'  the grid spans [z_q, z_(1-q)] widened by frame_margin*span on each side,
-        #             q = frame_quantile; particles are weighted by T(z), 1 on [z_q, z_(1-q)] and
-        #             a C2 smootherstep to 0 across the margin, so the far tails are dropped as
-        #             a source smoothly instead of being clipped. A short or non-Gaussian bunch
-        #             (BC20: full span 208 um against +-5 rms = 515 um) gets bins fitted to
-        #             where its charge is, and quantiles are continuous in the particle
-        #             coordinates, so the frame does not jitter or jump between horns.
-        # 'peak'      the quantile window, narrowed to the highest current peak: full weight over
-        #             centre +- peak_halfwidth * FWHM, a taper over peak_taper * FWHM, never wider
-        #             than the quantile window. A long bunch gets exactly the quantile frame; once a
-        #             spike forms, the low-current pedestal behind it is dropped as a source (its
-        #             CSR is small; CSR2D reports its 1D share per kick and warns above
-        #             CSR_computation.pedestal_warn, which also catches a second peak outside the
-        #             window). Centre and FWHM from peakfind.peak_center_fwhm, rate-limited between
-        #             snapshots (|d ln H| <= peak_rate, |d centre| <= peak_shift * H), because the
-        #             history lookup blends neighbouring snapshots' frames.
-        # 'auto'      decided once, before the first deposit, by CSR2D._resolve_auto_frame
-        #             (choose_auto_frame): 'peak' unless the charge the peak window would drop
-        #             carries more than auto_pedestal_max of the 1D energy loss or of the 1D field
-        #             on the window at the exit of the first bend (a second horn, a strong
-        #             pedestal), then 'quantile'. The choice is printed and kept for the run; the
-        #             per-kick pedestal diagnostic keeps watching it.
+        # frame: which normalized frame the fixed (u, w) grid is laid in (methods §3.2): 'rms' (mean/std
+        # over all particles), 'quantile' (the tapered [z_q, z_1-q] window), 'peak' (the quantile window
+        # narrowed to the highest current peak, rate-limited between snapshots) or 'auto' (peak or
+        # quantile, decided once before the first deposit by CSR2D._resolve_auto_frame).
         if frame not in ('rms', 'quantile', 'peak', 'auto'):
             raise ValueError(f"frame must be 'rms', 'quantile', 'peak' or 'auto', got {frame!r}")
         self.frame_requested = frame
@@ -373,25 +350,15 @@ class DF_tracker_comoving:
         # Degree 1 also matches the transform the wake mesh and the integration
         # bands use, and makes the localization branches of thesis Eq 4.24 exact.
         self.poly_degree = poly_degree
-        self.velocity_threhold = velocity_threhold
+        # velocity_threhold: the old spelling, still accepted
+        self.velocity_threshold = velocity_threshold if velocity_threhold is None else velocity_threhold
         self.upper_limit = upper_limit
         # restrict the tilt fit to the core, so tail particles cannot lever it
         self.fit_zlim = fit_zlim
         self.clip_warn = clip_warn
-        # Transverse edge taper (progress_cancellation.md §4c-d). The deposit used to end in a
-        # hard cut at u = +-xlim: particles beyond were dropped and the interpolant is zero past
-        # the grid, so wherever the beam reaches the edge rho has a step there that the stored
-        # d rho/du does not contain. The longitudinal integrand is G * d rho/dx, whose +- lobes
-        # cancel by a factor C = 60-1000 (C ~ 188 sigma_z^(2/3)/sigma_xi um), and an error in
-        # d rho/dx with a nonzero integral across the beam is amplified by ~C: clipping 0.3% of
-        # the charge moved the wake by 3%, against 0.19% when the cut is consistent.
-        # So each particle's deposit weight is multiplied by T(u): 1 for |u| <= e - u_taper,
-        # a C2 smootherstep to 0 at |u| = e, with e = xlim - 3 smoothing_sigma delta_u so the
-        # smoothed field is down to ~1e-2 of the ramp's density at the grid edge. The charge
-        # removed is then removed consistently (the stored derivatives are those of the tapered
-        # field), and counts as clipped in the clip_warn diagnostic. A z cut does not need this:
-        # T(z) rho has d/dx = T(z) d rho/dx, still cancelling; frames quantile/peak taper z
-        # for the physical step in the current. u_taper = 0: the hard edge, as before.
+        # Transverse edge taper: deposit weights x T(u), 1 for |u| <= e - u_taper and a C2 smootherstep
+        # to 0 at e = xlim - 3 smoothing_sigma du, so the stored d rho/du is that of the tapered field
+        # (a hard edge is amplified by the +- d rho/dx cancellation; methods §3.3). 0: hard edge.
         self.u_taper = float(u_taper)
         # warn (once per run) if the smoothed density at the u edge exceeds edge_warn * peak
         self.edge_warn = float(edge_warn)
@@ -399,32 +366,9 @@ class DF_tracker_comoving:
         self.edge_u_max = 0.0        # its maximum over the run
         self._edge_warned = False
 
-        # Which parametrisation of the frame is interpolated BETWEEN snapshots.
-        # Deposition is identical either way; only the blend differs.
-        #
-        # 'coeff'  blends tau = tan(alpha) linearly. tan is the wrong chart across a
-        #          longitudinal waist: the beam's orientation goes +87 deg -> 90 deg
-        #          (vertical) -> -87 deg, and no continuous path in tau can pass
-        #          through 90 deg -- it must pass through 0, i.e. HORIZONTAL. Measured
-        #          at a shear-20 waist, the blended frame then spends 2.75% of the near
-        #          region at |alpha| < 45 deg, orientations the beam never occupies,
-        #          and |tan 2a| = 2 tau/(1 - tau^2) reaches 285 against endpoint values
-        #          of 0.10 because tau crosses the poles at +-1 twice.
-        # 'moment' blends (var_z, cov, var_x) linearly and derives
-        #          tau = cov/var_z, sigma_z = sqrt(var_z),
-        #          sigma_xi = sqrt(var_x - cov^2/var_z).
-        #          Same measurement: 0.03% and |tan 2a| <= 1.234. But it pays for that
-        #          with a width defect: a convex mix of two thin ellipses at different
-        #          tilts is FATTER than either, by a(1-a)(dtau)^2 var_z, so mid-interval
-        #          sigma_xi comes out 8x-10x too large at ordinary high tilt and the
-        #          wake stops converging under step refinement. Kept because it is the
-        #          honest full-covariance option and the defect is measured, not
-        #          assumed.
-        # 'orient' takes the orientation from the moment ratio and the widths
-        #          log-linearly, which is where each chart is well conditioned. Only
-        #          tau needs the moment chart; sigma_xi and sigma_z do not.
-        #
-        # Default stays 'coeff' so every recorded baseline reproduces byte-identically.
+        # frame_blend: how the frame is interpolated between snapshots. 'coeff' blends tau = tan(alpha)
+        # (wrong across a longitudinal waist), 'moment' the second moments (sigma_xi too wide mid-interval),
+        # 'orient' (default) the orientation from the moments and the widths log-linearly.
         if frame_blend not in self.BLEND_CODES:
             raise ValueError(f'frame_blend must be one of '
                              f'{sorted(self.BLEND_CODES)}, got {frame_blend!r}')
@@ -435,22 +379,9 @@ class DF_tracker_comoving:
         self.frame_blend = frame_blend
         self.frame_blend_code = self.BLEND_CODES[frame_blend]
 
-        # Control variate for the velocity field.
-        # 'none'   deposit px itself: v_x = smooth(rho px) / (smooth(rho) + eps).
-        # 'affine' fit px ~ b x + g(z) (g cubic in w) over the core, deposit only the
-        #          residual, and add b x + g(z) back analytically (b to vx_u exactly).
-        # Why: smoothing a ratio is biased by ~ sigma_k^2 grad(ln rho) . grad(px). On a
-        # strongly tilted beam px varies fastest ALONG the beam (x ~ tau z, so even
-        # px = b x has d px/dw = b tau sigma_z), and when the beam is also curved in
-        # (u, w) -- the straight tilt fit leaves a banana -- d^2 ln rho / du dw changes
-        # along the bunch, so the bias in d vx/du acquires a z-trend. Measured in the
-        # chicane D3 (tau = -49): the code's d vx/dx ran -0.03 .. -0.42 /m tail to head
-        # against a true -0.26 .. -0.30, and that trend drove the spurious x-structure of
-        # the far-drift wake. With 'affine' the error is <= 0.02 /m in every slice.
-        # Default 'affine' since 2026-11-04 (progress.md). It also removes the 6% low
-        # bias of the FODO W2 test, which was the smoothing shrinking d vx/dx, so
-        # the W2 ratio there moved 0.1327..0.1356 -> 0.1415..0.1418. Results recorded
-        # before that date were computed with 'none'; set it explicitly to reproduce.
+        # vx_model: 'none' deposits px itself, v_x = smooth(rho px)/(smooth(rho) + eps); 'affine'
+        # (default) fits px ~ b x + g(z) over the core, deposits the residual and adds the fit back
+        # analytically, which removes the smoothing bias of the ratio on tilted, curved beams.
         if vx_model not in ('none', 'affine'):
             raise ValueError(f"vx_model must be 'none' or 'affine', got {vx_model!r}")
         self.vx_model = vx_model
@@ -615,7 +546,7 @@ class DF_tracker_comoving:
         # peak density. Otherwise the floor and the mask below breathe with the
         # beam and inject temporal inconsistency into the W2 / div(v) term.
         rho_hat_ref = 1.0 / (2.0 * np.pi)
-        epsilon = rho_hat_ref / self.velocity_threhold
+        epsilon = rho_hat_ref / self.velocity_threshold
         vx_smooth = rho_vx_smooth / (np.maximum(density_smooth, 0.0) + epsilon)
 
         _, vx_du, _ = smooth_and_differentiate(
@@ -804,7 +735,7 @@ class DF_tracker_comoving:
         self.sz_used = sz
         # the floor scales with the windowed charge, so eps / peak density stays as in the
         # rms frame; f_window is smooth in time, unlike a per-snapshot peak
-        epsilon = f_window * (1.0 / (2.0 * np.pi)) / self.velocity_threhold
+        epsilon = f_window * (1.0 / (2.0 * np.pi)) / self.velocity_threshold
         if self.smoothing_adaptive:
             levels, W, sz_peak = self._adaptive_weights(density, npart, sz)
             sx = self.smoothing_sigma
@@ -909,14 +840,8 @@ class DF_tracker_comoving:
 
         cap = self._ring.shape[1]
         n = self._ring_head - self._ring_tail
-        # Shrink is tested on EVERY push, not only when the cursor reaches the end.
-        # The history grows deep during the pre-first-bend drift, where
-        # formation_length is an accumulated drift length and nothing is truncated,
-        # then collapses once a bend sets L_f from sigma_z. Checking only at
-        # compaction meant the cursor needed cap - n further pushes to notice, which
-        # is more than a short run has: the buffer sat at 1.64 GB for 251 live slices
-        # needing 0.40 GB. After shrinking, cap = 2n, so the condition is immediately
-        # false again and this cannot thrash.
+        # Shrink is tested on every push (the history collapses when the first bend sets L_f); after
+        # shrinking cap = 2n, so this cannot thrash.
         target = None
         if self._ring_head == cap:
             target = 2 * cap if 2 * n > cap else cap

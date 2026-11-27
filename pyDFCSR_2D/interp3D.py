@@ -49,27 +49,10 @@ def eval_poly_deriv(coeffs, z):
     return result
 
 
-# ---------------------------------------------------------------------------
-# Co-moving (Lagrangian) interpolation of the density history.
-#
-# A lab-frame blend (the removed bspline_fft path) evaluates each snapshot
-# in its OWN tilted frame and then averages the two results. That is a
-# superposition of two shear-displaced copies of the beam, so for a beam whose
-# tilt rate changes by dp' between snapshots it returns two peaks where there is
-# one, separated by G*sigma_xi with G = |dp'|*sigma_z/sigma_xi. It is O(1) wrong
-# once G >~ 1, which a chicane reaches easily.
-#
-# Here the FRAME is interpolated in time instead of the field. Every snapshot
-# stores its shape on the same normalized grid u = (xi - xi_bar)/sigma_xi,
-# w = (z - z_bar)/sigma_z, so index (i, j) refers to the same material point of
-# the beam at every snapshot. Blending at fixed (u, w) is then exact for any
-# affine evolution of the beam -- shear plus scaling -- which is what linear
-# optics does between history steps.
-#
-# Note the normalized grid is shared in INDEX space only. Each snapshot's
-# physical cell is still delta_xi_k = 2*xlim*sigma_xi_k/nbins, so no transverse
-# resolution is given up.
-# ---------------------------------------------------------------------------
+# Co-moving (Lagrangian) interpolation of the density history: the FRAME is interpolated in
+# time, not the field. Every snapshot stores its shape on the same normalized grid
+# u = (xi - xi_bar)/sigma_xi, w = (z - z_bar)/sigma_z, so blending at fixed (u, w) is exact for
+# any affine evolution of the beam (methods §4).
 
 
 @jit(nopython=True, cache=True)
@@ -229,15 +212,7 @@ def _interpolate3D_comoving_fields_impl(xval, zval, tval,
                     var_xi = 0.0
                 s_xi = math.sqrt(var_xi)
             else:
-                # 'orient': widths log-linear, as in 'coeff'.
-                #
-                # Blending the full covariance INFLATES sigma_xi badly, because a
-                # convex mix of two thin ellipses at different tilts is fatter than
-                # either -- by a(1-a)(dtau)^2 var_z. Measured at shear 20 in the body
-                # of the dipole, mid-interval sigma_xi comes out 8x-10x too large
-                # (20.3 um -> 196.9 um at tau: -9.92 -> -6.58), and the wake then
-                # fails to converge under step refinement. The widths do not need the
-                # moment chart -- only the orientation does -- so take just that.
+                # 'orient': widths log-linear (blending the full covariance inflates sigma_xi)
                 s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
                 s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
 
@@ -255,22 +230,8 @@ def _interpolate3D_comoving_fields_impl(xval, zval, tval,
         u_cell = (u - u_start) / delta_u - 0.5
         w_cell = (w - w_start) / delta_w - 0.5
 
-        # --- evaluate both snapshots at the SAME (u, w), then blend ---
-        #
-        # This used to be ten bspline_eval_single calls (5 fields x snapshots k, k+1). All
-        # ten share the same (u_cell, w_cell), hence the same 4x4 stencil and the same eight
-        # basis weights -- but cubic_bspline_w(w_cell - j) sat INSIDE the dj loop, so every
-        # call recomputed the four w-weights sixteen times, and LLVM cannot common that up
-        # across ten separate calls over ten different arrays. It came to ~200 weight
-        # evaluations per query where only 8 distinct values exist. Profiling put this
-        # kernel at 67% of wake-mesh time, so this was the whole hot spot.
-        #
-        # Weights are now computed once and all ten accumulators filled in one pass.
-        #
-        # BIT-IDENTICAL, deliberately: each accumulator receives the same terms in the same
-        # order as before, and the multiply keeps the original left-to-right association
-        # (d * wi) * ww -- the algebraically equal d * (wi * ww) would change the last bits.
-        # cubic_bspline_w is pure, so hoisting it cannot change a value.
+        # --- evaluate both snapshots at the SAME (u, w), then blend: the eight basis weights are
+        # computed once for all ten accumulators (term order kept, so results are bit-identical)
         i0 = int(math.floor(u_cell)) - 1
         j0 = int(math.floor(w_cell)) - 1
 
@@ -436,15 +397,7 @@ def _interpolate3D_comoving_ibp_impl(xval, zval, tval,
                     var_xi = 0.0
                 s_xi = math.sqrt(var_xi)
             else:
-                # 'orient': widths log-linear, as in 'coeff'.
-                #
-                # Blending the full covariance INFLATES sigma_xi badly, because a
-                # convex mix of two thin ellipses at different tilts is fatter than
-                # either -- by a(1-a)(dtau)^2 var_z. Measured at shear 20 in the body
-                # of the dipole, mid-interval sigma_xi comes out 8x-10x too large
-                # (20.3 um -> 196.9 um at tau: -9.92 -> -6.58), and the wake then
-                # fails to converge under step refinement. The widths do not need the
-                # moment chart -- only the orientation does -- so take just that.
+                # 'orient': widths log-linear (blending the full covariance inflates sigma_xi)
                 s_xi = math.exp(b * math.log(sigma_xi_arr[k]) + a * math.log(sigma_xi_arr[k + 1]))
                 s_z = math.exp(b * math.log(sigma_z_arr[k]) + a * math.log(sigma_z_arr[k + 1]))
 
@@ -517,22 +470,8 @@ def _interpolate3D_comoving_ibp_impl(xval, zval, tval,
         u_cell = (u - u_start) / delta_u - 0.5
         w_cell = (w - w_start) / delta_w - 0.5
 
-        # --- evaluate both snapshots at the SAME (u, w), then blend ---
-        #
-        # This used to be ten bspline_eval_single calls (5 fields x snapshots k, k+1). All
-        # ten share the same (u_cell, w_cell), hence the same 4x4 stencil and the same eight
-        # basis weights -- but cubic_bspline_w(w_cell - j) sat INSIDE the dj loop, so every
-        # call recomputed the four w-weights sixteen times, and LLVM cannot common that up
-        # across ten separate calls over ten different arrays. It came to ~200 weight
-        # evaluations per query where only 8 distinct values exist. Profiling put this
-        # kernel at 67% of wake-mesh time, so this was the whole hot spot.
-        #
-        # Weights are now computed once and all ten accumulators filled in one pass.
-        #
-        # BIT-IDENTICAL, deliberately: each accumulator receives the same terms in the same
-        # order as before, and the multiply keeps the original left-to-right association
-        # (d * wi) * ww -- the algebraically equal d * (wi * ww) would change the last bits.
-        # cubic_bspline_w is pure, so hoisting it cannot change a value.
+        # --- evaluate both snapshots at the SAME (u, w), then blend: the eight basis weights are
+        # computed once for all ten accumulators (term order kept, so results are bit-identical)
         i0 = int(math.floor(u_cell)) - 1
         j0 = int(math.floor(w_cell)) - 1
 

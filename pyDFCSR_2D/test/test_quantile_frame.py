@@ -30,7 +30,7 @@ def golden():
 
 
 # u_taper (default 0.5 since 2026-11-12, progress_cancellation.md §4e), seam_ratio (default 2 since
-# 2026-11-24, progress_facet_bc20.md §11k) and reach_straight (default 2, §11n) are the defaults that
+# 2026-11-24, progress_facet_bc20.md §11k) and reach_straight (default 40, §11n) are the defaults that
 # deliberately change the result; with them off, the old path must still be bit-identical.
 @pytest.mark.parametrize('extra_dep, extra_csr', [
     ({'u_taper': 0.0}, None),
@@ -378,7 +378,7 @@ def test_velocity_mask_clamps_negative_density():
                         np.random.default_rng(7).uniform(0.0, 60e-6, 100000)])
     px = np.random.default_rng(8).normal(0, 5e-6, 400000)
     tr = _tracker(frame='quantile', smoothing_sigma_z=6.5, smoothing_res_fwhm=0.1, smoothing_min_bins=0.5)
-    tr.velocity_threhold = 1000
+    tr.velocity_threshold = 1000
     tr.get_DF(x, z, px, 0.0)
     assert tr.density.min() < 0, 'the test needs a negative overshoot to be meaningful'
     assert np.abs(tr.vx).max() < 10 * np.abs(px).max() and np.all(np.isfinite(tr.vx_u))
@@ -833,6 +833,23 @@ def test_x_adapt_error_converges():
     d = lambda o: max(np.abs(o[f'dE_{i}'] - ref[f'dE_{i}']).max() / np.abs(ref[f'dE_{i}']).max() for i in range(int(ref['nkicks'])))
     assert d(err) < 1e-2
     assert d(err) < d(uni)
+
+
+def test_ibp_check_compares_on_uniform_nodes():
+    """With the x' refinement on, every live column is refined and keeps the shipped form, so the two
+    totals the by-parts check compares used to be equal by construction (d = 0). The check switches
+    the refinement off: d is now a real, small difference, and the run's wakes are unchanged."""
+    import make_golden_2d
+    integ = {'near_adapt': True, 'near_adapt_x': True}
+    plain = make_golden_2d.run_case({}, None, extra_integ=integ)
+    chk = make_golden_2d.run_case({}, None, extra_integ=dict(integ, ibp_check=3))
+    log = chk['ibp_check_log']
+    assert len(log) == int(chk['nkicks'])
+    assert np.all(log[:, 2] > 0)                    # points compared
+    assert np.all(log[:, 1] > 0) and np.all(log[:, 1] < 1e-2)
+    for i in range(int(plain['nkicks'])):
+        assert np.array_equal(plain[f'dE_{i}'], chk[f'dE_{i}'])
+        assert np.array_equal(plain[f'xk_{i}'], chk[f'xk_{i}'])
 
 
 def test_removed_options_are_rejected_or_ignored():
