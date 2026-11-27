@@ -79,6 +79,10 @@ class CSR2DDiff(CSR2D):
         self.structure = []                 # per kick
         self.snap_structure = {}            # per snapshot time (windowed frames)
         self.record = dict(kicks=self.structure, snap=self.snap_structure)
+        # the snapshots a replayed run must keep although its own retention or drift thinning
+        # (decided on its own beam) would drop them
+        self._keep = (set(t for r in structure['kicks'] for t in r['times'])
+                      if structure is not None else set())
         self._coords0 = coords
         self.params = dict(params or {})
         self._thist = {}
@@ -132,8 +136,9 @@ class CSR2DDiff(CSR2D):
             else:
                 f[key] = val
         for k, v in f.items():
-            if isinstance(v, float):
-                f[k] = torch.tensor(v, dtype=F64, device=self.device)
+            # every numeric parameter but the step count (an int such as E2: 0 in a YAML file too)
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and k != 'NUM_STEPS':
+                f[k] = torch.tensor(float(v), dtype=F64, device=self.device)
         return type(element)(**f)
 
     def _track(self, element, step_size, update_step=True):
@@ -169,16 +174,15 @@ class CSR2DDiff(CSR2D):
         self._thist[t] = (fields, frame)
         live = set(float(t) for t in tr.time_log)
         for t in list(self._thist):
-            if t not in live:
+            if t not in live and t not in self._keep:
                 del self._thist[t]
 
     def _record_snapshot(self):
         super()._record_snapshot()
         self._torch_snapshot()
 
-    def _history(self):
+    def _history(self, times):
         tr = self.DF_tracker
-        times = [float(t) for t in tr.time_log]
         return history_from_tensors(tr, times, [self._thist[t][0] for t in times],
                                     [self._thist[t][1] for t in times], self.device)
 
@@ -194,7 +198,10 @@ class CSR2DDiff(CSR2D):
         else:
             (self.CSR_xmesh, self.CSR_zmesh, self.CSR_xrange_transformed, self.CSR_zrange,
              slope, ridge) = rec['mesh']
-        H = self._history()
+        # the history's snapshots are structure too: retention and drift thinning are decided on the
+        # beam, so a replayed run uses the recorded set
+        times = [float(t) for t in self.DF_tracker.time_log] if rec is None else rec['times']
+        H = self._history(times)
         if getattr(self, '_tw', None) is None:
             self._tw = TorchWake(self, device=self.device, chunk=self.CSR_params.torch_chunk,
                                  checkpoint=self.checkpoint)
@@ -216,7 +223,7 @@ class CSR2DDiff(CSR2D):
         self.structure.append(dict(mesh=(np.asarray(self.CSR_xmesh), np.asarray(self.CSR_zmesh),
                                           np.asarray(self.CSR_xrange_transformed), np.asarray(self.CSR_zrange),
                                           slope, ridge),
-                                   layout=self._tw.last_layout, refine=self._tw.last_refine))
+                                   layout=self._tw.last_layout, refine=self._tw.last_refine, times=times))
         dE, xk = dE.view(nxm, nzm), xk.view(nxm, nzm)
         self.dE_dct = dE.detach().cpu().numpy()
         self.x_kick = xk.detach().cpu().numpy()

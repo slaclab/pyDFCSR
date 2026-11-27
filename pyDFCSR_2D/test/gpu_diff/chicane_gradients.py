@@ -11,7 +11,8 @@ A coarse setup so that it runs on the Mac CPU (N particles, 100 x 150 deposition
 60 x' nodes); it is a demonstration and a check of the gradients, not a converged chicane result.
 
     python chicane_gradients.py time            # numba CSR2D forward only (cost, reference)
-    python chicane_gradients.py grad [N]        # forward + backward, then the theta FD check
+    python chicane_gradients.py grad [N]        # forward + backward (saves the structure record), then the FD checks
+    python chicane_gradients.py fd [N] [h ...]  # only the FD checks, from the saved record and gradients
 Writes benchmark_results/gpu_diff/chicane_gradients.txt (appends) and .npz.
 """
 import contextlib
@@ -102,6 +103,11 @@ def main(mode, n=20000):
         c0 = torch.as_tensor(np.stack([p0.x, p0.px, p0.y, p0.py, p0.z, p0.pz]))
         E0 = ref.beam.init_energy
         eps0 = float(emittance(c0[0], c0[1], c0[5]))
+        import pickle
+        rec_file = os.path.join('/tmp', f'chicane_gradients_record_{n}.pkl')
+        if mode == 'fd':
+            record, g = pickle.load(open(rec_file, 'rb'))
+            return fd_checks(run, record, g, c0, E0, eps0, [float(v) for v in sys.argv[3:]] or [1e-4])
         c = c0.clone().requires_grad_(True)
         th = torch.tensor(THETA0, dtype=torch.float64, requires_grad=True)
         t0 = time.time()
@@ -118,31 +124,38 @@ def main(mode, n=20000):
         log(f'[grad] N = {n}: forward {t1 - t0:.0f} s, both backward passes {t2 - t1:.0f} s, {len(d.structure)} kicks')
         log(f'  <dE> = {float(dE):.4f} keV   d<dE>/dtheta = {g["dE"][0]:.5e} keV/rad   d<dE>/dh = {g["dE"][1]:.5e} keV m')
         log(f'  deps = {float(deps):.5f} nm   deps/dtheta = {g["deps"][0]:.5e} nm/rad   deps/dh = {g["deps"][1]:.5e} nm m')
-        # the theta derivatives against central differences, structure replayed
-        h = 1e-4 * THETA0
-        T = lambda v: torch.tensor(v, dtype=torch.float64)
-        vals = []
-        for sgn in (+1, -1):
-            dd = run(T(THETA0 + sgn * h), c0, d.record)
-            vals.append(((float(dd.tp.pz.mean()) - float(c0[5].mean())) * E0 / 1e3,
-                         (float(emittance(dd.tp.x, dd.tp.px, dd.tp.pz)) - eps0) * 1e9))
-        fd = [(vals[0][k] - vals[1][k]) / (2 * h) for k in range(2)]
-        log(f'  FD (h = 1e-4 theta, structure replayed): d<dE>/dtheta {fd[0]:.5e} (rel {abs(fd[0] - g["dE"][0]) / abs(fd[0]):.1e}), '
-            f'deps/dtheta {fd[1]:.5e} (rel {abs(fd[1] - g["deps"][0]) / abs(fd[1]):.1e})')
-        # the chirp derivative against central differences in h (pz += dh z)
-        hh = 1e-3 * float(c0[5].std() / c0[4].std())
-        vals = []
-        for sgn in (+1, -1):
-            cc = c0.clone()
-            cc[5] = cc[5] + sgn * hh * cc[4]
-            dd = run(T(THETA0), cc, d.record)
-            vals.append(((float(dd.tp.pz.mean()) - float(cc[5].mean())) * E0 / 1e3,
-                         (float(emittance(dd.tp.x, dd.tp.px, dd.tp.pz)) - float(emittance(cc[0], cc[1], cc[5]))) * 1e9))
-        log(f'  FD in the chirp: d<dE>/dh {(vals[0][0] - vals[1][0]) / (2 * hh):.5e}, '
-            f'(eps growth)/dh {(vals[0][1] - vals[1][1]) / (2 * hh):.5e} '
-            f'[AD deps/dh above holds the initial emittance fixed; this one subtracts that of the shifted beam]')
+        pickle.dump((d.record, g), open(rec_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         np.savez(os.path.join(OUT, 'chicane_gradients.npz'), dE=float(dE), deps=float(deps),
-                 g_dE=g['dE'], g_deps=g['deps'], fd_theta=fd, grad_coords_pz=c.grad if c.grad is not None else 0)
+                 g_dE=g['dE'], g_deps=g['deps'])
+        fd_checks(run, d.record, g, c0, E0, eps0, [1e-4])
+
+
+def fd_checks(run, record, g, c0, E0, eps0, hs):
+    """Central differences in theta and in the chirp with the structure replayed, at relative steps hs."""
+    import torch
+    T = lambda v: torch.tensor(v, dtype=torch.float64)
+
+    def measure(theta, c):
+        dd = run(T(theta), c, record)
+        return ((float(dd.tp.pz.mean()) - float(c[5].mean())) * E0 / 1e3,
+                (float(emittance(dd.tp.x, dd.tp.px, dd.tp.pz)) - float(emittance(c[0], c[1], c[5]))) * 1e9)
+    for hr in hs:
+        h = hr * THETA0
+        vp, vm = measure(THETA0 + h, c0), measure(THETA0 - h, c0)
+        fd = [(vp[k] - vm[k]) / (2 * h) for k in range(2)]
+        log(f'  FD theta (h = {hr:g} theta, structure + history replayed): d<dE>/dtheta {fd[0]:.5e} '
+            f'(rel {abs(fd[0] - g["dE"][0]) / abs(fd[0]):.1e}), deps/dtheta {fd[1]:.5e} '
+            f'(rel {abs(fd[1] - g["deps"][0]) / abs(fd[1]):.1e})')
+        # chirp: pz += dh z; the initial emittance does not depend on it (z-pz shear), so the AD and FD
+        # quantities are the same
+        hh = 10 * hr * float(c0[5].std() / c0[4].std())
+        cp, cm = c0.clone(), c0.clone()
+        cp[5] = cp[5] + hh * cp[4]
+        cm[5] = cm[5] - hh * cm[4]
+        vp, vm = measure(THETA0, cp), measure(THETA0, cm)
+        fd = [(vp[k] - vm[k]) / (2 * hh) for k in range(2)]
+        log(f'  FD chirp (h = {10 * hr:g} sigma_pz/sigma_z): d<dE>/dh {fd[0]:.5e} (rel {abs(fd[0] - g["dE"][1]) / abs(fd[0]):.1e}), '
+            f'deps/dh {fd[1]:.5e} (rel {abs(fd[1] - g["deps"][1]) / abs(fd[1]):.1e})')
 
 
 if __name__ == '__main__':

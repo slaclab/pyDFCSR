@@ -229,3 +229,50 @@ Tests (`test_torch_diff.py`):
 - the forward run against CSR2D in the rms frame and in the quantile frame with a charge mesh;
 - the end-to-end finite-difference check, now checkpointed;
 - checkpointed and plain gradients equal to 1e-12.
+
+## 5. Chicane gradient demo (2026-11-27)
+
+`test/gpu_diff/chicane_gradients.py`: the 4-dipole benchmark chicane in a coarse setup that runs on
+the Mac CPU:
+- 20k particles from `chicane_init_beam.yaml`;
+- 100 × 150 deposition, an 8 × 24 wake mesh, 60 x′ nodes;
+- the auto schedule: 489 nodes, 105 kicks;
+- numba forward: 174 s.
+
+One angle θ drives all four bends and their rectangular edges (B1, B4: +θ; B2, B3: −θ). With the
+differentiable run the CSR geometry follows θ as well. The chirp derivative (pz → pz + dh·z) comes
+from the coordinate gradient, Σ_i ∂L/∂pz_i z_i, so it needs no extra run.
+
+| quantity | value | ∂/∂θ (AD) | ∂/∂h (AD) |
+|---|---|---|---|
+| ⟨ΔE⟩ (CSR energy loss) | −2777.67 keV | −3.5423e6 keV/rad | 2.4448e3 keV·m |
+| Δε_x (projected, dispersion removed) | 0.0525 nm | 46.030 nm/rad | −3.034e-2 nm·m |
+
+Cost on the Mac CPU (torch, checkpointed, chunk 2¹⁹): forward 481 s, both backward passes 2858 s.
+
+**Checks against central differences, structure replayed.** The structure now includes the
+history's snapshot set per kick. Retention and drift thinning are decided on the beam, so a
+replayed run must use the recorded set. A direct test showed it never differed here: at θ(1 ± 1e-4)
+the replayed run's own selection equalled the record at all 105 kicks. So it is a safeguard, not
+the cause of the first, poorer agreement.
+
+| step | d⟨ΔE⟩/dθ | dΔε/dθ | d⟨ΔE⟩/dh | dΔε/dh |
+|---|---|---|---|---|
+| 1e-4 θ, 1e-3 σ_pz/σ_z | 6.3e-3 | 2.3e-2 | 4.1e-2 | (−0.0318 vs −0.0303) |
+| 1e-5 θ, 1e-4 σ_pz/σ_z | 2.2e-5 | 1.3e-3 | 9.2e-3 | 5.3e-2 |
+| 1e-6 θ, 1e-5 σ_pz/σ_z | 2.0e-4 | 2.3e-4 | 2.9e-3 | 4.4e-2 |
+
+- **θ:** the finite differences converge onto the AD values. The error at h = 1e-4 was
+  finite-difference error, not a missing term.
+- **Chirp:** the finite differences of ⟨ΔE⟩ close in on the AD value. Those of Δε scatter around it
+  on both sides (−0.0288, −0.0317, −0.0318 against −0.0303). That is the derivative of a 0.05 nm
+  growth against a chirp that changes the compression, and at these steps it is limited by
+  particles crossing kick-mesh cells. The initial emittance does not depend on the chirp
+  (dε₀/dh = −4e-13).
+
+**Bug found:** an integer element parameter (`E2: 0` in the chicane YAML) was passed to bmadx as a
+Python int, and `tan()` refuses ints for torch particles. Every numeric parameter except NUM_STEPS
+is now a tensor.
+
+**GPU:** `environment-gpu.yml`, `test/gpu_diff/gpu_benchmark.py` and `gpu_benchmark.slurm` are
+ready for an S3DF A100 node. Not run yet.
