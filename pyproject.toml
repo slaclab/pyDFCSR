@@ -29,7 +29,7 @@ addopts = ""
 # ""--cov=pyDFCSR_2D/"
 log_cli_level = "info"
 log_level = "debug"
-testpaths = ["pyDFCSR_2D/test/test_import.py"]
+testpaths = ["pyDFCSR_2D/test"]   # pyDFCSR_2D/test/conftest.py lists the unit-test modules
 
 [tool.setuptools.packages.find]
 where = ["."]

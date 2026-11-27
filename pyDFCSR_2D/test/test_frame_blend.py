@@ -35,7 +35,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from pyDFCSR_2D.CSR import CSR2D
 from pyDFCSR_2D.interp3D import interpolate3D_comoving_fields
 
-EXAMPLE_DIR = os.path.join(os.path.dirname(__file__), '..', 'example')
+# inputs and outputs go to a private temporary directory (this test used to write into example/)
+import tempfile
+EXAMPLE_DIR = tempfile.mkdtemp(prefix='pydfcsr_frame_blend_')
+os.makedirs(os.path.join(EXAMPLE_DIR, 'input'), exist_ok=True)
+os.makedirs(os.path.join(EXAMPLE_DIR, 'output'), exist_ok=True)
 SHEAR = 20.0
 DRIFT = 1.0
 STEP = 0.05
