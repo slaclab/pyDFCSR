@@ -86,7 +86,8 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         self.__dict__.update(state)
 
     def _is_root(self):
-        return (not self.parallel) or self.rank == 0
+        # by rank, not by self.parallel: that is set only in init_MPI, after parsing and the first deposit
+        return getattr(self, 'rank', 0) == 0
 
     def _note(self, key, msg, every_rank=False):
         """
