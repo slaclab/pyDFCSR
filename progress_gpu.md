@@ -67,3 +67,46 @@ to move to the device as well (P2), or be split over ranks feeding one GPU.
 Tests: `test/test_torch_backend.py` (in conftest's list; skipped without torch). Whole golden runs
 with both backends: every kick to 1e-8 (the kicks feed back into the beam), kernels on random
 queries.
+
+## 2. P2 (first part): the layout batched over mesh points (2026-11-27)
+
+**Why the layout was slow.** On the L1-17.6284 state at 27.0 m, 88% of the layout time was the band
+solve `_retarded_xi_bands`. It ran about 1,900 times for 192 points (~10 per point): the causal-edge
+scans, the near-adapt column scans and the final bands of each region. Each call works on a few
+hundred columns, so its cost was Python and numpy call overhead, not arithmetic.
+
+**What changed.**
+- The band solver now accepts one observer per column. Every operation in it is elementwise, so
+  each column gets the result it would get with its observer alone.
+- The layout functions that need band solves (causal edge, column scan, near-adapt nodes, far, near
+  and extra regions, `wake_layout`) are generators that *yield* a `BandRequest` and receive the bands
+  and branch records.
+- `LayoutMixin._drive` answers the requests of one generator one by one. The plain methods use it,
+  with the same calls in the same order as before.
+- `_drive_many` runs the generators of many observers in lockstep and answers all pending requests
+  with the same (n_iter, scale_bands) in one concatenated solve.
+- The near-adapt grading recursion (two Python passes, ~300k `max` calls per 192 points) moved to a
+  numba function.
+
+**Results.** Layouts are bit-identical: every node and band edge of 192 + 96 points on two BC20
+states (`array_equal`), the golden fixture, and MPI = serial.
+
+| | layout of 192 points (L1-17.6284, 27.0 m) |
+|---|---|
+| per point (P1) | 3.1 s |
+| batched final solve only | 1.8 s |
+| batched scans + final solves | 0.76 s |
+| + numba grading loop | 0.54 s, of which 0.36 s is the 14 band solves' arithmetic |
+
+The numba path uses the batched layout too (`CSR2D._numba_wakes`, 256 points per batch), still
+bit-identical. Whole wake meshes on four BC20 states, measured in one process each, are faster by:
+
+| state | points | per-point layout | batched layout | speed-up |
+|---|---|---|---|---|
+| L1-17.6284, 31.3 m | 480 | 19.5 s | 14.4 s | 1.36× |
+| L1-17.6284, 49.1 m | 480 | 48.0 s | 44.5 s | 1.08× |
+| loss, 49.0 m | 240 | 12.0 s | 9.8 s | 1.23× |
+| gain, 1.25 m | 120 | 4.4 s | 3.5 s | 1.26× |
+
+For the torch backend the layout is now ~10% of numba's serial time, down from 22–34%. What remains
+is mostly the band-solve arithmetic, which can move to the device (P2c).

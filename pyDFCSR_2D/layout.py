@@ -5,7 +5,29 @@ constructions in each, and the polar-patch radii (docs/DFCSR_2D_methods.md §5.2
 
 Mixed into CSR.CSR2D; the methods use its state (beam, lattice, DF_tracker, integration_params).
 """
+import math
+from collections import namedtuple
+
 import numpy as np
+from numba import njit
+
+# A band solve the layout needs: _retarded_xi_bands(s, x, t, sp, n_iter, scale_bands). The layout
+# functions below are generators (prefix _g_) that yield these and receive (bands, branch records);
+# LayoutMixin._drive answers them one by one (the plain methods, unchanged results), and
+# _drive_many answers the pending requests of many observers in one solve (the batched layout).
+BandRequest = namedtuple('BandRequest', 's x t sp n_iter scale_bands')
+
+
+@njit(cache=True)
+def _grade_log_monitor(lm, dg, lr):
+    """Two forward/backward passes limiting |d ln m| per cell to lr (_g_near_adapt_nodes)."""
+    for _ in range(2):
+        for i in range(1, lm.size):
+            lm[i] = max(lm[i], lm[i - 1] - lr * dg[i - 1] * math.exp(lm[i - 1]))
+        for i in range(lm.size - 2, -1, -1):
+            lm[i] = max(lm[i], lm[i + 1] - lr * dg[i] * math.exp(lm[i + 1]))
+    return lm
+
 
 def graded_u(u_near, u_far, g, k_min=0, close=False):
     """
@@ -22,16 +44,77 @@ def graded_u(u_near, u_far, g, k_min=0, close=False):
 
 class LayoutMixin:
 
+    def _solve_request(self, req):
+        bands = self._retarded_xi_bands(req.s, req.x, req.t, req.sp, n_iter=req.n_iter,
+                                        scale_bands=req.scale_bands)
+        return bands, self._branch_diag['branches']
+
+    def _drive(self, gen):
+        """Run one layout generator, answering each band request with its own solve."""
+        try:
+            req = next(gen)
+            while True:
+                req = gen.send(self._solve_request(req))
+        except StopIteration as stop:
+            return stop.value
+
+    def _drive_many(self, gens):
+        """
+        Run many layout generators in lockstep: all pending requests with the same (n_iter,
+        scale_bands, t) are concatenated into one solve (_retarded_xi_bands is elementwise in the
+        columns, with the observer given per column), and the bands and branch records are split
+        back. Every generator receives what its own solve would have returned.
+        """
+        out = [None] * len(gens)
+        pending = {}
+        for i, g in enumerate(gens):
+            try:
+                pending[i] = next(g)
+            except StopIteration as stop:
+                out[i] = stop.value
+        while pending:
+            groups = {}
+            for i, req in pending.items():
+                groups.setdefault((req.n_iter, req.scale_bands, req.t), []).append(i)
+            nxt = {}
+            for (n_iter, scale, t), ids in groups.items():
+                reqs = [pending[i] for i in ids]
+                sizes = [np.size(r.sp) for r in reqs]
+                sp = np.concatenate([np.atleast_1d(np.asarray(r.sp, dtype=float)) for r in reqs])
+                so = np.concatenate([np.full(n, float(r.s)) for r, n in zip(reqs, sizes)])
+                xo = np.concatenate([np.full(n, float(r.x)) for r, n in zip(reqs, sizes)])
+                bands = self._retarded_xi_bands(so, xo, t, sp, n_iter=n_iter, scale_bands=scale)
+                diag = self._branch_diag['branches']
+                a = 0
+                for i, r, n in zip(ids, reqs, sizes):
+                    b = a + n
+                    cut = lambda v: v[a:b] if np.ndim(v) else v
+                    res = ([(lo[a:b], hi[a:b]) for lo, hi in bands],
+                           [{k: cut(v) for k, v in br.items()} for br in diag])
+                    try:
+                        nxt[i] = gens[i].send(res)
+                    except StopIteration as stop:
+                        out[i] = stop.value
+                    a = b
+            pending = nxt
+        return out
+
     def _band_alive(self, s, x, t, sp):
+        return self._drive(self._g_band_alive(s, x, t, sp))
+
+    def _g_band_alive(self, s, x, t, sp):
         """Whether the retarded band has nonzero width, for each s' in the array."""
         sp = np.atleast_1d(np.asarray(sp, float))
-        bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp))
+        bands = self._disjoint_bands((yield BandRequest(s, x, t, sp, 12, True))[0])
         w = np.zeros(sp.size)
         for lo, hi in bands:
             w += np.maximum(hi - lo, 0.0)
         return w > 0.0
 
     def _causal_edge(self, s, x, t, sp_far, sp_near, n_scan=64):
+        return self._drive(self._g_causal_edge(s, x, t, sp_far, sp_near, n_scan))
+
+    def _g_causal_edge(self, s, x, t, sp_far, sp_near, n_scan=64):
         """
         Lowest s' in [sp_far, sp_near] whose retarded band still has nonzero width.
 
@@ -42,7 +125,7 @@ class LayoutMixin:
         Returns sp_far if the first sample is already alive, None if the whole interval is dead.
         """
         grid = np.linspace(sp_far, sp_near, n_scan)
-        alive = self._band_alive(s, x, t, grid)
+        alive = yield from self._g_band_alive(s, x, t, grid)
         if not alive.any():
             return None
         if alive[0]:
@@ -130,6 +213,9 @@ class LayoutMixin:
         return counts
 
     def _far_region_nodes(self, s, x, t, sp_far, sp_near, transient=None):
+        return self._drive(self._g_far_region_nodes(s, x, t, sp_far, sp_near, transient))
+
+    def _g_far_region_nodes(self, s, x, t, sp_far, sp_near, transient=None):
         """
         s' nodes for the merged far region, spanning sp_far (= s1, the causal reach
         s - n_formation_length*L_f) up to sp_near (= s3, where the near region starts).
@@ -150,7 +236,7 @@ class LayoutMixin:
             return self._record_far_nodes(np.linspace(sp_far, sp_near, n))
 
         lo = sp_far
-        e = self._causal_edge(s, x, t, sp_far, sp_near)
+        e = yield from self._g_causal_edge(s, x, t, sp_far, sp_near)
         if e is not None:
             lo = min(max(e, sp_far), sp_near)
             if e <= sp_far:
@@ -185,6 +271,9 @@ class LayoutMixin:
         return sp
 
     def _near_region_nodes(self, s, a, b, x=None, t=None):
+        return self._drive(self._g_near_region_nodes(s, a, b, x, t))
+
+    def _g_near_region_nodes(self, s, a, b, x=None, t=None):
         """
         s' nodes for the near region, graded so the cell grows with |s - s'|.
 
@@ -203,7 +292,7 @@ class LayoutMixin:
         if not ip.near_cell or not g or floor <= 0.0:
             base = np.linspace(a, b, self._region_node_counts(((a, b),))[-1])
             if ip.near_adapt and x is not None:
-                return self._near_adapt_nodes(s, x, t, a, b, base)
+                return (yield from self._g_near_adapt_nodes(s, x, t, a, b, base))
             return base
 
         ustar = floor / g                      # where relative spacing takes over
@@ -223,21 +312,21 @@ class LayoutMixin:
         self._last_region_nodes[-1] = len(sp)
         sp = np.unique(sp)
         if ip.near_adapt and x is not None:
-            return self._near_adapt_nodes(s, x, t, a, b, sp)
+            return (yield from self._g_near_adapt_nodes(s, x, t, a, b, sp))
         return sp
 
     def _column_scan(self, s, x, t, sp):
+        return self._drive(self._g_column_scan(s, x, t, sp))
+
+    def _g_column_scan(self, s, x, t, sp):
         """
         The retarded source seen by the column at each s': (z_ret, rho) at the located band's
         axis point, the larger of the two Eq 4.24 branches. rho is 0 where no branch is live.
         """
-        self._retarded_xi_bands(s, x, t, sp, n_iter=self.integration_params.near_adapt_scan_iter)
-        diag = getattr(self, '_branch_diag', None)
+        _, branches = yield BandRequest(s, x, t, sp, self.integration_params.near_adapt_scan_iter, True)
         zr = np.full(sp.shape, np.nan)
         rho = np.zeros(sp.shape)
-        if diag is None or diag['sp'] is not sp:
-            return zr, rho
-        for br in diag['branches']:
+        for br in branches:
             live = br['live']
             if not live.any():
                 continue
@@ -251,6 +340,9 @@ class LayoutMixin:
         return zr, rho
 
     def _near_adapt_nodes(self, s, x, t, a, b, base):
+        return self._drive(self._g_near_adapt_nodes(s, x, t, a, b, base))
+
+    def _g_near_adapt_nodes(self, s, x, t, a, b, base):
         """
         Near-region s' nodes adapted to the retarded density along the column (Integration_params
         near_adapt). Starts from the fixed layout `base`, scans z_ret and rho along the column and
@@ -275,7 +367,7 @@ class LayoutMixin:
         z_lo, z_hi = float(np.min(zb + tr.w_start * sz)), float(np.max(zb + tr.w_end * sz))
 
         sp = np.asarray(base, dtype=float)
-        zr, rho = self._column_scan(s, x, t, sp)
+        zr, rho = yield from self._g_column_scan(s, x, t, sp)
         # Each round splits every interval that still needs it into ceil(|dz_ret| / delta) pieces
         # at once (z_ret is close to linear within an interval), so 2-3 rounds suffice; a round is
         # one band solve, ~4 ms of Python overhead whatever its size.
@@ -298,7 +390,7 @@ class LayoutMixin:
                                   for i in range(need.sum())]) if need.any() else np.zeros(0)
             if new.size == 0:
                 break
-            zm, rm = self._column_scan(s, x, t, new)
+            zm, rm = yield from self._g_column_scan(s, x, t, new)
             # unique: a split point can coincide with an existing one to round-off, and a zero
             # spacing would put inf/nan into the gradient monitor below
             sp, order = np.unique(np.concatenate([sp, new]), return_index=True)
@@ -323,12 +415,7 @@ class LayoutMixin:
         # grading on the non-uniform scan grid: with h = 1/m, |d ln m| per cell <= ln(max_ratio)
         lr = np.log(ip.near_adapt_max_ratio)
         dg = np.diff(sp)
-        lm = np.log(m)
-        for _ in range(2):
-            for i in range(1, lm.size):
-                lm[i] = max(lm[i], lm[i - 1] - lr * dg[i - 1] * np.exp(lm[i - 1]))
-            for i in range(lm.size - 2, -1, -1):
-                lm[i] = max(lm[i], lm[i + 1] - lr * dg[i] * np.exp(lm[i + 1]))
+        lm = _grade_log_monitor(np.log(m), dg, lr)
         m = np.exp(lm)
         F = np.concatenate([[0.0], np.cumsum(0.5 * (m[1:] + m[:-1]) * dg)])
         if not np.isfinite(F[-1]):
@@ -363,6 +450,9 @@ class LayoutMixin:
         return 0.5 * R2, R2
 
     def _extra_region_nodes(self, s, x, t, s1):
+        return self._drive(self._g_extra_region_nodes(s, x, t, s1))
+
+    def _g_extra_region_nodes(self, s, x, t, s1):
         """
         s' nodes of the regions below the regular far edge s1, in integration order:
           prev_bend_reach     inside a bend, the previous bend's exit tail, from its entrance
@@ -379,7 +469,7 @@ class LayoutMixin:
             lo_cur = min(lo_cur, float(self.bend_start_rec))      # never the arc itself
             if lo_pre < lo_cur - 1e-12:
                 out.append(self._straight_region_nodes(s, lo_pre, lo_cur))
-        sp_drift = self._drift_causal_nodes(s, x, t, s1)
+        sp_drift = yield from self._g_drift_causal_nodes(s, x, t, s1)
         if sp_drift is not None:
             out.append(sp_drift)
         return out
@@ -424,6 +514,9 @@ class LayoutMixin:
         return np.unique(s - graded_u(max(s - hi, 1e-9), s - lo, g, close=True))
 
     def _drift_causal_nodes(self, s, x, t, s1):
+        return self._drive(self._g_drift_causal_nodes(s, x, t, s1))
+
+    def _g_drift_causal_nodes(self, s, x, t, s1):
         """
         s' nodes of the causal drift region [edge, s1) below the regular drift layout, or None
         (Integration_params.drift_causal_reach): only in the drift after a bend, from the lowest s'
@@ -436,7 +529,7 @@ class LayoutMixin:
         h0 = max(0.0, float(tl[0]) if len(tl) else 0.0)
         if not h0 < s1 - 1e-9:
             return None
-        lo = self._causal_edge(s, x, t, h0, s1, n_scan=ip.drift_causal_scan)
+        lo = yield from self._g_causal_edge(s, x, t, h0, s1, n_scan=ip.drift_causal_scan)
         if lo is None or not lo < s1 - 1e-9:
             return None
         if lo <= h0 + 1e-12 and h0 > 0.0:

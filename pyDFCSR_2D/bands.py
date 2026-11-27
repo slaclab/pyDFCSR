@@ -214,10 +214,19 @@ class BandsMixin:
         _disjoint_bands.
 
         Eq 4.24 assumes one straight beam axis: poly_degree 1 (checked in parse_input).
+
+        s and x may be arrays of sp's shape (one observer per column, for the batched layout of
+        many mesh points); every operation is elementwise, so each column's result is the same as
+        with its observer passed alone.
         """
         tr = self.DF_tracker
 
-        X0_s, Y0_s, n_s_x, n_s_y = (v[0] for v in self._lattice_at(np.array([s])))
+        if np.ndim(s) == 0:
+            X0_s, Y0_s, n_s_x, n_s_y = (v[0] for v in self._lattice_at(np.array([s])))
+            xp0 = np.full(sp.shape, float(x))
+        else:
+            X0_s, Y0_s, n_s_x, n_s_y = self._lattice_at(np.asarray(s, dtype=float))
+            xp0 = np.array(x, dtype=float)
         X0_sp, Y0_sp, n_sp_x, n_sp_y = self._lattice_at(sp)
 
         qx = X0_s - X0_sp + x * n_s_x
@@ -236,7 +245,7 @@ class BandsMixin:
         # fails the _eq424 guards or collapses onto the first in _disjoint_bands.
         bands, diag = [], []
         for sign in (-1.0, +1.0):
-            xp = np.full(sp.shape, float(x))
+            xp = xp0.copy()
             live = np.ones(sp.shape, dtype=bool)
             rad = np.zeros(sp.shape)
             for _ in range(n_iter):

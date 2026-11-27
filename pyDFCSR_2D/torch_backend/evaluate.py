@@ -74,8 +74,8 @@ class TorchWake:
         cols = {k: [] for k in ('pt', 'grp', 'lo', 'w', 'sp', 'ws', 'wc', 'R1', 'R2', 'ki', 'adapt')}
         patch, vxs = [], []
         g = 0
-        for i, (s, x) in enumerate(zip(s_arr, x_arr)):
-            lay = sim.wake_layout(s, x)
+        lays = sim.wake_layouts(s_arr, x_arr)
+        for i, (s, x, lay) in enumerate(zip(s_arr, x_arr, lays)):
             vx = sim._comoving_fields(np.array([x]), np.array([s - t]), np.array([t]))[3][0]
             if sim._windowed_frame():
                 vx = sim._observer_vx(x, s - t, vx)

@@ -921,6 +921,20 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         vb = c[0] + c[1] * xt + c[2] * wq + c[3] * wq ** 2 + c[4] * wq ** 3
         return T * vx_src + (1.0 - T) * vb
     
+    def _numba_wakes(self, ks, batch=256):
+        """
+        (dE/dct, x kick) at the mesh points ks: layouts built `batch` points at a time
+        (wake_layouts, one band solve per batch instead of per region), evaluated point by point.
+        """
+        s_all = self.beam.position + np.asarray(self.CSR_zmesh)[ks]
+        x_all = np.asarray(self.CSR_xmesh)[ks]
+        out = np.zeros((2, len(ks)))
+        for a in range(0, len(ks), batch):
+            lays = self.wake_layouts(s_all[a:a + batch], x_all[a:a + batch])
+            for j, lay in enumerate(lays):
+                out[:, a + j] = self.get_CSR_wake(s_all[a + j], x_all[a + j], layout=lay)
+        return out[0], out[1]
+
     def _torch_wakes(self, ks):
         """(dE/dct, x kick) at the mesh points ks with the torch backend (torch_backend.evaluate)."""
         if getattr(self, '_torch_wake', None) is None:
@@ -938,11 +952,7 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         if self.CSR_params.backend == 'torch':
             self.dE_dct[:], self.x_kick[:] = self._torch_wakes(np.arange(N))
         else:
-            for i in range(N):
-                s = self.beam.position + self.CSR_zmesh[i]
-                x = self.CSR_xmesh[i]
-
-                self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x)
+            self.dE_dct[:], self.x_kick[:] = self._numba_wakes(np.arange(N))
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
@@ -970,10 +980,8 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
             ks = np.arange(rank, work_size, size)
             dE_local[ks], xk_local[ks] = self._torch_wakes(ks)
         else:
-            for k in range(rank, work_size, size):
-                s = self.beam.position + self.CSR_zmesh[k]
-                x = self.CSR_xmesh[k]
-                dE_local[k], xk_local[k] = self.get_CSR_wake(s, x)
+            ks = np.arange(rank, work_size, size)
+            dE_local[ks], xk_local[ks] = self._numba_wakes(ks)
 
         self.dE_dct = np.zeros((work_size,))
         self.x_kick = np.zeros((work_size,))

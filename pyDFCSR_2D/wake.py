@@ -9,17 +9,19 @@ import numpy as np
 
 from .integrand_kernel import csr_integrand_kernel
 from .interp3D import interpolate3D_comoving_fields, interpolate3D_comoving_ibp
+from .layout import BandRequest
 
 
 class WakeMixin:
 
-    def get_CSR_wake(self, s, x, debug=False):
+    def get_CSR_wake(self, s, x, debug=False, layout=None):
         """
         (dE/dct, x kick) at the observer (s, x): the band-localised integral over every s'
         region, plus the polar patch around the 1/|r - r'| pole (methods §5.1). debug=True
-        returns the regions' node meshes and integrands instead.
+        returns the regions' node meshes and integrands instead. layout: this observer's
+        wake_layout, if already built (wake_layouts builds many at once).
         """
-        lay = self.wake_layout(s, x)
+        lay = self.wake_layout(s, x) if layout is None else layout
         t = lay['t']
         ip = self.integration_params
         self._ibp_ship_acc = 0.0
@@ -54,13 +56,23 @@ class WakeMixin:
         and whether the x' refinement applies; and the polar patch radii (None: no patch). The
         torch backend evaluates the same layout (torch_backend.evaluate).
         """
+        return self._drive(self._g_wake_layout(s, x))
+
+    def wake_layouts(self, s_arr, x_arr):
+        """
+        wake_layout for many observers at once: their band solves (scans and final bands) are
+        batched by LayoutMixin._drive_many, so each layout is the same as from wake_layout.
+        """
+        return self._drive_many([self._g_wake_layout(s, x) for s, x in zip(s_arr, x_arr)])
+
+    def _g_wake_layout(self, s, x):
         t = self.beam.position
         ip = self.integration_params
         bnds = self._layout_bounds(s, x)
         (s1, s3), (_, s4) = bnds
         self._region_node_counts(bnds)      # sets _last_region_nodes for diagnostics
-        sps = [self._far_region_nodes(s, x, t, s1, s3),
-               self._near_region_nodes(s, s3, s4, x=x, t=t)]
+        sps = [(yield from self._g_far_region_nodes(s, x, t, s1, s3)),
+               (yield from self._g_near_region_nodes(s, s3, s4, x=x, t=t))]
         # only the near region straddles s' = s, so only it owns the pole and gets the patch
         radii = self._near_patch_radii(s, s3, s4)
         tapers = [None, None if radii is None else (*radii, False)]
@@ -68,11 +80,11 @@ class WakeMixin:
         regions = [dict(sp=spk, taper=tp, scale_bands=(k == 0),
                         adapt_x=(k == 1) or (k == 0 and ip.far_adapt_x))
                    for k, (spk, tp) in enumerate(zip(sps, tapers))]
-        for sp_extra in self._extra_region_nodes(s, x, t, s1):
+        for sp_extra in (yield from self._g_extra_region_nodes(s, x, t, s1)):
             regions.append(dict(sp=sp_extra, taper=None, scale_bands=True, adapt_x=ip.far_adapt_x))
         for reg in regions:
-            reg['bands'] = self._disjoint_bands(self._retarded_xi_bands(s, x, t, reg['sp'],
-                                                                        scale_bands=reg['scale_bands']))
+            bands, _ = yield BandRequest(s, x, t, reg['sp'], 12, reg['scale_bands'])
+            reg['bands'] = self._disjoint_bands(bands)
         return dict(t=t, regions=regions, patch=radii)
 
     def _integrate_xi_region(self, s, x, t, sp, taper=None, scale_bands=True, adapt_x=False, bands=None):
