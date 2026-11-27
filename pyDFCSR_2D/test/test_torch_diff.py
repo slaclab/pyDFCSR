@@ -34,7 +34,20 @@ def test_deposit_matches_numpy_and_gradcheck():
         assert np.abs(a.numpy() - b).max() <= 1e-12 * np.abs(b).max()
     for k in ('xi_bar', 'z_bar', 'sigma_xi', 'sigma_z', 'curv_c2', 'curv_c3'):
         assert abs(float(frame[k]) - float(getattr(tr, k))) <= 1e-12 * max(abs(float(getattr(tr, k))), 1e-30)
-    rng = np.random.default_rng(1)
+    # windowed frames on a spike + pedestal (window, z smoothing, adaptive weights from the numpy deposit)
+    from pyDFCSR_2D.torch_backend.deposit import get_DF_windowed, window_structure
+    rng = np.random.default_rng(2)
+    zz = np.r_[rng.normal(0, 30e-6, 20000), rng.normal(10e-6, 2e-6, 20000)]
+    xx = 1e-5 * rng.normal(size=zz.size) + 0.3 * zz
+    pp = 1e-5 * rng.normal(size=zz.size) + 2 * xx
+    for kw in (dict(frame='quantile'), dict(frame='peak', smoothing_res_fwhm=0.1),
+               dict(frame='quantile', smoothing_adaptive=True)):
+        tr = DF_tracker_comoving(dict(dict(xbins=64, zbins=400, smoothing_sigma=2.0, velocity_threshold=1000,
+                                           curvature=True), **kw))
+        tr.get_DF(x=xx, z=zz, px=pp, t=0.0)
+        fields, _ = get_DF_windowed(tr, *(torch.as_tensor(v) for v in (xx, zz, pp)), window_structure(tr))
+        for a, b in zip(fields, (tr.density, tr.density_u, tr.density_w, tr.vx, tr.vx_u)):
+            assert np.abs(a.numpy() - b).max() <= 1e-12 * np.abs(b).max(), kw
     q = [torch.tensor(rng.normal(0, 1.5, 200), requires_grad=True) for _ in range(2)]
     w = torch.tensor(rng.uniform(0.5, 1.5, 200), requires_grad=True)
     assert torch.autograd.gradcheck(lambda a, b, c: deposit(a, b, c, 16, -5, 5, 12, -5, 5), (*q, w),
@@ -66,11 +79,16 @@ def _lattice(tmp):
     yaml.safe_dump(lat, open(os.path.join(tmp, 'lat.yaml'), 'w'), sort_keys=False)
 
 
-def test_forward_matches_csr2d():
+@pytest.mark.parametrize('dep, csr', [
+    (None, None),
+    ({'frame': 'quantile', 'zbins': 128, 'smoothing_sigma_z': 1.5},
+     {'mesh_mode': 'charge', 'mesh_x_quantile': 0.01, 'mesh_z_quantile': 0.001}),
+])
+def test_forward_matches_csr2d(dep, csr):
     from pyDFCSR_2D import CSR2D
     from pyDFCSR_2D.torch_backend.diff import CSR2DDiff
     with tempfile.TemporaryDirectory() as tmp:
-        f = G.config(tmp, None, None, None)
+        f = G.config(tmp, dep, csr, None)
         with contextlib.redirect_stdout(io.StringIO()):
             a = CSR2D(input_file=f)
             a.run()
@@ -98,7 +116,7 @@ def test_end_to_end_gradients():
         def run(c, ang, k1, structure=None):
             with contextlib.redirect_stdout(io.StringIO()):
                 d = CSR2DDiff(input_file=f, coords=c, params={('B1', 'angle'): ang, ('Q1', 'K1'): k1},
-                              structure=structure)
+                              structure=structure, checkpoint=True)
                 d.run()
             return d
         c = c0.clone().requires_grad_(True)
@@ -109,7 +127,26 @@ def test_end_to_end_gradients():
         ad = float((c.grad * v).sum()) + float(ang.grad) * 0.05 + float(k1.grad) * 3.0
         h = 1e-5
         T = lambda x: torch.tensor(x, dtype=torch.float64)
-        lp = float(loss(run(c0 + h * v, T(0.05 * (1 + h)), T(3.0 * (1 + h)), d.structure).tp))
-        lm = float(loss(run(c0 - h * v, T(0.05 * (1 - h)), T(3.0 * (1 - h)), d.structure).tp))
+        lp = float(loss(run(c0 + h * v, T(0.05 * (1 + h)), T(3.0 * (1 + h)), d.record).tp))
+        lm = float(loss(run(c0 - h * v, T(0.05 * (1 - h)), T(3.0 * (1 - h)), d.record).tp))
     fd = (lp - lm) / (2 * h)
     assert abs(fd - ad) <= 1e-4 * abs(fd), (ad, fd)
+
+
+def test_checkpoint_gives_the_same_gradient():
+    """Checkpointed tracking steps and wake chunks: the same gradient, to round-off."""
+    from pyDFCSR_2D.torch_backend.diff import CSR2DDiff
+    c0 = torch.as_tensor(G.beam_coords().T[:, :3000].copy())
+    out = []
+    with tempfile.TemporaryDirectory() as tmp:
+        f = G.config(tmp, None, {'torch_chunk': 1 << 19}, None)
+        for ck in (False, True):
+            c = c0.clone().requires_grad_(True)
+            ang = torch.tensor(0.05, dtype=torch.float64, requires_grad=True)
+            with contextlib.redirect_stdout(io.StringIO()):
+                d = CSR2DDiff(input_file=f, coords=c, params={('B1', 'angle'): ang}, checkpoint=ck)
+                d.run(stop_time=0.15)
+            (d.tp.pz.mean() * 1e6 + d.tp.px.std() * 1e3).backward()
+            out.append((float(ang.grad), c.grad.clone()))
+    assert abs(out[0][0] - out[1][0]) <= 1e-12 * abs(out[0][0])
+    assert torch.allclose(out[0][1], out[1][1], rtol=1e-12, atol=1e-12 * float(out[0][1].abs().max()))

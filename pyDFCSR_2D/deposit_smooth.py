@@ -738,6 +738,7 @@ class DF_tracker_comoving:
         epsilon = f_window * (1.0 / (2.0 * np.pi)) / self.velocity_threshold
         if self.smoothing_adaptive:
             levels, W, sz_peak = self._adaptive_weights(density, npart, sz)
+            self.adaptive_levels = (levels, W)          # for the torch backend (structure)
             sx = self.smoothing_sigma
             density_smooth, density_du, density_dw = smooth_levels(
                 density, self.delta_u, self.delta_w, sx, levels, W)
@@ -748,6 +749,7 @@ class DF_tracker_comoving:
                                   want=(False, True, False))[1]
         else:
             sz_peak = sz
+            self.adaptive_levels = None
             density_smooth, density_du, density_dw = smooth_and_differentiate(
                 density, self.delta_u, self.delta_w, self.smoothing_sigma, sz)
             rho_vx_smooth, _, _ = smooth_and_differentiate(

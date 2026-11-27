@@ -174,3 +174,58 @@ the rest ports as for rms), element lengths (they move the schedule), MPI.
 Tests: `test/test_torch_diff.py`: deposition vs numpy plus `gradcheck`, orbit table vs numpy,
 forward vs CSR2D, and one end-to-end directional derivative in (angle, K1, coordinates) against
 central differences (1e-4).
+
+## 4. Windowed frames and checkpointing (2026-11-27)
+
+**Windowed frames (quantile, peak; BC20 needs them).** `get_DF_windowed` ports `_get_DF_quantile`.
+Four things are taken from the numpy deposit of the same particles and treated as per-snapshot
+structure:
+- the window (lo, hi and the margins);
+- the frame it implies (z̄, σ_z);
+- the z smoothing width;
+- the adaptive-smoothing blend weights (now kept on the tracker as `adaptive_levels`).
+
+The window weight T(z) and everything else are differentiated. The T-weighted fits use the normal
+equations with weights T, not √T rows, so the derivative stays finite where T = 0. The observer vx
+blends the windowed source with the beam-wide fit as `CSR2D._observer_vx` does, with that fit
+computed on the torch beam. The torch deposit matches numpy to ≤ 4e-14 for quantile, peak
+(`smoothing_res_fwhm`) and adaptive smoothing.
+
+Two things the comparison caught:
+- **The kick lookup's ridge.** `CSR2D._mesh_ridge` holds w at the grid edge in windowed frames, and
+  the torch kick did not. Tail particles then got a slightly different mesh row, which gave 6.6e-11
+  in pz after the first kick. Fixed: the windowed forward run equals CSR2D to 4e-16.
+- **Refinement ties under finite differences.** The x′ refinement chooses columns from integrand
+  values. A finite-difference run moved those choices at the ties, so the error grew as h shrank
+  (3.6e-3 at h = 1e-5, 1.4e-2 at 1e-6). The active columns of every round are now part of the replayed
+  structure.
+
+  | case (golden, `near_adapt` + `near_adapt_x`) | AD vs FD, random direction in all coordinates |
+  |---|---|
+  | quantile frame + charge mesh | 4.4e-7 (h = 1e-5), 5.4e-8 (h = 1e-6) |
+  | peak frame | 4.1e-8 (h = 1e-6) |
+
+**Checkpointing** (`CSR2DDiff(..., checkpoint=True)`). Each tracking step and each wake chunk is
+recomputed in the backward pass instead of keeping its graph. A chunk keeps only its column range,
+not the ~50 saved doubles per integrand node.
+
+The first version gave a wrong gradient (dL/dangle −32.3 instead of −372.1): the recompute read the
+observation time from the beam, which by then had moved on. The time is now bound to each chunk.
+The gradients are then identical, and the backward pass is faster, since it no longer manipulates a
+huge graph:
+
+| golden, 20k particles, 8 kicks | forward | backward | peak RSS | dL/dangle |
+|---|---|---|---|---|
+| no checkpointing | 17.1 s | 55.1 s | 25.8 GB | −372.13299567 |
+| checkpointing, chunk 2²¹ | 9.4 s | 20.4 s | 9.4 GB | −372.13299567 |
+| checkpointing, chunk 2¹⁹ | 9.1 s | 20.2 s | 4.2 GB | same |
+| checkpointing, chunk 2¹⁷ | 10.9 s | 23.0 s | 2.0 GB | same |
+
+The forward pass alone peaks at 2.9–3.3 GB, with or without the graph. For gradient runs, use
+`checkpoint=True` and `torch_chunk: 524288`.
+
+Tests (`test_torch_diff.py`):
+- windowed deposits against numpy;
+- the forward run against CSR2D in the rms frame and in the quantile frame with a charge mesh;
+- the end-to-end finite-difference check, now checkpointed;
+- checkpointed and plain gradients equal to 1e-12.
