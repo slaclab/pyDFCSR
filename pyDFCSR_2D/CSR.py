@@ -44,10 +44,25 @@ class CSR2D:
     The main class to calculate 2D CSR
     """
 
+    # The bend the beam is in or has last left, as the run loop records it on element entry.
+    BEND_STATE = dict(inbend=False, afterbend=False,   # in a dipole / past at least one dipole
+                      R_rec=None, phi_rec=None,       # radius and angle of the current or last bend
+                      bend_start_rec=None,            # its entrance
+                      bend_len_rec=0.0,               # its arc length
+                      prev_bend_start=None,           # inside a bend: the previous bend's entrance
+                      prev_bend_end=None,             # inside a bend: the previous bend's exit
+                      drift_prev_start=None)          # the previous bend's entrance, kept through the drift
+
     def __init__(self, input_file=None, parallel = False):
 
         self.timestamp = isotime()
         self._parallel_requested = bool(parallel)
+        self.parallel = False
+        self.rank = MPI.COMM_WORLD.Get_rank() if parallel else 0
+        self.__dict__.update(self.BEND_STATE)
+        self._last_region_nodes = [0, 0]
+        self.counters = {}          # per-run diagnostics, reported at the end of run() (_report_counters)
+        self._warned = set()        # keys of the once-only warnings already printed on this rank
         if input_file:
             self.parse_input(input_file)
             self.input_file = input_file
@@ -58,7 +73,7 @@ class CSR2D:
 
         if parallel:
             self.init_MPI()
-            sc = getattr(self, '_step_control_cfg', {})
+            sc = self._step_control_cfg
             # the two replicated-work splits (progress_facet_bc20.md 11h): tracking (bit-identical)
             # and deposition (1e-16 differences) over contiguous particle slices per rank
             if sc.get('particle_split', False):
@@ -67,6 +82,47 @@ class CSR2D:
                 self.DF_tracker.set_deposit_split(MPI.COMM_WORLD)
         else:
             self.parallel = False
+
+    def __setstate__(self, state):
+        self.__dict__.update(self.BEND_STATE)
+        self._last_region_nodes = [0, 0]
+        self.counters, self._warned = {}, set()
+        self.__dict__.update(state)
+
+    def _is_root(self):
+        return (not self.parallel) or self.rank == 0
+
+    def _note(self, key, msg, every_rank=False):
+        """
+        Print msg the first time `key` fires. every_rank False: on rank 0 only, for conditions every
+        rank sees alike (lattice, schedule, beam). every_rank True: on whichever rank hits it, tagged
+        with the rank, for conditions met at individual wake-mesh points (the mesh is split over ranks).
+        """
+        if key in self._warned or not (every_rank or self._is_root()):
+            return
+        self._warned.add(key)
+        print((f'[rank {self.rank}] ' if (self.parallel and every_rank) else '') + msg, flush=True)
+
+    def _count(self, key, n=1):
+        self.counters[key] = self.counters.get(key, 0) + n
+
+    def _report_counters(self):
+        """
+        Sum the per-rank counters (MPI), print them once on rank 0, keep them for statistics.h5.
+        retention_short: steps whose retained history started later than the integration asked for;
+        steps_blocked / kicks_skipped: drift_cutoff; far_clip_at_reach / drift_causal_clipped: far
+        regions ended by the reach or by the retained history rather than by causality;
+        thin_dropped / thin_kept: drift_snap_thin.
+        """
+        c = dict(self.counters)
+        if self.parallel:
+            keys = sorted(set().union(*MPI.COMM_WORLD.allgather(sorted(c))))
+            c = {k: MPI.COMM_WORLD.allreduce(c.get(k, 0), op=MPI.MAX if k.endswith('_worst') else MPI.SUM)
+                 for k in keys}
+        self.diagnostics = c
+        if c and self._is_root():
+            print('  [diagnostics] ' + ', '.join(f'{k} = {v:.4g}' if isinstance(v, float) else f'{k} = {v}'
+                                               for k, v in sorted(c.items())), flush=True)
 
     def parse_input(self, input_file):
         input = parse_yaml(input_file)
@@ -111,6 +167,7 @@ class CSR2D:
                              f"(the default) remains; the legacy CIC and bspline_fft deposits were removed in the "
                              f"2026-11 cleanup")
         self.DF_tracker = DF_tracker_comoving(deposition_config)
+        self.DF_tracker.verbose = self._is_root()
         if self.DF_tracker.poly_degree != 1:
             raise ValueError('particle_deposition.poly_degree must be 1: the two-branch band solver (Eq 4.24) '
                              'assumes a straight beam axis')
@@ -140,7 +197,7 @@ class CSR2D:
             geom = geom1d.at(first['end'], first['name'])
         choice, f_peak, fl, ff = choose_auto_frame(tr, self.beam.z, geom)
         tr.resolve_frame(choice, (choice, f_peak, fl, ff, geom['bend']))
-        if (not getattr(self, 'parallel', False)) or getattr(self, 'rank', 0) == 0:
+        if self._is_root():
             where = (f"at the exit of {first['name']} (R = {geom['R']:.2f} m)" if first is not None
                      else 'nowhere: the lattice has no bend')
             print(f"  [frame auto] '{choice}': the peak window (+-{tr.peak_halfwidth:g} FWHM around the "
@@ -190,12 +247,7 @@ class CSR2D:
         self.statistics['mean_energy'] = np.zeros(Nstep)
 
         self.update_statistics(step = 0)
-
-
-        self.inbend = False
-        self.afterbend = False
-        self.R_rec = None
-        self.phi_rec = None
+        self.__dict__.update(CSR2D.BEND_STATE)      # also used by CSR1D, which borrows this method
 
     def init_MPI(self):
         self.parallel = True
@@ -307,7 +359,6 @@ class CSR2D:
             # not bmadx.Sextupole: its drift and kick are wrong for canonical px (tracking.py)
             K2 = input_dic.pop('K2')
             element = SextupoleKDK(L=DL, K2=K2, **input_dic)
-        print(element)
         return element
 
     def _ends_element(self, s_end, ele_count):
@@ -337,8 +388,6 @@ class CSR2D:
         instantaneous behaviour exactly.
         """
         self._retention = None
-        self._retention_short = 0
-        self._retention_worst = 0.0
         try:
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py,
@@ -347,13 +396,14 @@ class CSR2D:
                 self.lattice.lattice_config, sigma0,
                 self.integration_params.n_formation_length)
             plan = self._retention
-            print(f'  [retention] precomputed floor from linear optics: max depth '
-                  f'{plan.max_depth:.4f} m -> '
-                  f'{plan.max_snapshots(self.lattice.step_size)} snapshots at '
-                  f'step_size {self.lattice.step_size:g} m (safety {plan.safety:g})')
+            if self._is_root():
+                print(f'  [retention] precomputed floor from linear optics: max depth '
+                      f'{plan.max_depth:.4f} m -> '
+                      f'{plan.max_snapshots(self.lattice.step_size)} snapshots at '
+                      f'step_size {self.lattice.step_size:g} m (safety {plan.safety:g})')
         except Exception as exc:                       # noqa: BLE001
-            print(f'  [retention] precomputation skipped '
-                  f'({type(exc).__name__}: {exc}); falling back to instantaneous L_f')
+            self._note('retention', f'  [retention] precomputation skipped '
+                                    f'({type(exc).__name__}: {exc}); falling back to instantaneous L_f')
 
     def _retention_floor(self):
         f = (self._retention.floor_at(self.beam.position)
@@ -361,14 +411,14 @@ class CSR2D:
         # drift_reach: from a bend's entrance until the next bend, never discard the
         # history of that bend -- it is the source of the exit wake downstream
         if self.integration_params.drift_reach and self.afterbend:
-            sb = getattr(self, 'bend_start_rec', None)
+            sb = self.bend_start_rec
             if sb is not None:
                 f = sb if f is None else min(f, sb)
         pb = self._prev_bend_reach_start()
         if pb is not None:
             f = pb if f is None else min(f, pb)
-        dp = getattr(self, 'drift_prev_start', None)
-        if (getattr(self.integration_params, 'drift_causal_reach', False) and self._exit_transient()
+        dp = self.drift_prev_start
+        if (self.integration_params.drift_causal_reach and self._exit_transient()
                 and dp is not None):
             # drift_causal_reach: the previous bend (and n_fl*L_f before it) is still a source here
             fd = max(0.0, float(dp) - self.integration_params.n_formation_length * self.formation_length)
@@ -378,7 +428,7 @@ class CSR2D:
             # straight-section reach (Integration_params.reach_straight) for the bunch head, not
             # below the previous bend's exit (the history there is drift_reach's)
             gs = self.beam.position + 3.0 * self.beam._sigma_z - g
-            pe = getattr(self, 'prev_bend_end', None)
+            pe = self.prev_bend_end
             if pe is not None:
                 gs = max(gs, float(pe))
             f = gs if f is None else min(f, gs)
@@ -407,14 +457,14 @@ class CSR2D:
         g = self._geo_reach(self.beam.position)
         if g is not None:
             gs = self.beam.position - g
-            pe = getattr(self, 'prev_bend_end', None)
+            pe = self.prev_bend_end
             if pe is not None:
                 gs = max(gs, float(pe))
             need = min(need, max(0.0, gs))
         have = self.DF_tracker.time_log[0]
         if have > need + 1e-9:
-            self._retention_short += 1
-            self._retention_worst = max(self._retention_worst, have - need)
+            self._count('retention_short')
+            self.counters['retention_worst'] = max(self.counters.get('retention_worst', 0.0), have - need)
 
     def report_schedule(self):
         """
@@ -548,12 +598,10 @@ class CSR2D:
 
                 # the bend left behind is still radiating into this one: its exit tail
                 # arrives here (Integration_params.prev_bend_reach)
-                self.prev_bend_start = (getattr(self, 'bend_start_rec', None)
-                                        if self.afterbend else None)
+                self.prev_bend_start = self.bend_start_rec if self.afterbend else None
                 # ... and its exit: the section before THIS bend is straight only from there
                 # (Integration_params.reach_straight)
-                self.prev_bend_end = ((getattr(self, 'bend_start_rec', 0.0) + getattr(self, 'bend_len_rec', 0.0))
-                                      if self.afterbend else None)
+                self.prev_bend_end = (self.bend_start_rec + self.bend_len_rec) if self.afterbend else None
                 # kept through the drift after this bend (drift_causal_reach retention)
                 self.drift_prev_start = self.prev_bend_start
                 self.bend_len_rec = L
@@ -658,16 +706,12 @@ class CSR2D:
                 if CSR_blocker:
                     # steps, not kicks: this tests every step, and only a subset of steps
                     # are kick nodes. Reporting it as "kicks skipped" overstated it 5x.
-                    self._steps_blocked = getattr(self, '_steps_blocked', 0) + 1
+                    self._count('steps_blocked')
                     if sched.is_kick[step_count]:
-                        self._kicks_skipped = getattr(self, '_kicks_skipped', 0) + 1
-                    if not getattr(self, '_warned_blocker', False):
-                        self._warned_blocker = True
-                        if (not self.parallel) or (self.rank == 0):
-                            print(f'Beyond {cutoff:g} |R*phi| = '
-                                  f'{cutoff * abs(self.R_rec) * abs(self.phi_rec):.4f} m '
-                                  f'past the last bend; skipping CSR from here in '
-                                  f'this drift.')
+                        self._count('kicks_skipped')
+                    self._note('blocker', f'Beyond {cutoff:g} |R*phi| = '
+                                          f'{cutoff * abs(self.R_rec) * abs(self.phi_rec):.4f} m '
+                                          f'past the last bend; skipping CSR from here in this drift.')
                 
                 
                 if self.CSR_params.compute_CSR and (not CSR_blocker):
@@ -718,7 +762,7 @@ class CSR2D:
                                                   self.CSR_params.transverse_on,
                                                   x_shift=self._mesh_ridge(self.beam.z),
                                                   clamp_x=self.CSR_params.mesh_x_quantile is not None,
-                                                  clamp_z=getattr(self.CSR_params, 'mesh_z_quantile', None) is not None)
+                                                  clamp_z=self.CSR_params.mesh_z_quantile is not None)
                             self._s_last_kick = self.beam.position
                         if (self.CSR_params.write_beam == 'all' or
                                 (isinstance(self.CSR_params.write_beam, list) and (step_count in self.CSR_params.write_beam))):
@@ -749,12 +793,14 @@ class CSR2D:
                               f'{over:.6f} m past the requested stop_time = {stop_time:.6f}. '
                               f'No node lands exactly there; assert on beam.position when '
                               f'comparing runs at different step sizes.')
+                    self._report_counters()
                     return
 
             ele_prev = ele
 
             ele_count += 1
 
+        self._report_counters()
         self.dump_beam(label='end')
         self.write_statistics()
 
@@ -770,7 +816,7 @@ class CSR2D:
             return np.zeros_like(np.asarray(z, dtype=float))
         from .deposit_smooth import _curv_g_vec
         w = (np.asarray(z, dtype=float) - tr.z_bar) / tr.sigma_z
-        if getattr(tr, 'frame', 'rms') in ('quantile', 'peak'):
+        if tr.frame in ('quantile', 'peak'):
             # tail particles lie outside the window; continuing g linearly there would
             # throw mesh rows (and the kick lookup) far off the beam. Hold it at the edge.
             w = np.clip(w, tr.w_start, tr.w_end)
@@ -801,13 +847,11 @@ class CSR2D:
         zbins = self.CSR_params.zbins
 
         if (self.CSR_params.mesh_mode == 'uniform'
-                and not getattr(self, '_taper_mesh_warned', False)
                 and xlim > self.DF_tracker.u_flat() + 1e-9):
             # The outer mesh rows sit where the deposit's u edge taper has removed part of the
             # source charge (DF_tracker_comoving.u_taper), so their near field is weakened.
             # Few particles are there, but say so once.
-            self._taper_mesh_warned = True
-            print(f'  [CSR2D] note: the wake mesh spans +-{xlim} sigma_x, beyond the deposit\'s '
+            self._note('taper_mesh', f'  [CSR2D] note: the wake mesh spans +-{xlim} sigma_x, beyond the deposit\'s '
                   f'full-weight region |u| <= {self.DF_tracker.u_flat():.2f} (u_taper); the '
                   f'outermost rows see a tapered source. Lower CSR_computation.xlim, or raise '
                   f'particle_deposition xlim/xbins.')
@@ -820,7 +864,7 @@ class CSR2D:
             cp = self.CSR_params
             res_z, res_x = self._deposition_resolution()
             zq = self.beam.z
-            if getattr(cp, 'mesh_z_quantile', None) is not None:
+            if cp.mesh_z_quantile is not None:
                 # the axis on the [q, 1-q] span, the particles outside DROPPED (not clipped onto
                 # the edge: a clipped pile is a spike in the monitor); they get the edge kick
                 zlo, zhi = np.quantile(zq, [cp.mesh_z_quantile, 1.0 - cp.mesh_z_quantile])
@@ -916,24 +960,21 @@ class CSR2D:
         self.quantile_log.append((self.beam.position, tr.window[0], tr.window[1], tr.window[2], tr.window[3],
                                   tr.f_window, res_z, fwhm, h_at_peak, frac_loss, frac_field))
         cp = self.CSR_params
-        if max(abs(frac_loss), frac_field) > cp.pedestal_warn and not getattr(self, '_warned_ped', False):
-            self._warned_ped = True
-            print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the dropped '
+        if max(abs(frac_loss), frac_field) > cp.pedestal_warn:
+            self._note('pedestal', f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the dropped '
                   f'{100 * (1 - tr.f_window):.2f}% of the charge carries {100 * frac_loss:.1f}% of '
                   f'the 1D energy loss and {100 * frac_field:.1f}% of the 1D field on the window '
                   f'(pedestal_warn {cp.pedestal_warn:g}). '
                   + ("frame 'auto' chose 'peak' on the initial beam; the pedestal matters now: use frame 'quantile'."
                      if getattr(tr, 'frame_requested', None) == 'auto' and tr.frame == 'peak'
                      else 'Lower particle_deposition.frame_quantile.'))
-        if res_z > 0 and fwhm / res_z < 5 and not getattr(self, '_warned_res', False):
-            self._warned_res = True
-            print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the highest '
+        if res_z > 0 and fwhm / res_z < 5:
+            self._note('resolution', f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the highest '
                   f'current peak (FWHM {fwhm*1e6:.3g} um) is only {fwhm/res_z:.1f}x the '
                   f'deposition z resolution ({res_z*1e6:.3g} um). Raise zbins or lower '
                   f'smoothing_sigma_z.')
-        if fwhm / h_at_peak < 3 and not getattr(self, '_warned_mesh', False):
-            self._warned_mesh = True
-            print(f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the finest '
+        if fwhm / h_at_peak < 3:
+            self._note('mesh_resolution', f'  [quantile frame] WARNING at s = {self.beam.position:.4f} m: the finest '
                   f'wake-mesh z spacing ({h_at_peak*1e6:.3g} um) is coarser than FWHM/3 of the '
                   f'highest current peak ({fwhm*1e6:.3g} um). Raise CSR_computation.zbins.')
 
@@ -1096,7 +1137,7 @@ class CSR2D:
         Blends the curvature coefficients exactly as interpolate3D_comoving_fields does.
         """
         tr = self.DF_tracker
-        if not getattr(tr, 'curvature', False):
+        if not tr.curvature:
             return 0.0
         n_t = tr.poly_coeffs_interp.shape[0]
         k, a = lookup_vec(t_ret, tr.t_arr, tr.is_uniform, tr.min_x, tr.delta_x, n_t)
@@ -1203,7 +1244,7 @@ class CSR2D:
         tau0 = self._frame_tilt()
         margin = margin * degenerate_margin_factor(
             2.0 * tau0 / (1.0 + tau0 * tau0),
-            getattr(self.integration_params, 'xi_band_margin_degenerate', 1.0))
+            self.integration_params.xi_band_margin_degenerate)
 
         # BOTH roots are always taken. The branch degeneracy of thesis 4.4.2 is a
         # property of the tilt at the RETARDED time a(s'), which varies column to
@@ -1537,7 +1578,7 @@ class CSR2D:
                 # The edge should be the tighter limit; if the reach binds instead, the
                 # integral is truncated by the history budget rather than by causality.
                 # Honest, but a different limitation -- count it rather than hide it.
-                self._far_clip_at_reach = getattr(self, '_far_clip_at_reach', 0) + 1
+                self._count('far_clip_at_reach')
 
         parts = []
         top = lo
@@ -1567,8 +1608,6 @@ class CSR2D:
 
     def _record_far_nodes(self, sp):
         """Log the realised far node count, which is now derived rather than fixed."""
-        self._last_region_nodes = list(getattr(self, '_last_region_nodes',
-                                               [self.integration_params.far_zbins] * 2))
         self._last_region_nodes[0] = len(sp)
         return sp
 
@@ -1600,11 +1639,11 @@ class CSR2D:
         the same reach.
         """
         ip = self.integration_params
-        rs = getattr(ip, 'reach_straight', 0.0)
-        sb = getattr(self, 'bend_start_rec', None)
+        rs = ip.reach_straight
+        sb = self.bend_start_rec
         if not rs or sb is None:
             return None
-        R = abs(float(getattr(self, 'R_rec', 0.0) or 0.0))
+        R = abs(float(self.R_rec or 0.0))
         if R <= 0.0:
             return None
         a = float(s) - float(sb)
@@ -1632,7 +1671,7 @@ class CSR2D:
         whose retarded band still meets the bunch, bounded by s' = 0 and the retained history.
         """
         ip = self.integration_params
-        if not (getattr(ip, 'drift_causal_reach', False) and self._drift_reach_start() is not None):
+        if not (ip.drift_causal_reach and self._drift_reach_start() is not None):
             return None
         tl = self.DF_tracker.time_log
         h0 = max(0.0, float(tl[0]) if len(tl) else 0.0)
@@ -1643,7 +1682,7 @@ class CSR2D:
             return None
         if lo <= h0 + 1e-12 and h0 > 0.0:
             # still alive at the oldest retained snapshot: the history, not causality, ends the region
-            self._drift_causal_clipped = getattr(self, '_drift_causal_clipped', 0) + 1
+            self._count('drift_causal_clipped')
         g = ip.drift_causal_grade
         u_lo, u_hi = max(s - s1, 1e-12), s - lo
         k = max(int(np.ceil(np.log(u_hi / u_lo) / np.log1p(g))), 2)
@@ -1661,8 +1700,8 @@ class CSR2D:
         if g is None:
             return None
         lo = s - g
-        lo = max(lo, -float(getattr(self.integration_params, 'prehistory', 0.0) or 0.0))
-        pe = getattr(self, 'prev_bend_end', None)
+        lo = max(lo, -self.integration_params.prehistory)
+        pe = self.prev_bend_end
         if pe is not None:
             lo = max(lo, float(pe))
         tl = self.DF_tracker.time_log
@@ -1766,7 +1805,7 @@ class CSR2D:
              / max(abs(sin2a), ip.branch_sin_min))
         d = max(d, ip.near_floor * sigma_z)
         reach = ip.n_formation_length * self.formation_length
-        if (getattr(ip, 'seam_ratio', 0.0) and ip.near_grade
+        if (ip.seam_ratio and ip.near_grade
                 and not (ip.causal_clip and self._exit_transient())):
             # Seam continuity: keep grading the near region until its cell near_grade*u has
             # reached 1/seam_ratio of the far region's flat cell, so the far columns never
@@ -1784,7 +1823,7 @@ class CSR2D:
         # prehistory: the lattice start is not a wall. Sources on the synthetic straight section
         # s' in [-prehistory, 0) are the first snapshot translated along the initial tangent
         # (Integration_params.prehistory); 0 keeps the old clamp at s' = 0.
-        lo = -float(getattr(ip, 'prehistory', 0.0) or 0.0)
+        lo = -ip.prehistory
         s3 = max(lo, s - d)
         # The far edge is the causal reach measured from s3, and it is clamped at 0
         # because s' < 0 is before the lattice exists -- interpolate1D returns 0 there
@@ -1800,7 +1839,7 @@ class CSR2D:
         # scan in _far_region_nodes then trims it to where the source still contributes.
         s_bend = self._drift_reach_start()
         if s_bend is not None:
-            if getattr(ip, 'drift_causal_reach', False):
+            if ip.drift_causal_reach:
                 # the regular exit-transient layout always has the n_formation_length = 1 reach in a drift,
                 # so its fine window stays on the last bend's arc whatever n_fl is (at n_fl = 6 it slid
                 # into D31 and B1RE's exit wake came out 65% wrong); earlier sources go to the causal
@@ -1824,11 +1863,11 @@ class CSR2D:
             return
         gap = self.integration_params.n_formation_length * self.formation_length
         dropped, err = tr.thin_previous(tol, max_gap=gap)
-        self._thin_dropped = getattr(self, '_thin_dropped', 0) + int(dropped)
-        self._thin_kept = getattr(self, '_thin_kept', 0) + int(not dropped)
+        self._count('thin_dropped', int(dropped))
+        self._count('thin_kept', int(not dropped))
 
     def _bend_exit_rec(self):
-        sb = getattr(self, 'bend_start_rec', None)
+        sb = self.bend_start_rec
         if sb is None or self.R_rec is None:
             return -np.inf
         return sb + abs(self.R_rec * self.phi_rec)
@@ -1851,14 +1890,14 @@ class CSR2D:
         ip = self.integration_params
         if not (ip.drift_reach and ip.prev_bend_reach and self.inbend):
             return None
-        pb = getattr(self, 'prev_bend_start', None)
+        pb = self.prev_bend_start
         return None if pb is None else max(0.0, float(pb))
 
     def _drift_reach_start(self):
         """Far edge for the exit transient (the last bend's entrance), or None."""
         if not (self.integration_params.drift_reach and self._exit_transient()):
             return None
-        sb = getattr(self, 'bend_start_rec', None)
+        sb = self.bend_start_rec
         return None if sb is None else max(0.0, float(sb))
 
     def _frame_tilt(self):
@@ -1908,13 +1947,10 @@ class CSR2D:
         # and warning about it is not merely noise: it reports a resolution loss that
         # is not happening, and advises "use graded nodes" when they are already on.
         graded = bool(ip.near_grade)
-        if want > cap and not graded and not getattr(self, '_warned_near_cap', False):
-            self._warned_near_cap = True
-            if (not self.parallel) or self.rank == 0:
-                print(f'WARNING: near-region nodes capped at {cap} '
-                      f'(wanted {want}); near-region cell is '
-                      f'{want/cap:.1f}x coarser than near_cell requests. '
-                      f'Raise zbins, raise near_cell, or use graded nodes.')
+        if want > cap and not graded:
+            self._note('near_cap', f'WARNING: near-region nodes capped at {cap} (wanted {want}); near-region '
+                                   f'cell is {want/cap:.1f}x coarser than near_cell requests. Raise zbins, '
+                                   f'raise near_cell, or use graded nodes.', every_rank=True)
         counts[-1] = int(np.clip(want, 3, cap))
         self._last_region_nodes = counts
         return counts
@@ -1962,8 +1998,6 @@ class CSR2D:
         uL = side(s - a)
         uR = side(b - s)
         sp = np.concatenate((s - uL[::-1], s + uR))
-        self._last_region_nodes = list(getattr(self, '_last_region_nodes',
-                                               [ip.far_zbins] * 2))
         self._last_region_nodes[-1] = len(sp)
         sp = np.unique(sp)
         if ip.near_adapt and x is not None:
@@ -1975,7 +2009,7 @@ class CSR2D:
         The retarded source seen by the column at each s': (z_ret, rho) at the located band's
         axis point, the larger of the two Eq 4.24 branches. rho is 0 where no branch is live.
         """
-        self._retarded_xi_bands(s, x, t, sp, n_iter=getattr(self.integration_params, 'near_adapt_scan_iter', 4))
+        self._retarded_xi_bands(s, x, t, sp, n_iter=self.integration_params.near_adapt_scan_iter)
         diag = getattr(self, '_branch_diag', None)
         zr = np.full(sp.shape, np.nan)
         rho = np.zeros(sp.shape)
@@ -2048,12 +2082,10 @@ class CSR2D:
             sp, order = np.unique(np.concatenate([sp, new]), return_index=True)
             zr = np.concatenate([zr, zm])[order]
             rho = np.concatenate([rho, rm])[order]
-        if sp.size >= ip.near_adapt_max_scan and not getattr(self, '_warned_adapt_scan', False):
-            self._warned_adapt_scan = True
-            if (not self.parallel) or self.rank == 0:
-                print(f'  [near_adapt] WARNING at s = {t:.4f} m: the column scan hit '
-                      f'near_adapt_max_scan = {ip.near_adapt_max_scan} points before resolving '
-                      f'{delta*1e6:.3g} um of retarded z per interval.')
+        if sp.size >= ip.near_adapt_max_scan:
+            self._note('adapt_scan', f'  [near_adapt] WARNING at s = {t:.4f} m: the column scan hit '
+                                     f'near_adapt_max_scan = {ip.near_adapt_max_scan} points before resolving '
+                                     f'{delta*1e6:.3g} um of retarded z per interval.', every_rank=True)
         rho_max = rho.max()
         if not rho_max > 0:
             return base
@@ -2081,16 +2113,12 @@ class CSR2D:
             return base
         n = int(np.ceil(F[-1])) + 1
         if n > ip.near_adapt_max_nodes:
-            if not getattr(self, '_warned_adapt_nodes', False):
-                self._warned_adapt_nodes = True
-                if (not self.parallel) or self.rank == 0:
-                    print(f'  [near_adapt] WARNING at s = {t:.4f} m: {n} near-region nodes wanted, '
-                          f'capped at near_adapt_max_nodes = {ip.near_adapt_max_nodes}.')
+            self._note('adapt_nodes', f'  [near_adapt] WARNING at s = {t:.4f} m: {n} near-region nodes wanted, '
+                                      f'capped at near_adapt_max_nodes = {ip.near_adapt_max_nodes}.', every_rank=True)
             n = ip.near_adapt_max_nodes
         nodes = np.interp(np.linspace(0.0, F[-1], max(n, base.size)), F, sp)
         nodes = np.unique(np.concatenate([nodes, [a, s, b]]))
         nodes = nodes[(nodes >= a) & (nodes <= b)]
-        self._last_region_nodes = list(getattr(self, '_last_region_nodes', [ip.far_zbins] * 2))
         self._last_region_nodes[-1] = len(nodes)
         self._last_adapt = dict(scan=sp.size, nodes=len(nodes), base=base.size)
         return nodes
@@ -2383,9 +2411,8 @@ class CSR2D:
         if not hasattr(self, 'ibp_check_log'):
             self.ibp_check_log = []
         self.ibp_check_log.append((float(self.beam.position), d, len(a), skipped, max(fz), d_mesh))
-        if len(a) and d_mesh > ip.ibp_check_tol and not getattr(self, '_ibp_check_warned', False):
-            self._ibp_check_warned = True
-            print(f'  [CSR2D] warning: at s = {self.beam.position:.4f} the shipped and the '
+        if len(a) and d_mesh > ip.ibp_check_tol:
+            self._note('ibp_check', f'  [CSR2D] warning: at s = {self.beam.position:.4f} the shipped and the '
                   f'integrated-by-parts longitudinal wakes differ by {d_mesh:.1e} of the mesh\'s '
                   f'largest |W| ({d:.1e} relative to the {len(a)} checked points). They are the '
                   f'same integral: rho and d rho/dx are inconsistent somewhere (grid edge, '
@@ -2401,7 +2428,7 @@ class CSR2D:
         the B-spline hoist in Step 10, where debug=False gave a one-snapshot history and
         data_rho[k+1] read out of bounds. The name suggests a pure output switch and it is not.
         """
-        n = len(getattr(self.DF_tracker, 'time_log', ()))
+        n = len(self.DF_tracker.time_log)
         if n < 2:
             raise RuntimeError(
                 f'the density history holds {n} snapshot(s); the wake needs at least 2 to '
@@ -2502,7 +2529,8 @@ class CSR2D:
         filename = os.path.join(path, f'{self.prefix}-wakes.h5')
 
 
-        if self.beam.step == 1:
+        if not getattr(self, '_wakes_started', False):
+            self._wakes_started = True
             if os.path.isfile(filename):
                 os.remove(filename)
                 print("Existing file " + filename + " deleted.")
@@ -2604,6 +2632,11 @@ class CSR2D:
 
         with h5py.File(filename, 'w') as hf:
             self._write_schedule(hf)
+            diag = getattr(self, 'diagnostics', None)      # CSR1D borrows this method and has none
+            if diag:
+                g = hf.create_group('diagnostics')
+                for k, v in diag.items():
+                    g.attrs[k] = v
             hf.create_dataset(name = 'step_positions', data = self.lattice.steps_record, shape = self.lattice.steps_record.shape)
             hf.create_dataset(name='coords', data=self.lattice.coords)
             hf.create_dataset(name='n_vec', data=self.lattice.n_vec)

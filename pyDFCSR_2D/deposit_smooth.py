@@ -223,8 +223,10 @@ class DF_tracker_comoving:
     could not do because it baked p'_k in per snapshot.
     """
 
-    def __init__(self, input_dic={}):
-        self.configure_params(**input_dic)
+    def __init__(self, input_dic=None):
+        self.configure_params(**(input_dic or {}))
+        self.verbose = True          # CSR2D sets False on MPI ranks other than 0
+        self.clip_max = 0.0          # largest clipped charge fraction seen (warned once)
 
         self.sigma_xi = None
         self.sigma_z = None
@@ -492,10 +494,19 @@ class DF_tracker_comoving:
         self.edge_u_max = max(self.edge_u_max, e)
         if e > self.edge_warn and not self._edge_warned:
             self._edge_warned = True
-            print(f'  [DF_tracker_comoving] warning: the density at the u = +-{self.xlim} grid '
-                  f'edge is {e:.1e} of its peak at t = {t:.4f}. The longitudinal integrand '
-                  f'amplifies such an edge by its cancellation factor; widen xlim or set '
-                  f'u_taper > 0 (further snapshots are not reported; see edge_u_max).')
+            if self.verbose:
+                print(f'  [DF_tracker_comoving] warning: the density at the u = +-{self.xlim} grid '
+                      f'edge is {e:.1e} of its peak at t = {t:.4f}. The longitudinal integrand '
+                      f'amplifies such an edge by its cancellation factor; widen xlim or set '
+                      f'u_taper > 0 (further snapshots are not reported; see edge_u_max).')
+
+    def _warn_clip(self, msg):
+        """Clipped-charge warning: printed the first time only; clip_max keeps the worst fraction."""
+        if self.clipped > self.clip_max:
+            first = self.clip_max == 0.0
+            self.clip_max = self.clipped
+            if first and self.verbose:
+                print(msg + ' (further snapshots are not reported; see clip_max)')
 
     def resolve_frame(self, choice, decision=None):
         """Frame 'auto': fix the frame for the run (CSR2D._resolve_auto_frame)."""
@@ -588,9 +599,9 @@ class DF_tracker_comoving:
         captured = density.sum() * self.delta_u * self.delta_w
         self.clipped = 1.0 - captured
         if self.clipped > self.clip_warn:
-            print(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the '
-                  f'charge fell outside the +-{self.xlim}/{self.zlim} sigma grid or in its '
-                  f'u edge taper at t = {t:.4f}')
+            self._warn_clip(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the '
+                            f'charge fell outside the +-{self.xlim}/{self.zlim} sigma grid or in its '
+                            f'u edge taper at t = {t:.4f}')
 
         # --- smoothing and derivatives, in the NORMALIZED frame ---
         density_smooth, density_du, density_dw = smooth_and_differentiate(
@@ -780,9 +791,9 @@ class DF_tracker_comoving:
         # f_window, not as clipping
         self.clipped = 1.0 - captured / f_window
         if self.clipped > self.clip_warn:
-            print(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the windowed '
-                  f'charge fell outside the +-{self.xlim} sigma_xi grid or in its u edge '
-                  f'taper at t = {t:.4f}')
+            self._warn_clip(f'  [DF_tracker_comoving] warning: {100*self.clipped:.2f}% of the windowed '
+                            f'charge fell outside the +-{self.xlim} sigma_xi grid or in its u edge '
+                            f'taper at t = {t:.4f}')
 
         sz = self.smoothing_sigma if self.smoothing_sigma_z is None else self.smoothing_sigma_z
         fw_pk = peak_fwhm(z[sel])
