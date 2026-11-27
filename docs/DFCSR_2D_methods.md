@@ -190,16 +190,22 @@ get_CSR_wake(s, x):
     sp_far  = far_region_nodes(s1, s3)                    # uniform in a bend; causal clip + fine window + log grading after an exit
     sp_near = near_region_nodes(s3, s4)                   # graded about s' = s; near_adapt: scanned and equidistributed (5.4)
     (R1, R2) = near_patch_radii(s, s3, s4)                # polar patch about the observer (5.5)
+    regions = [(far, sp_far, none), (near, sp_near, taper rising 0 -> 1 across [R1, R2])]
+    inside a bend:
+        if a previous bend exists (prev_bend_reach):      regions += [prev: graded in u from that bend's entrance to s1]
+        if the straight before THIS bend still slips < 5 sigma_z (reach_straight):
+                                                          regions += [straight: graded in u, down to 40 R phi before the entrance]
+    in the drift after a bend (drift_causal_reach):       regions += [causal: graded in u, from the causal edge up to s1]
     W = F = 0
-    for region, nodes, taper in [(far, sp_far, none), (near, sp_near, rise 0->1 across [R1, R2])]:
+    for region, nodes, taper in regions:
         bands = disjoint( retarded_xi_bands(s, x, t, nodes) )          # one or two (lo, hi) per column (5.3)
         for band in bands:
             xp[:, j] = lo_j + frac * (hi_j - lo_j)                     # xbins uniform x' nodes per column
             gz, gx = integrand(s, x, t, xp, sp, taper)                 # fields at (x', z' = s' - t_ret, t_ret)
-            if adapt_x (near always; far if far_adapt_x):
-                refine the columns where rho jumps between neighbouring x' nodes (5.4)
-            W += trapz_s'( trapz_x'(gz) ), F likewise
-    if a previous bend's exit tail still arrives (prev_bend_reach): add its region (causal-edge layout)
+            if near_adapt_x (near) / far_adapt_x (every other region):
+                x_adapt 'error': halve the x' cells of the columns whose trapezoid error estimate
+                                 is largest, until the rest is below x_adapt_tol of the region (5.4)
+            W += trapz_s'( column integrals of gz ), F likewise
     if the patch exists: W, F += polar integral over the disc, weighted 1 - taper
     return CSR_scaling * (W, F)
 ```
@@ -216,11 +222,14 @@ d  = min(d, n_formation_length L_f)
 reach = n_formation_length L_f
 s4 = s + 3 sigma_z;   s3 = max(-prehistory, s - d);   s1 = max(-prehistory, s3 - reach)   # prehistory = 0 by default
 in the drift after a bend (drift_reach): s1 = min(s1, start of that bend)
+    with drift_causal_reach (default): s1 = min(max(0, s3 - L_f), start of that bend)   # the n_fl = 1 reach, whatever n_fl is
 ```
 
 The near region (s3, s4) is where the second ("chirp") branch of the integrand, which leaves the beam after d = 10σ_x/|tan 2α|, still lies inside the beam, and where the 1/|r−r′| pole sits; the far region (s1, s3) is the rest of the causal reach. `near_floor` keeps the near region from collapsing at |τ| → 1, and the saturation at |sin 2α| < 0.05 keeps d finite where the two branches merge (|τ| ≪ 1 and ≫ 1). `integration_region.md` §2 tabulates d against τ. The `seam_ratio` floor (2026-11-24) makes the s′ cell continuous across the far/near seam: the near region's graded cell is `near_grade`·u, the far region's is flat, and without the floor an observer on the near-x side of a tilted beam (x − x̄ < 0, |cos 2α/sin 2α| ≈ 5 at τ ≈ 10) had d = 3 mm, so 0.15 mm cells handed over to 5 mm cells while the column integral still varied on the 1–10 mm scale of the observer's transverse distance from the charge. On Indranil's loss beam at B2RE the far-column count then moved W by 18% at the outer rows and 10% in the horn row's core; with the floor, 400 and 800 far columns agree to 0.5% of max|W| (progress_facet_bc20.md §11k). The reach itself is converged at `n_formation_length` = 1: doubling and tripling it at constant far cell moves the mean wake by 0.01–0.03%; at fixed `far_zbins` it coarsens the far cell and that, not the reach, is what changes the result (−1.35% at 10 mm cells).
 
 Far-region nodes (`_far_region_nodes`): in a bend, 2 × `far_zbins` = 400 uniform nodes (grading assumes a 1/u decay that a tilted beam in a bend does not have: at shear 20, 10–99% of the far integral sat at the far end). After a bend exit the source is the arc still inside the dipole, a strip far upstream and everything below it identically zero, so the layout is: a 64-point causal-edge scan for the lowest s′ whose band has nonzero width (`_causal_edge`), a uniform fine window of `far_cell` (10) σ_z cells over `far_window` (1) L_f above it (3 to `far_fine_max` = 500 nodes), then log grading toward s3 with ratio 1 + `near_grade`. `prev_bend_reach` adds, inside a bend, the previous bend's exit tail with the same layout (1D: −0.05 MeV/m at the chicane's B4 entrance). `reach_straight` (2026-11-24) adds, for observers inside a bend (not in the drift after it, where it diverges logarithmically), the straight section before that bend's entrance down to reach_straight·Rφ before it, as a separate region graded in u = s − s′ (`_straight_region_nodes`), while its retardation is within reach_slip_max σ_z (5), never below the previous bend's exit (which `prev_bend_reach` covers, so it acts on the first bend and the drift after it): its sources contribute at nearly one retarded z with a 1/u tail that the flat reach truncated (−40% of ⟨W⟩ at the chicane's B1 exit; `talman_cancellation.md` §7.5).
+
+**The drift after a bend (`drift_causal_reach`, 2026-11-26).** `drift_reach` alone ended the drift's reach at the last bend's entrance and let the history before it be discarded, so in the drift after a bend pair the earlier bend was never a source: 1.5 m past B3RE on Indranil's L1-17.6284 beam, B3LE and the 0.8 m between the two changed ⟨W⟩ from +0.066 to −0.188 MeV/m and were dropped at n_fl = 1. Raising n_fl covered them by accident, and at the same time broke the layout: with a 12 m reach the exit-transient causal scan found the previous bend alive, its fine window landed in the straight before the last bend, and the last bend's arc fell on 7–12 cm graded cells (1.4 m past B1RE: −0.867 MeV/m against −0.525). Now the regular drift layout always has the n_fl = 1 reach, and everything below it gets its own region from the causal edge — the lowest s′ whose retarded band still meets the bunch (`_causal_edge`, 128 samples) — graded in u at 1 + `drift_causal_grade` (0.005, ~100 columns), bounded by s′ = 0 (never the synthetic pre-history, whose straight-line term diverges seen from a drift, `talman_cancellation.md` §7.7) and by the retained history; the retention keeps the previous bend from n_fl·L_f before its entrance. Five drift states of that beam match a uniform n_fl = 6 brute force to 0.1–3% (the 3% just past B1RE is the `far_fine_max` cap of the exit-transient window, not the reach). With this, `n_formation_length` acts only inside bends.
 
 ### 5.3 Transverse bands (`_retarded_xi_bands`)
 
@@ -253,6 +262,28 @@ m(s') = 1 / h_fixed(s')  +  |d(rho/rho_max)/ds'| / near_adapt_eps        # near_
 graded to `near_adapt_max_ratio` (1.5), at most `near_adapt_max_nodes` (2000). The first term keeps every cell at least as fine as the fixed layout, the second puts ~2/ε nodes across every rise and fall of the source, whatever its shape and however many there are. On the BC20 B1RE pedestal it reproduces a 64× brute-force refinement (~5000 nodes) with 146 nodes (§9l).
 
 **Across the column, `near_adapt_x` and `far_adapt_x`.** z_ret depends on x′ too (dz_ret/dx′ ≈ Δx/|r − r′|, of order 1 for a source ahead), so a spike is crossed within the band over a few µm of x′ against a uniform cell of band width / `xbins` (200), 10–16 µm on BC20. After the uniform evaluation, every column whose retarded density jumps by more than ε ρ_max between neighbouring x′ nodes is re-evaluated on x′ nodes equidistributing 1/h_uniform + |d(ρ/ρ_max)/dx′|/ε, up to `near_adapt_x_rounds` (4) times and `near_adapt_x_max` (4) × xbins nodes; all flagged columns get the same count so it is one more rectangular evaluation (`_adapt_x_columns`). It was first applied to the near region only (§9l); `far_adapt_x` (ea4f41f, default True, inert unless `near_adapt` and `near_adapt_x` are on) applies it to the far region as well, after Indranil's loss beam showed isolated far-region cells of F up to 10× the horn's force and of W off by 34% of the horn's W where a horn is seen through the oblique branch of the band from far behind (§11f, §9 of this document).
+
+**The error-based x′ refinement (`x_adapt: error`, the default since 2026-11-26).** The density test above has two blind spots. It reacts only to density jumps, while the integrand also varies through the geometric factors ((n − n′)·(r − r′), 1/|r − r′|) and its ±∂ρ/∂x′ parts cancel to a large degree, so a column can pass the 2% density test and still be wrong by 10% in W. And its threshold is relative to ρ_max over the whole region, so a longer region (a larger n_fl) changes which columns are refined. On Indranil's L1-17.6284 beam in B1RE (τ ≈ −1.2) 100 nodes with the density test left the mean wake 18% off. The error-based refinement (`_adapt_x_error`) measures the quadrature error of each column from its own integrand:
+
+```
+for every live column j:   T_j = trapezoid on the xbins uniform nodes,  h_j = band width / (xbins - 1)
+repeat up to x_adapt_rounds (4) times, on the flagged columns (all live columns in round 1):
+    evaluate W and F integrands at the midpoints of the current intervals
+    T_j <- T_j / 2 + (h_j / 2) * sum f(mid);   h_j <- h_j / 2;   e_j = |T_j(new) - T_j(old)| / 3
+    for W and for F separately: w_j = trapezoid weight of column j in s'
+        flag the columns with the largest w_j e_j until sum over the unflagged w_j e_j <= x_adapt_tol * sum_j w_j |T_j|
+```
+
+The first round gives every column its 2n-node value; later rounds work only where the error is. One criterion covers the horn aliasing the density test was made for (F) and the geometry it cannot see (W). It is applied to the far, previous-bend, straight-section and causal-drift regions alike: before 2026-11-26 the previous-bend region had no x′ refinement at all, and that, not the reach, made B1RE depend on n_fl (at larger n_fl the same sources sat in the refined far region). Against 1600 uniform x′ nodes, full wake mesh:
+
+| | B1RE (L1-17.6284): W max / mean W / F max | time | loss-beam B2RE horns: W max / F max | time |
+|---|---|---|---|---|
+| 100 + density test | 6.7 / 18 / 6.5% | 95 s | 0.66 / 0.83% | 26 s |
+| 400 + density test | 1.3 / 2.4 / 1.1% | 144 s | 0.23 / 0.28% | 37 s |
+| 100 + error, tol 1e-3 | 0.06 / 0.05 / 1.8% | 53 s | 0.06 / 0.21% | 14 s |
+| 1600 uniform | — | 191 s | — | 66 s |
+
+Halving the base count to 50 loses accuracy (the first error estimate becomes unreliable on horn columns), and tol 3e-4 changes nothing measurable, so the defaults are 100 nodes and 1e-3. The full-run result is in §9.4.
 
 ### 5.5 The polar near patch
 
@@ -484,6 +515,10 @@ Why the loss beam costs 5× Sergei's per kick (per point 131 vs 60 ms with the s
 * **Edge rows of the mesh.** `mesh_x_quantile` 0.002 puts rows at ±6σ_ξ on heavy-tailed beams; 0.01 keeps them within the charge (§11e).
 * **1D guidance of the kicks** cannot see 2D-only transients (the D5 x-waist at 18.9 m, the lobes after B2RE); `kick_kappa_refine` and `kick_h_exit` cover the known ones (§9j, §9m).
 * **The lattice start.** Before b15f71a observers more than one table cell before s = 0 got a zero geometry (short test lattices only); the orbit is now continued straight backwards.
+* **A straight history seen from a drift diverges.** For an observer in the drift after a bend, a frozen straight history before that bend contributes ~φ²λ′/u per column, so its sum grows as the logarithm of the reach (`talman_cancellation.md` §7.7); the γ → ∞ formulation drops the 1/γ² terms that would cut it off. The code therefore never integrates the synthetic pre-history from a drift, and the 2D wake just after a lattice's first bend depends on how much straight history is assumed. The 1D drift formula has no such term.
+* **The straight before the previous bend, inside the next bend.** `prev_bend_reach` starts at the previous bend's entrance; the straight before it is not integrated for observers inside the following bend. On Indranil's L1-17.6284 beam this is the remaining FL 1 / FL 6 difference: −0.17 MeV inside B3RE (the straight before B3LE), 0.7% of the total.
+* **The exit-transient fine window just past a bend exit** is capped at `far_fine_max` (500) nodes; 0.56 m past B1RE of the same beam that leaves 3% in ⟨W⟩ (4000 nodes: 0.1%, at 4× the cost there).
+* **The gain beam's first bend.** Inside Indranil's gain-beam B1LE the 2D peak wake is 1.5× the 1D one although the beam is thin; in the chicane's B1 the two match to 1%. Unexplained (progress_facet_bc20.md §11p).
 * **3D** (x, y, z) is not implemented; the formulas and the loop generalise, the cost does not trivially.
 
 ---
@@ -536,7 +571,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | key | default | meaning |
 |---|---|---|
 | `n_formation_length` | 1 | causal reach and history truncation in units of L_f |
-| `xbins` | 200 | uniform x′ nodes per band |
+| `xbins` | 200 | uniform x′ nodes per band before refinement (BC20 reference and recommended config: 100 with `x_adapt: error`) |
 | `zbins` | 200 | near-region node count when `near_cell` = 0; also caps |
 | `far_zbins` | 200 | far-region nodes (2× in a bend) |
 | `seam_ratio` | 2.0 | in a bend, near-region length ≥ far_cell/(near_grade·seam_ratio) so the s′ cell is continuous across the seam; 0 = old layout |
@@ -552,6 +587,7 @@ Defaults from `params.py` and `deposit_smooth.py`; the "BC20 reference" column i
 | `causal_clip`, `far_window`, `far_cell`, `far_fine_max` | True, 1.0, 10.0, 500 | exit-transient far layout |
 | `drift_reach`, `drift_snap_thin`, `drift_cutoff` | True, 0.01, 0.0 | reach back to the bend entrance after an exit; thin drift snapshots; never stop computing in a drift |
 | `prev_bend_reach`, `prev_bend_grade` | True, 0.02 | the previous bend's exit tail inside a bend |
+| `drift_causal_reach`, `drift_causal_grade`, `drift_causal_scan` | True, 0.005, 128 | in the drift after a bend: the regular layout keeps the n_fl = 1 reach, sources below it (the previous bend, the straight between) get a region from the causal edge graded in u; bounded by s′ = 0 and the retained history (§5.2) |
 | `near_adapt`, `near_adapt_eps`, `near_adapt_scan_dz`, `near_adapt_scan_iter` | False, 0.02, 0.25, 4 | adaptive near s′ nodes (BC20 reference: on) |
 | `near_adapt_max_scan`, `near_adapt_max_nodes`, `near_adapt_max_ratio` | 4000, 2000, 1.5 | their caps and grading |
 | `near_adapt_x`, `near_adapt_x_rounds`, `near_adapt_x_max` | False, 4, 4 | adaptive x′ nodes on flagged near columns (BC20 reference: on) |
