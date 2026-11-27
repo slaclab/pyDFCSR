@@ -38,10 +38,6 @@ def golden():
 ])
 def test_defaults_bit_identical(golden, extra_dep, extra_csr):
     import make_golden_2d
-    if extra_csr and 'mesh_mode' in extra_csr:
-        from pyDFCSR_2D.params import CSR_params
-        if 'mesh_mode' not in CSR_params.configure_params.__code__.co_varnames:
-            pytest.skip('mesh_mode not implemented yet')
     out = make_golden_2d.run_case(extra_dep, extra_csr, extra_integ={'seam_ratio': 0.0, 'reach_straight': 0.0})
     assert int(out['nkicks']) == int(golden['nkicks'])
     bad = [k for k in golden.files if not np.array_equal(golden[k], out[k])]
@@ -824,18 +820,30 @@ def test_drift_causal_reach_region_and_fixed_drift_reach():
     assert sim._drift_causal_nodes(s, x, s, 0.3) is None
 
 
-def test_x_adapt_error_converges_and_is_default():
-    """x_adapt 'error' (default): per-column x' refinement from the trapezoid error estimate; on the golden
-    case with near_adapt_x it reproduces a 640-node uniform x' quadrature far better than the density test
-    at the same base count (progress_facet_bc20.md §11r)."""
+def test_x_adapt_error_converges():
+    """The x' refinement (per-column trapezoid error estimate): on the golden case with near_adapt_x at
+    20 base nodes it reproduces a 640-node uniform x' quadrature, and far better than the 20 uniform nodes
+    it starts from (progress_facet_bc20.md §11r)."""
     import make_golden_2d
-    from pyDFCSR_2D.params import Integration_params
-    assert Integration_params().x_adapt == 'error'
-    base = {'near_adapt': True, 'near_adapt_x': True, 'xbins': 20}
+    base = {'near_adapt': True, 'xbins': 20}
     ref = make_golden_2d.run_case({}, None, extra_integ={'near_adapt': True, 'near_adapt_x': False,
                                                          'far_adapt_x': False, 'xbins': 640})
-    err = make_golden_2d.run_case({}, None, extra_integ=dict(base, x_adapt='error'))
-    den = make_golden_2d.run_case({}, None, extra_integ=dict(base, x_adapt='density'))
+    err = make_golden_2d.run_case({}, None, extra_integ=dict(base, near_adapt_x=True))
+    uni = make_golden_2d.run_case({}, None, extra_integ=dict(base, near_adapt_x=False, far_adapt_x=False))
     d = lambda o: max(np.abs(o[f'dE_{i}'] - ref[f'dE_{i}']).max() / np.abs(ref[f'dE_{i}']).max() for i in range(int(ref['nkicks'])))
     assert d(err) < 1e-2
-    assert d(err) < d(den)
+    assert d(err) < d(uni)
+
+
+def test_removed_options_are_rejected_or_ignored():
+    """Options removed in the 2026-11 cleanup: accepted with the built-in value, an error otherwise."""
+    import pytest
+    from pyDFCSR_2D.params import Integration_params
+    Integration_params({'xi_bands': True, 'integrand_kernel': 'numba', 'x_adapt': 'error', 'threads': 1,
+                        'far_adapt': False, 'near_adapt_x_rounds': 7})
+    for k, v in (('xi_bands', False), ('integrand_kernel', 'numpy'), ('x_adapt', 'density'), ('threads', 4),
+                 ('far_adapt', True)):
+        with pytest.raises(ValueError):
+            Integration_params({k: v})
+    with pytest.raises(TypeError):
+        Integration_params({'no_such_option': 1})

@@ -7,10 +7,10 @@ point's time, half of it the numba field interpolation and half the numpy arithm
 follows it -- some 30 temporaries of 80k doubles per call, i.e. memory traffic, which is also
 what stops the MPI ranks from scaling past ~3 on one machine. The kernel keeps every operation
 in the order numpy evaluated it (no fastmath, no reassociation), so the results are meant to
-be bit-identical to the numpy path; test_quantile_frame checks that on the golden fixtures.
+be bit-identical to the numpy arithmetic it replaced; test_integrand_kernel checks that against
+the numpy reference kept in the test.
 """
-import numpy as np
-from numba import njit, prange
+from numba import njit
 
 
 def _csr_integrand_kernel_impl(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
@@ -25,7 +25,7 @@ def _csr_integrand_kernel_impl(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
     """
     velocity_x = tsx + vx * nsx
     velocity_y = tsy + vx * nsy
-    for i in prange(xp.shape[0]):
+    for i in range(xp.shape[0]):
         scale_term = 1.0 + xp[i] * kappa[i]
         velocity_ret_x = tspx[i] + vx_ret[i] * nspx[i]
         velocity_ret_y = tspy[i] + vx_ret[i] * nspy[i]
@@ -66,4 +66,3 @@ def _csr_integrand_kernel_impl(xp, kappa, rx, ry, r, nspx, nspy, tspx, tspy,
 
 
 csr_integrand_kernel = njit(cache=True, fastmath=False)(_csr_integrand_kernel_impl)
-csr_integrand_kernel_par = njit(fastmath=False, parallel=True)(_csr_integrand_kernel_impl)   # no cache: a cached entry is shared with the serial twin

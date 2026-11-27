@@ -28,7 +28,7 @@ step_control:
   kick_h_exit: 0.1               # <= 10 cm kick spacing over R*phi after each bend exit
 
 particle_deposition:
-  method: bspline_comoving       # required: older configs without it silently use the legacy deposit
+  method: bspline_comoving       # the only deposition (the default)
   xbins: 100
   zbins: 300
   xlim: 5
@@ -51,8 +51,7 @@ CSR_integration:
   n_formation_length: 1          # keep at 1 (see note); convergence check = double far_zbins, not n_fl
   far_zbins: 200                 # far region in a bend: 2*far_zbins uniform s' columns over n_fl*L_f
   xbins: 100                     # x' nodes per band before refinement
-  x_adapt: error                 # default; x' refinement from the integrand's own error estimate (was: density jumps)
-  x_adapt_tol: 1.0e-3            # default
+  x_adapt_tol: 1.0e-3            # default; x' refinement from each column's own error estimate
   zbins: 200
   near_cell: 0.25
   near_adapt: true               # adaptive near-region s' nodes (features ahead of the observer)

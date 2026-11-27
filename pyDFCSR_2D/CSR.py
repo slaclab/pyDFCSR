@@ -1,47 +1,30 @@
 import os
+import sys
 import time
-from bmadx import  Drift, SBend, Quadrupole
-from .tracking import SextupoleKDK
-from .tools import dict2hdf5
+
 import h5py
 import numpy as np
-# MPICH's libfabric 'sockets' provider (the default of the pydfcsr-mpi environment on macOS) runs
-# two progress threads that spin in the kernel: every process that has merely imported mpi4py
-# consumes ~2.75 cores while computing single-threaded (1.3 user + 1.4 system), which is why the
-# 12-core machine saturated at 3 ranks (progress_facet_bc20.md 11h). The 'tcp' provider has no such
-# threads: 0.95 cores per rank, and the golden run goes 48 -> 31 s at 3 ranks, 38 -> 19 s at 6. The
-# variable must be set before MPI_Init, i.e. before this import; it is only defaulted on macOS and
-# only when the user has not chosen a provider.
-import os as _os
-import sys as _sys
-if _sys.platform == 'darwin':
-    _os.environ.setdefault('FI_PROVIDER', 'tcp')
+from bmadx import Drift, SBend, Quadrupole
+
+# MPICH's libfabric 'sockets' provider spins two kernel threads per process on macOS (2.75 cores
+# per rank); 'tcp' does not. It must be chosen before mpi4py initialises MPI (progress_facet_bc20.md 11h).
+if sys.platform == 'darwin':
+    os.environ.setdefault('FI_PROVIDER', 'tcp')
 from mpi4py import MPI
 
 from .beams import Beam
-# from .deposit import histogram_cic_1d, histogram_cic_2d
-from .deposit import DF_tracker
-from .deposit_smooth import DF_tracker_smooth, DF_tracker_comoving
+from .deposit_smooth import DF_tracker_comoving
+from .integrand_kernel import csr_integrand_kernel
 from .interp1D import interpolate1D
-from .integrand_kernel import csr_integrand_kernel, csr_integrand_kernel_par
-from .interp3D import (interpolate3D, interpolate3D_transformed,
-                       interpolate3D_comoving_fields, interpolate3D_comoving_ibp,
-                       interpolate3D_comoving_fields_par, interpolate3D_comoving_ibp_par)
-from .lattice import Lattice  # , get_referece_traj
+from .interp3D import interpolate3D_comoving_fields, interpolate3D_comoving_ibp
+from .lattice import Lattice
 from .lookup import lookup_vec
-from .schedule import SCHEDULE_ELEMENT_KEYS
-from .waist import (scan_waists, sigma_from_coords, format_report,
-                    retention_schedule)
 from .params import Integration_params, CSR_params
-# from .physical_constants import c, e, qe, me, MC2
-from .r_gen6 import r_gen6
-#from line_profiler_pycharm import profile
-# from .tools import (find_nearest_ind, full_path, isotime, plot_2D_contour,
-#                     plot_surface)
-from .tools import full_path, isotime
-from .twiss_R import twiss_R
+from .schedule import SCHEDULE_ELEMENT_KEYS
+from .tools import dict2hdf5, full_path, isotime
+from .tracking import SextupoleKDK
+from .waist import scan_waists, sigma_from_coords, format_report, retention_schedule
 from .yaml_parser import parse_yaml
-
 
 
 def degenerate_margin_factor(sin2a, factor, lo=0.8, hi=0.95):
@@ -80,7 +63,7 @@ class CSR2D:
             # and deposition (1e-16 differences) over contiguous particle slices per rank
             if sc.get('particle_split', False):
                 self.beam.set_particle_split(MPI.COMM_WORLD)
-            if sc.get('deposit_split', False) and self.use_comoving:
+            if sc.get('deposit_split', False):
                 self.DF_tracker.set_deposit_split(MPI.COMM_WORLD)
         else:
             self.parallel = False
@@ -121,31 +104,17 @@ class CSR2D:
                              f"{sc.get('kick_placement')!r}")
         self.lattice = Lattice(input['input_lattice'], step_control=sc, sigma0=sigma0)
 
-        if 'particle_deposition' in input:
-            deposition_config = input['particle_deposition']
-            # default 'bspline_comoving' since 2026-11-06; 'legacy' (CIC) must be asked for
-            method = deposition_config.get('method', 'bspline_comoving')
-            if method == 'bspline_comoving':
-                self.DF_tracker = DF_tracker_comoving(deposition_config)
-            elif method == 'bspline_fft':
-                self.DF_tracker = DF_tracker_smooth(deposition_config)
-            else:
-                self.DF_tracker = DF_tracker(deposition_config)
-        else:
-            self.DF_tracker = DF_tracker_comoving({})
-        self.use_comoving = isinstance(self.DF_tracker, DF_tracker_comoving)
-        # both B-spline paths deposit in the tilt-removed frame, so both need the
-        # xi-following integration bands rather than the sigma_x-wide rectangles
-        self.use_smooth_deposit = (isinstance(self.DF_tracker, DF_tracker_smooth)
-                                   or self.use_comoving)
-
-        if 'CSR_integration' in input:
-            self.integration_params = Integration_params(input['CSR_integration'])
-        else:
-            self.integration_params = Integration_params()
-        if getattr(self.integration_params, 'threads', 1) > 1:
-            import numba
-            numba.set_num_threads(min(int(self.integration_params.threads), numba.config.NUMBA_NUM_THREADS))
+        deposition_config = input.get('particle_deposition') or {}
+        method = deposition_config.get('method', 'bspline_comoving')
+        if method != 'bspline_comoving':
+            raise ValueError(f"particle_deposition.method {method!r} is not supported: only 'bspline_comoving' "
+                             f"(the default) remains; the legacy CIC and bspline_fft deposits were removed in the "
+                             f"2026-11 cleanup")
+        self.DF_tracker = DF_tracker_comoving(deposition_config)
+        if self.DF_tracker.poly_degree != 1:
+            raise ValueError('particle_deposition.poly_degree must be 1: the two-branch band solver (Eq 4.24) '
+                             'assumes a straight beam axis')
+        self.integration_params = Integration_params(input.get('CSR_integration'))
 
         if 'CSR_computation' in input:
             self.CSR_params = CSR_params(input['CSR_computation'])
@@ -185,7 +154,7 @@ class CSR2D:
         deposit the initial beam
         :return:
         """
-        if self.use_comoving and getattr(self.DF_tracker, 'frame', None) == 'auto':
+        if self.DF_tracker.frame == 'auto':
             self._resolve_auto_frame()
         self.DF_tracker.get_DF(x=self.beam.x, z=self.beam.z, px=self.beam.px, t=self.beam.position)
         self.DF_tracker.append_DF()
@@ -232,12 +201,6 @@ class CSR2D:
         self.parallel = True
         comm = MPI.COMM_WORLD
         self.rank = comm.Get_rank()
-        mpi_size = comm.Get_size()
-        work_size = self.CSR_params.xbins * self.CSR_params.zbins
-        ave, res = divmod(work_size, mpi_size)
-        self.count = [ave + 1 if p < res else ave for p in range(mpi_size)]
-        displ = [sum(self.count[:p]) for p in range(mpi_size)]
-        self.displ = np.array(displ)
 
     def check_input_consistency(self, input):
         # Todo: need modification if dipole_config.yaml format changed
@@ -252,11 +215,9 @@ class CSR2D:
         for req in self.required_inputs:
             assert req in input, f'Required input parameter {req} to {self.__class__.__name__}.__init__(**kwargs) was not found.'
 
-    def get_formation_length(self, R, sigma_z, phi = 0.0, inbend=True):
-        if inbend:
-            self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
-        else:
-            self.formation_length = (3*R**2*phi**4)/(4*(-6*sigma_z + R*phi**3))
+    def get_formation_length(self, R, sigma_z):
+        """Steady-state formation length (24 R^2 sigma_z)^(1/3), stored in self.formation_length."""
+        self.formation_length = (24 * (R ** 2) * sigma_z) ** (1 / 3)
 
     def _refresh_formation_length(self, R):
         """
@@ -272,12 +233,10 @@ class CSR2D:
         history several times too short and the wake 12.9% off at shear 20.
         """
         if self.inbend:
-            self.get_formation_length(R=R, sigma_z=5 * self.beam.sigma_z,
-                                      inbend=True)
+            self.get_formation_length(R=R, sigma_z=5 * self.beam.sigma_z)
             return True
         if self.afterbend:
-            self.get_formation_length(R=self.R_rec, sigma_z=5 * self.beam.sigma_z,
-                                      inbend=True)
+            self.get_formation_length(R=self.R_rec, sigma_z=5 * self.beam.sigma_z)
             return True
         return False
 
@@ -381,8 +340,6 @@ class CSR2D:
         self._retention = None
         self._retention_short = 0
         self._retention_worst = 0.0
-        if not self.use_comoving:
-            return
         try:
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py,
@@ -492,12 +449,6 @@ class CSR2D:
                 f'schedule needs up to {gb:.2f} GB of density history but max_memory_gb is '
                 f'{float(budget):.2f}. Raise h_max, raise max_memory_gb, or reduce the '
                 f'deposition grid ({nx}x{nz} costs {per*1e3:.2f} MB per snapshot).')
-        if sch.mode != 'legacy' and not self.use_comoving:
-            raise ValueError(
-                f"step_control mode '{sch.mode}' produces non-uniform snapshot times, but the "
-                f"deposition method is not 'bspline_comoving'. The legacy and bspline_fft "
-                f"interpolation paths still assume uniform times and would read the history "
-                f"with the wrong index.")
 
     def report_waists(self):
         """
@@ -511,12 +462,9 @@ class CSR2D:
         response -- tell the user which results to distrust and what step_size would fix
         it, rather than silently changing their run.
 
-        Only meaningful for the co-moving path, whose frame blend is the thing at risk.
         Never fatal: a diagnostic that can abort a run is worse than the problem, and
         this one is linear optics on the design lattice, so it can be wrong.
         """
-        if not self.use_comoving:
-            return
         try:
             b = self.beam
             sigma0 = sigma_from_coords(b.x, b.px, b.particle.y, b.particle.py,
@@ -827,7 +775,7 @@ class CSR2D:
         the shear is off, so the mesh and the kick lookup are then exactly as before.
         """
         tr = self.DF_tracker
-        if not (self.use_comoving and getattr(tr, 'curvature', False) and tr.sigma_z):
+        if not (tr.curvature and tr.sigma_z):
             return np.zeros_like(np.asarray(z, dtype=float))
         from .deposit_smooth import _curv_g_vec
         w = (np.asarray(z, dtype=float) - tr.z_bar) / tr.sigma_z
@@ -861,7 +809,7 @@ class CSR2D:
         xbins = self.CSR_params.xbins
         zbins = self.CSR_params.zbins
 
-        if (self.use_comoving and self.CSR_params.mesh_mode == 'uniform'
+        if (self.CSR_params.mesh_mode == 'uniform'
                 and not getattr(self, '_taper_mesh_warned', False)
                 and xlim > self.DF_tracker.u_flat() + 1e-9):
             # The outer mesh rows sit where the deposit's u edge taper has removed part of the
@@ -917,7 +865,7 @@ class CSR2D:
 
     def _quantile_frame(self):
         # frames 'quantile' and 'peak' share the windowed machinery (taper, mesh, observer vx, log)
-        return self.use_comoving and getattr(self.DF_tracker, 'frame', 'rms') in ('quantile', 'peak')
+        return self.DF_tracker.frame in ('quantile', 'peak')
 
     def _deposition_resolution(self):
         """
@@ -925,7 +873,7 @@ class CSR2D:
         sqrt(smoothing^2 + 2/3), the B-spline deposit and evaluation adding 1/3 cell^2 each.
         """
         tr = self.DF_tracker
-        if not self.use_comoving or tr.sigma_z is None:
+        if tr.sigma_z is None:
             return 0.0, 0.0
         sx = tr.smoothing_sigma
         sz = sx if getattr(tr, 'smoothing_sigma_z', None) is None else tr.smoothing_sigma_z
@@ -1069,15 +1017,6 @@ class CSR2D:
         if rank == 0:
             self._ibp_consistency_check()
 
-    def _use_threads(self, arr):
-        """
-        CSR_integration.threads > 1 and the point set is large: use the thread-parallel
-        compilation of the field / integrand kernels. Small calls (the observer's vx, the band
-        scan columns) stay serial -- the omp fork/join costs more than they do.
-        """
-        n = int(getattr(self.integration_params, 'threads', 1))
-        return n > 1 and np.size(arr) >= int(getattr(self.integration_params, 'threads_min_points', 20000))
-
     def _lattice_vectors(self, sval):
         """
         (X0, Y0, n_x, n_y, tau_x, tau_y) of the reference orbit at arc length(s) sval.
@@ -1110,126 +1049,6 @@ class CSR2D:
     def _lattice_at(self, sval):
         """(X0, Y0, n_x, n_y) of the reference orbit at arc length(s) sval."""
         return self._lattice_vectors(sval)[:4]
-
-    def _retarded_xi_band(self, s, x, t, sp, n_iter=3):
-        """
-        Locate the retarded density support in lab x' for each s' column.
-
-        Returns (lo, hi), both shaped like sp: the lab-x' interval spanned by the
-        deposition grid at the retarded time of that column.
-
-        The integrand is proportional to the retarded density and its derivatives,
-        which the interpolant returns as exactly 0.0 outside the deposition grid.
-        Restricting the transverse domain to that grid is therefore exact, not an
-        approximation -- it discards only nodes that were contributing hard zeros.
-
-        t_ret depends on x' through |r - r'|, and the x' where the density lives
-        depends on t_ret through the frame polynomial, so this is a fixed point.
-        |r - r'| varies slowly with x' (transverse offsets are small compared with
-        the retarded distance), so a few passes converge.
-
-        Two snapshots straddle each t_ret and the interpolant blends them in the
-        LAB frame, so at large tilt-rate the "support" really is the union of two
-        shear-displaced ribbons (the ghosting of interp3D). The band has to cover
-        both. Once the time blend is made co-moving the two collapse onto each
-        other and these bands tighten by themselves.
-        """
-        tr = self.DF_tracker
-        n_t = tr.data_density_interp.shape[0]
-
-        X0_s, Y0_s, n_s_x, n_s_y = (v[0] for v in self._lattice_at(np.array([s])))
-        X0_sp, Y0_sp, n_sp_x, n_sp_y = self._lattice_at(sp)
-
-        xp = np.full(sp.shape, x, dtype=float)
-        lo = hi = dead = None
-        for _ in range(n_iter):
-            dx = X0_s - X0_sp + x * n_s_x - xp * n_sp_x
-            dy = Y0_s - Y0_sp + x * n_s_y - xp * n_sp_y
-            t_ret = t - np.sqrt(dx * dx + dy * dy)
-            z_ret = sp - t_ret
-
-            # shares its arithmetic with the interpolant via lookup_vec: a band located with a
-            # different blend than the interpolant uses will not sit where the density is
-            k, a_w = lookup_vec(t_ret, tr.t_arr, tr.is_uniform, tr.min_x, tr.delta_x, n_t)
-            k1 = np.minimum(k + 1, n_t - 1)
-
-            if self.use_comoving:
-                # The co-moving interpolant places the density in the single
-                # BLENDED frame, so the band is one interval. Mirror its blending
-                # exactly -- linear in the poly and the means, log-linear in the
-                # sigmas -- or the band will not sit where the density is.
-                a = a_w
-                b = 1.0 - a
-                p_a = (b * self._eval_poly_rows(tr.poly_coeffs_interp[k], z_ret)
-                       + a * self._eval_poly_rows(tr.poly_coeffs_interp[k1], z_ret))
-                xi_bar = b * tr.xi_bar_arr[k] + a * tr.xi_bar_arr[k1]
-                z_bar = b * tr.z_bar_arr[k] + a * tr.z_bar_arr[k1]
-                s_xi = np.exp(b * np.log(tr.sigma_xi_arr[k])
-                              + a * np.log(tr.sigma_xi_arr[k1]))
-                s_z = np.exp(b * np.log(tr.sigma_z_arr[k])
-                             + a * np.log(tr.sigma_z_arr[k1]))
-                w = (z_ret - z_bar) / s_z
-                in_z = (w >= tr.w_start) & (w < tr.w_end)
-                centre = p_a + xi_bar
-                lo = np.where(in_z, centre + tr.u_start * s_xi, np.inf)
-                hi = np.where(in_z, centre + tr.u_end * s_xi, -np.inf)
-            else:
-                # The lab-frame blend evaluates each snapshot in its OWN frame and
-                # adds them, so the support is the union of two shear-displaced
-                # ribbons. The band has to cover both.
-                lo = np.full(sp.shape, np.inf)
-                hi = np.full(sp.shape, -np.inf)
-                for kk in (k, k1):
-                    xi_lo, xi_hi, z_lo, z_hi = self._grid_extents(kk)
-                    # a snapshot whose z grid does not reach z_ret contributes
-                    # nothing, so it must not widen the band either
-                    in_z = (z_ret >= z_lo) & (z_ret < z_hi)
-                    base = self._eval_poly_rows(tr.poly_coeffs_interp[kk], z_ret)
-                    lo = np.where(in_z, np.minimum(lo, base + xi_lo), lo)
-                    hi = np.where(in_z, np.maximum(hi, base + xi_hi), hi)
-
-            dead = ~np.isfinite(lo)
-            lo = np.where(dead, x, lo)
-            hi = np.where(dead, x, hi)
-            xp = 0.5 * (lo + hi)
-
-        mid = 0.5 * (lo + hi)
-        half = 0.5 * (hi - lo) * self.integration_params.xi_band_margin
-        # A dead column's z_ret is off the deposition z grid, so the density and
-        # all its derivatives are exactly 0 there and the column contributes
-        # nothing whatever band we give it. Give it a normal width rather than
-        # zero, so no degenerate mesh reaches the 1/|r-r'| kernel.
-        if dead.any():
-            fallback = half[~dead].max() if (~dead).any() else np.abs(x) + 1e-6
-            half = np.where(dead, fallback, half)
-        return mid - half, mid + half
-
-    def _grid_extents(self, kk):
-        """
-        (xi_lo, xi_hi, z_lo, z_hi) of each snapshot in the index array kk, in the
-        tilt-removed frame.
-
-        The two B-spline trackers describe the same support with different
-        metadata: DF_tracker_smooth stores a physical grid origin and spacing per
-        snapshot, DF_tracker_comoving stores one shared normalized grid plus each
-        snapshot's (mean, sigma).
-        """
-        tr = self.DF_tracker
-        if self.use_comoving:
-            s_xi = tr.sigma_xi_arr[kk]
-            s_z = tr.sigma_z_arr[kk]
-            return (tr.xi_bar_arr[kk] + tr.u_start * s_xi,
-                    tr.xi_bar_arr[kk] + tr.u_end * s_xi,
-                    tr.z_bar_arr[kk] + tr.w_start * s_z,
-                    tr.z_bar_arr[kk] + tr.w_end * s_z)
-
-        n_xi, n_z = tr.data_density_interp.shape[1:]
-        # bilinear_single needs int(idx) <= n - 2, so the usable extent stops one
-        # cell short of the last node
-        return (tr.min_xi_arr[kk],
-                tr.min_xi_arr[kk] + (n_xi - 1) * tr.delta_xi_arr[kk],
-                tr.min_z_arr[kk],
-                tr.min_z_arr[kk] + (n_z - 1) * tr.delta_z_arr[kk])
 
     @staticmethod
     def _eval_poly_rows(coeffs, z):
@@ -1379,24 +1198,18 @@ class CSR2D:
         Locate EVERY branch of the retarded density support in lab x': one (lo, hi)
         interval per branch per s' column.
 
-        _retarded_xi_band runs a single fixed point started at x' = x, so it
-        converges to one root of "light cone meets beam axis" and never covers the
-        other. Step 4e measured the branch it misses at up to 67% of a column's
-        contribution. Here BOTH roots of the corrected Eq 4.24 are taken, each
-        refined by the same fixed point, each given its own sub-band.
+        BOTH roots of the corrected Eq 4.24 are taken, each refined by a fixed point (the
+        retarded frame depends on x' through t_ret), each given its own sub-band; a single
+        fixed point from x' = x finds one root and missed up to 67% of a column (Step 4e).
 
         The roots are deliberately NOT labelled narrow/chirp. Which sign is which
         flips as tau^2 crosses 1, and at low tilt they merge into a single ridge
         (Step 5d), so they are treated symmetrically and any overlap is removed by
         _disjoint_bands.
 
-        Eq 4.24 assumes one straight beam axis, so this applies only to the
-        co-moving interpolant at poly_degree 1. Everything else falls back to the
-        single-band locator, leaving 'legacy' and 'bspline_fft' untouched.
+        Eq 4.24 assumes one straight beam axis: poly_degree 1 (checked in parse_input).
         """
         tr = self.DF_tracker
-        if not (self.use_comoving and getattr(tr, 'poly_degree', None) == 1):
-            return [self._retarded_xi_band(s, x, t, sp)]
 
         X0_s, Y0_s, n_s_x, n_s_y = (v[0] for v in self._lattice_at(np.array([s])))
         X0_sp, Y0_sp, n_sp_x, n_sp_y = self._lattice_at(sp)
@@ -1520,7 +1333,7 @@ class CSR2D:
         hi2 = np.where(a_first, hiB, hiA)
         return [(lo1, hi1), (np.minimum(np.maximum(lo2, hi1), hi2), hi2)]
 
-    def _integrate_xi_region(self, s, x, t, sp, ignore_vx, taper=None, scale_bands=True, adapt_x=False):
+    def _integrate_xi_region(self, s, x, t, sp, taper=None, scale_bands=True, adapt_x=False):
         """
         Integrate one s' region with the transverse nodes riding the density ribbon.
 
@@ -1532,7 +1345,7 @@ class CSR2D:
         bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp, scale_bands=scale_bands))
         nx = self.integration_params.xbins
         frac = np.linspace(0.0, 1.0, nx)
-        ibp = self.integration_params.ibp and self.use_comoving
+        ibp = self.integration_params.ibp
 
         dE = xk = 0.0
         meshes = []
@@ -1554,14 +1367,11 @@ class CSR2D:
             # the refinement off, and on the loss beam that brought the aliased cells back
             # (max |dW| 34% of the horn's W at 200 nodes, ibp_nodes.py).
             do_adapt_x = bool(adapt_x and ip.near_adapt and ip.near_adapt_x)
-            ex = {} if (ibp or (do_adapt_x and getattr(ip, 'x_adapt', 'density') == 'density')) else None
-            gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
-                                            ignore_vx=ignore_vx, taper=taper, extras=ex)
+            ex = {} if ibp else None
+            gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh, taper=taper, extras=ex)
             refined = None
-            if do_adapt_x and getattr(ip, 'x_adapt', 'density') == 'error':
-                dxp_col, refined = self._adapt_x_error(s, x, t, sp, lo, width, gz, gx, ignore_vx, taper)
-            elif do_adapt_x:
-                gz, gx, dxp_col, refined = self._adapt_x_columns(s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper)
+            if do_adapt_x:
+                dxp_col, refined = self._adapt_x_error(s, x, t, sp, lo, width, gz, gx, taper)
             # A zero-width column has dxp = 0 and contributes nothing. Select it out
             # rather than multiplying by zero, so a degenerate node that landed on
             # the 1/|r-r'| pole cannot turn the whole region into a nan.
@@ -1592,9 +1402,9 @@ class CSR2D:
             return (0.0, 0.0, z, np.broadcast_to(sp[None, :], z.shape).copy(), z, z)
         return (dE, xk) + tuple(np.concatenate(a, axis=0) for a in zip(*meshes))
 
-    def _adapt_x_error(self, s, x, t, sp, lo, width, gz, gx, ignore_vx, taper):
+    def _adapt_x_error(self, s, x, t, sp, lo, width, gz, gx, taper):
         """
-        x_adapt = 'error': per-column x' quadrature from the integrand's own error estimate.
+        Per-column x' quadrature from the integrand's own error estimate (methods §5.4).
 
         gz, gx are the integrands on the xbins uniform nodes of every column (lo + k h). Each
         round adds the midpoints of the current intervals of the columns still flagged, so the
@@ -1629,7 +1439,7 @@ class CSR2D:
             k = np.arange(mm) + 0.5
             xn = lo[None, cols] + k[:, None] * h_c[None, cols]
             sn = np.broadcast_to(sp[cols][None, :], xn.shape).copy()
-            fz, fx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xn, sp=sn, ignore_vx=ignore_vx, taper=taper)
+            fz, fx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xn, sp=sn, taper=taper)
             n_eval += xn.size
             Tz_new = 0.5 * Tz[cols] + 0.5 * h_c[cols] * fz.sum(axis=0)
             Tx_new = 0.5 * Tx[cols] + 0.5 * h_c[cols] * fx.sum(axis=0)
@@ -1653,72 +1463,6 @@ class CSR2D:
             cols = cols[keep]
         self._last_adapt_x = dict(cols=int(alive.sum()), evals=n_eval, unconverged=int(cols.size))
         return (Tz, Tx), alive
-
-    def _adapt_x_columns(self, s, x, t, sp, xp_mesh, gz, gx, ex, ignore_vx, taper):
-        """
-        near_adapt_x: re-evaluate the columns whose retarded density jumps by more than
-        near_adapt_eps * rho_max between neighbouring x' nodes, on x' nodes equidistributing
-        1/h_uniform + |d(rho/rho_max)/dx'| / near_adapt_eps (every flagged column gets the same
-        count, so one rectangular evaluation covers them all). Returns the uniform-mesh integrands
-        (unchanged, for diagnostics) and the per-column integrals (iz, ix) over x', with the
-        flagged columns replaced by their refined values.
-        """
-        ip = self.integration_params
-        nx, ncol = xp_mesh.shape
-        width = xp_mesh[-1] - xp_mesh[0]
-        dxp = width / (nx - 1)
-        iz = np.trapz(y=gz, axis=0) * dxp
-        ix = np.trapz(y=gx, axis=0) * dxp
-        rho = ex['rho'].reshape(xp_mesh.shape)
-        rho_max = rho.max()
-        flagged = np.zeros(ncol, dtype=bool)
-        if not rho_max > 0:
-            return gz, gx, (iz, ix), flagged
-        eps = ip.near_adapt_eps
-        xp_cur, rho_cur = xp_mesh, rho
-        cols = np.flatnonzero((np.abs(np.diff(rho_cur, axis=0)).max(axis=0) > eps * rho_max) & (width > 0))
-        flagged[cols] = True
-        n_ref = 0
-        for _ in range(ip.near_adapt_x_rounds):
-            if cols.size == 0:
-                break
-            xc, rc = xp_cur[:, cols], rho_cur[:, cols] / rho_max
-            h_uni = (xc[-1] - xc[0]) / (xc.shape[0] - 1)
-            with np.errstate(divide='ignore', invalid='ignore'):
-                grad = np.abs(np.gradient(rc, axis=0) / np.gradient(xc, axis=0))
-            # coincident nodes (a flat stretch of the previous round's monitor) give 0/0 here
-            m = 1.0 / h_uni[None, :] + np.where(np.isfinite(grad), grad, 0.0) / eps
-            F = np.concatenate([np.zeros((1, cols.size)),
-                                np.cumsum(0.5 * (m[1:] + m[:-1]) * np.diff(xc, axis=0), axis=0)])
-            ok = np.isfinite(F[-1]) & (F[-1] > 0)
-            if not ok.all():
-                cols, xc, F = cols[ok], xc[:, ok], F[:, ok]
-                if cols.size == 0:
-                    break
-            n_new = int(min(max(np.ceil(F[-1]).max() + 1, nx), ip.near_adapt_x_max * nx))
-            xn = np.empty((n_new, cols.size))
-            for j in range(cols.size):
-                xn[:, j] = np.interp(np.linspace(0.0, F[-1, j], n_new), F[:, j], xc[:, j])
-            # strictly increasing nodes: trapz needs it and the next round's gradient divides by dx
-            xn = np.maximum.accumulate(xn, axis=0)
-            tiny = 1e-9 * (xn[-1] - xn[0])
-            for k in range(1, n_new):
-                xn[k] = np.maximum(xn[k], xn[k - 1] + tiny)
-            sn = np.broadcast_to(sp[cols][None, :], xn.shape).copy()
-            exn = {}
-            gzn, gxn = self.get_CSR_integrand(s=s, t=t, x=x, xp=xn, sp=sn, ignore_vx=ignore_vx,
-                                              taper=taper, extras=exn)
-            iz[cols] = np.trapz(y=gzn, x=xn, axis=0)
-            ix[cols] = np.trapz(y=gxn, x=xn, axis=0)
-            n_ref += cols.size * n_new
-            rn = exn['rho'].reshape(xn.shape)
-            # next round: only the columns that still jump on the refined nodes
-            still = np.abs(np.diff(rn, axis=0)).max(axis=0) > eps * rho_max
-            xp_cur = np.zeros((n_new, ncol)); rho_cur = np.zeros((n_new, ncol))
-            xp_cur[:, cols], rho_cur[:, cols] = xn, rn
-            cols = cols[still]
-        self._last_adapt_x = dict(cols=int(n_ref // max(n_new, 1)) if n_ref else 0, evals=n_ref)
-        return gz, gx, (iz, ix), flagged
 
     def _band_alive(self, s, x, t, sp):
         """Whether the retarded band has nonzero width, for each s' in the array."""
@@ -1803,15 +1547,6 @@ class CSR2D:
             # (0.994 at shear 0, 0.783 at shear 20), which is what n_formation_length
             # already provides.
             n = max(2 * ip.far_zbins, 3)
-            if getattr(ip, 'far_adapt', False) and ip.near_adapt:
-                # far_adapt: the near region's column scan and gradient monitor on the far region,
-                # from a coarse uniform base (2 * far_adapt_base columns) up to the fixed count as
-                # the cap. Where the retarded density along the far columns is smooth -- most of a
-                # bend -- the count stays near the base; where the oblique band sweeps a horn, the
-                # monitor concentrates columns there (progress_facet_bc20.md 11j).
-                base = np.linspace(sp_far, sp_near, max(2 * int(ip.far_adapt_base), 3))
-                return self._record_far_nodes(self._near_adapt_nodes(s, x, t, sp_far, sp_near, base,
-                                                                     uniform=True, cap=n))
             return self._record_far_nodes(np.linspace(sp_far, sp_near, n))
 
         lo = sp_far
@@ -2101,7 +1836,7 @@ class CSR2D:
         DF_tracker_comoving.thin_previous). Online, O(1) per step, newest always kept.
         """
         tol = self.integration_params.drift_snap_thin
-        if not (tol and self.use_comoving and self._exit_transient()):
+        if not (tol and self._exit_transient()):
             return
         # never thin the bend itself: P (the candidate) must lie past the bend exit
         tr = self.DF_tracker
@@ -2157,7 +1892,7 @@ class CSR2D:
         """
         tr = self.DF_tracker
         pc = getattr(tr, 'poly_coeffs', None)
-        if pc is None or not self.use_comoving:
+        if pc is None:
             return float(self.beam._slope[0])
         return float(pc[0])
 
@@ -2279,7 +2014,7 @@ class CSR2D:
             zr[take] = z_ret[take[live]]
         return zr, rho
 
-    def _near_adapt_nodes(self, s, x, t, a, b, base, uniform=False, cap=None):
+    def _near_adapt_nodes(self, s, x, t, a, b, base):
         """
         Near-region s' nodes adapted to the retarded density along the column (Integration_params
         near_adapt). Starts from the fixed layout `base`, scans z_ret and rho along the column and
@@ -2293,7 +2028,7 @@ class CSR2D:
         """
         ip = self.integration_params
         tr = self.DF_tracker
-        if not self.use_comoving or getattr(tr, 'poly_degree', None) != 1 or base.size < 3:
+        if base.size < 3:
             return base
         res_z = self._deposition_resolution()[0]
         if not res_z > 0:
@@ -2345,10 +2080,9 @@ class CSR2D:
 
         floor = ip.near_cell * self.beam._sigma_x_transform
         g = ip.near_grade
-        if ip.near_cell and g and floor > 0.0 and not uniform:
+        if ip.near_cell and g and floor > 0.0:
             h_fixed = np.maximum(floor, g * np.abs(sp - s))
         else:
-            # uniform=True (the far region, far_adapt): the floor is the base layout's own cell
             h_fixed = np.full(sp.shape, (b - a) / max(base.size - 1, 1))
         grad = np.abs(np.gradient(rho / rho_max, sp))
         m = 1.0 / h_fixed + np.where(np.isfinite(grad), grad, 0.0) / ip.near_adapt_eps
@@ -2366,8 +2100,6 @@ class CSR2D:
         if not np.isfinite(F[-1]):
             return base
         n = int(np.ceil(F[-1])) + 1
-        if cap is not None:
-            n = min(n, int(cap))
         if n > ip.near_adapt_max_nodes:
             if not getattr(self, '_warned_adapt_nodes', False):
                 self._warned_adapt_nodes = True
@@ -2378,9 +2110,6 @@ class CSR2D:
         nodes = np.interp(np.linspace(0.0, F[-1], max(n, base.size)), F, sp)
         nodes = np.unique(np.concatenate([nodes, [a, s, b]]))
         nodes = nodes[(nodes >= a) & (nodes <= b)]
-        if uniform:
-            self._last_adapt_far = dict(scan=sp.size, nodes=len(nodes), base=base.size)
-            return nodes
         self._last_region_nodes = list(getattr(self, '_last_region_nodes', [ip.far_zbins] * 2))
         self._last_region_nodes[-1] = len(nodes)
         self._last_adapt = dict(scan=sp.size, nodes=len(nodes), base=base.size)
@@ -2403,7 +2132,7 @@ class CSR2D:
             return None
         return 0.5 * R2, R2
 
-    def _integrate_near_patch(self, s, x, t, R1, R2, ignore_vx):
+    def _integrate_near_patch(self, s, x, t, R1, R2):
         """
         Integrate the near field on a polar mesh centred on x' = x, s' = s.
 
@@ -2428,244 +2157,76 @@ class CSR2D:
         xp_mesh = x + r[:, None] * np.cos(phi)[None, :]
         sp_mesh = s + r[:, None] * np.sin(phi)[None, :]
 
-        gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh,
-                                        ignore_vx=ignore_vx,
-                                        taper=(R1, R2, True))
+        gz, gx = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh, sp=sp_mesh, taper=(R1, R2, True))
         jac = r[:, None] * dr * dphi
         dE = -self.CSR_scaling * np.sum(gz * jac)
         xk = self.CSR_scaling * np.sum(gx * jac)
         return dE, xk, xp_mesh, sp_mesh, gz, gx
 
-#    @profile
-    def get_CSR_wake(self, s, x, debug = False):
-
+    def get_CSR_wake(self, s, x, debug=False):
+        """
+        (dE/dct, x kick) at the observer (s, x): the band-localised integral over every s'
+        region, plus the polar patch around the 1/|r - r'| pole (methods §5.1). debug=True
+        returns the regions' node meshes and integrands instead.
+        """
         t = self.beam.position
-
-        #if t >= 0.5:
-        #    print('')
-
-        sigma_z = self.beam._sigma_z
-        sigma_x = self.beam._sigma_x
-        tan_theta = self.beam._slope[0]
-
-        #TODO： why?
-        x0 = (s-t)*self.beam._slope[0]
-        xmean = self.beam._mean_x
-
-        
-        ######### For Debug ########################################################## 
-        if np.abs(tan_theta) <= 1:  # if theta <45 degre, the chirp band can be ignored. theta is the angle in z-x plane
-            ignore_vx = False
-        else:
-            ignore_vx = False
-
-        ############################################################################
-
-        chirp_band = False
-
-        if np.abs(tan_theta) <= 1:  # if chirp is small, the chirp band can be ignored. theta is the angle in z-x plane
-            s2 = s - 500 * sigma_z
-            s3 = s - 20*sigma_z
-            s4 = s + 5 * sigma_z
-            x1_w = x0 - 20 * sigma_x
-            x2_w = x0 + 20 * sigma_x
-
-            x1_n = x0 - 10 * sigma_x
-            x2_n = x0 + 10 * sigma_x
-
-        else:
-            chirp_band = True
-            if tan_theta > 0:
-                tan_alpha = -2 * tan_theta / (1 - tan_theta ** 2)  # alpha = pi - 2 theta, tan_alpha > 0
-                d = (10 * sigma_x + xmean - x) / tan_alpha
-                
-                s4 = s + 3 * sigma_z
-                s3 = np.max((0, s - d))
-                s2 = s3 - 200 * sigma_z
-
-                # area 1
-                x1_l = x + 0.1 * sigma_x
-                x1_r = x + 10 * sigma_x
-        
-                # area 2
-                x2_l = x - 3 * sigma_x
-                x2_r = x1_l
-
-                # area 3
-                x3_l = x0 - 5 * sigma_x
-                x3_r = x0 + 5 * sigma_x
-
-                x4_l = x0 - 20 * sigma_x
-                x4_r = x0 + 20 * sigma_x
-
-
-            else:
-                tan_alpha = 2 * tan_theta / (1 - tan_theta ** 2)
-                d = -(xmean - x - 10 * sigma_x) / tan_alpha
-                
-                s4 = s + 3 * sigma_z
-                s3 = np.max((0, s - d))
-                s2 = s3 - 200 * sigma_z
-
-                # area 1
-                x1_l = x - 10 * sigma_x
-                x1_r = x - 1 * sigma_x
-                
-                # area 2
-                x2_l = x1_r
-                x2_r = x + 3 *sigma_x
-  
-                # area 3
-                x3_l = x0 - 5 * sigma_x
-                x3_r = x0 + 5 * sigma_x
-
-                x4_l = x0 - 20 * sigma_x
-                x4_r = x0 + 20 * sigma_x
-        
-        s1 = np.max((0, s2 - self.integration_params.n_formation_length * self.formation_length))
-
+        ip = self.integration_params
         self._ibp_ship_acc = 0.0
         self._ibp_gross_acc = 0.0
         self._ibp_zone_acc = 0.0
-        if self.use_smooth_deposit and self.integration_params.xi_bands:
-            # The transverse extents are replaced by the located ribbons, so the chirp
-            # case's regions 3 and 4 (which tiled x' over the SAME s' range) merge into
-            # one region or the ribbon would be counted twice.
-            #
-            # The s' decomposition is also recomputed here, pole-free and keyed on
-            # sin 2a instead of |tan_theta| <= 1. The legacy bounds above are left
-            # untouched so the xi_bands = False path stays byte-identical.
-            bnds = self._layout_bounds(s, x)
-            (s1, s3), (_, s4) = bnds
-            self._region_node_counts(bnds)      # sets _last_region_nodes for diagnostics
-            # far region: causal-clipped, fine over the contributing band, graded above
-            # near region: graded about s' = s
-            sps = [self._far_region_nodes(s, x, t, s1, s3),
-                   self._near_region_nodes(s, s3, s4, x=x, t=t)]
+        bnds = self._layout_bounds(s, x)
+        (s1, s3), (_, s4) = bnds
+        self._region_node_counts(bnds)      # sets _last_region_nodes for diagnostics
+        sps = [self._far_region_nodes(s, x, t, s1, s3),
+               self._near_region_nodes(s, s3, s4, x=x, t=t)]
+        # only the near region straddles s' = s, so only it owns the pole and gets the patch
+        radii = self._near_patch_radii(s, s3, s4)
+        tapers = [None, None if radii is None else (*radii, False)]
+        # band_jacobian_min widens the far region's oblique columns only (methods §5.3)
+        parts = [self._integrate_xi_region(s, x, t, spk, tp, scale_bands=(k == 0),
+                                           adapt_x=(k == 1) or (k == 0 and ip.far_adapt_x))
+                 for k, (spk, tp) in enumerate(zip(sps, tapers))]
+        for sp_extra in self._extra_region_nodes(s, x, t, s1):
+            parts.append(self._integrate_xi_region(s, x, t, sp_extra, None, scale_bands=True,
+                                                   adapt_x=ip.far_adapt_x))
+        if radii is not None:
+            parts.append(self._integrate_near_patch(s, x, t, *radii))
 
-            # Only the last region straddles s' = s, so only it owns the 1/|r-r'|
-            # singularity and gets the polar patch.
-            radii = self._near_patch_radii(s, s3, s4)
-            tapers = [None, None if radii is None else (*radii, False)]
+        if debug:
+            return {'mode': 'xi_bands',
+                    'near_patch_radii': radii,
+                    'sp': list(sps),
+                    'xp_mesh': [p[2] for p in parts],
+                    'sp_mesh': [p[3] for p in parts],
+                    'integrand_z': [p[4] for p in parts],
+                    'integrand_x': [p[5] for p in parts]}
+        if ip.ibp:
+            # the shipped form's total for the consistency check: the regions' shipped sums plus
+            # the patch, which both forms share
+            self._last_wake_shipped = self._ibp_ship_acc + (parts[-1][0] if radii is not None else 0.0)
+        return sum(p[0] for p in parts), sum(p[1] for p in parts)
 
-            # band_jacobian_min scales the FAR region only. Its columns are the oblique
-            # ones (a bend seen from far downstream, |J| down to 0.25); the near region
-            # has |J| ~ 1 except within a few band widths of the observer, where the
-            # 1/|r-r'| pole and the polar patch already set the node layout, and
-            # widening there lost accuracy (D3: up to 16% at a 0.1 floor).
-            parts = [self._integrate_xi_region(s, x, t, spk, ignore_vx, tp, scale_bands=(k == 0),
-                                               adapt_x=(k == 1) or (k == 0 and self.integration_params.far_adapt_x))
-                     for k, (spk, tp) in enumerate(zip(sps, tapers))]
-            # prev_bend_reach: inside a bend, the previous bend's exit tail still arrives
-            # (1D: -0.05 MeV/m at the chicane's B4 entrance). Its source lies below this
-            # bend's own reach s1, as a narrow band far upstream -- the exit-transient
-            # shape -- so it gets that layout (causal edge, fine window, grading).
-            pb = self._prev_bend_reach_start()
-            if pb is not None and pb < s1:
-                sp_prev = self._prev_region_nodes(s, pb, s1)
-                # x' refinement here too (far_adapt_x): without it the previous bend's tail, seen through
-                # the oblique band from inside the next bend, stayed on xbins uniform nodes, while at a
-                # larger n_formation_length the same sources sit in the refined far region -- that, not
-                # the reach, made B1RE depend on n_fl (progress_facet_bc20.md 11r)
-                parts.append(self._integrate_xi_region(s, x, t, sp_prev, ignore_vx, None,
-                                                       scale_bands=True, adapt_x=self.integration_params.far_adapt_x))
-            # reach_straight in the drift after a bend: the straight section before that bend's
-            # entrance is still a source (retarded by R phi^3/6 + x phi^2/2, decaying as 1/u) for
-            # a fraction of R phi past the exit. Below the exit-transient layout, as its own
-            # region at the fixed far cell, so the causal-edge / fine-window layout of the arc is
-            # untouched (talman_cancellation.md 7.3-7.5).
-            lo_pre = self._straight_region_lo(s)
-            if lo_pre is not None:
-                lo_cur = min(s1, pb) if pb is not None else s1
-                lo_cur = min(lo_cur, float(self.bend_start_rec))      # never the arc itself
-                if lo_pre < lo_cur - 1e-12:
-                    parts.append(self._integrate_xi_region(s, x, t, self._straight_region_nodes(s, lo_pre, lo_cur),
-                                                           ignore_vx, None, scale_bands=True,
-                                                           adapt_x=self.integration_params.far_adapt_x))
-            sp_drift = self._drift_causal_nodes(s, x, t, s1)
-            if sp_drift is not None:
-                parts.append(self._integrate_xi_region(s, x, t, sp_drift, ignore_vx, None, scale_bands=True,
-                                                       adapt_x=self.integration_params.far_adapt_x))
-            if radii is not None:
-                parts.append(self._integrate_near_patch(s, x, t, *radii, ignore_vx))
-
-            if debug:
-                return {'mode': 'xi_bands',
-                        'near_patch_radii': radii,
-                        'sp': list(sps),
-                        'xp_mesh': [p[2] for p in parts],
-                        'sp_mesh': [p[3] for p in parts],
-                        'integrand_z': [p[4] for p in parts],
-                        'integrand_x': [p[5] for p in parts]}
-            if self.integration_params.ibp and self.use_comoving:
-                # the shipped form's total: the regions' shipped sums plus the patch,
-                # which both forms share
-                self._last_wake_shipped = (self._ibp_ship_acc
-                                           + (parts[-1][0] if radii is not None else 0.0))
-            return sum(p[0] for p in parts), sum(p[1] for p in parts)
-
-        if chirp_band:
-            sp1 = np.linspace(s1, s2, self.integration_params.zbins)
-            sp2 = np.linspace(s2, s3, self.integration_params.zbins)
-            sp3 = np.linspace(s3, s4, self.integration_params.zbins)
-            xp1 = np.linspace(x1_l, x1_r, self.integration_params.xbins)
-            xp2 = np.linspace(x2_l, x2_r, self.integration_params.xbins)
-            xp3 = np.linspace(x3_l, x3_r, self.integration_params.xbins)
-            xp4 = np.linspace(x4_l, x4_r, 2*self.integration_params.xbins)
-
-            [xp_mesh1, sp_mesh1] = np.meshgrid(xp4, sp1, indexing='ij')
-            [xp_mesh2, sp_mesh2] = np.meshgrid(xp3, sp2, indexing = 'ij')
-            [xp_mesh3, sp_mesh3] = np.meshgrid(xp1, sp3, indexing='ij')
-            [xp_mesh4, sp_mesh4] = np.meshgrid(xp2, sp3, indexing='ij')
-
-            CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh1, sp=sp_mesh1, ignore_vx = ignore_vx)
-            dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp4, axis=0), x=sp1)
-            x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp4, axis=0), x=sp1)
-
-            CSR_integrand_z2, CSR_integrand_x2 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh2, sp=sp_mesh2, ignore_vx = ignore_vx)
-            dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z2, x=xp3, axis=0), x=sp2)
-            x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x2, x=xp3, axis=0), x=sp2)
-
-            CSR_integrand_z3, CSR_integrand_x3 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh3, sp=sp_mesh3, ignore_vx = ignore_vx)
-            dE_dct3 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z3, x=xp1, axis=0), x=sp3)
-            x_kick3 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x3, x=xp1, axis=0), x=sp3)
-
-            CSR_integrand_z4, CSR_integrand_x4 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh4, sp=sp_mesh4, ignore_vx = ignore_vx)
-            dE_dct4 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z4, x=xp2, axis=0), x=sp3)
-            x_kick4 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x4, x=xp2, axis=0), x=sp3)
-
-            if debug:
-                return xp1, xp2, xp3, xp4, sp1, sp2, sp3,  CSR_integrand_z1, CSR_integrand_x1, CSR_integrand_z2, CSR_integrand_x2, CSR_integrand_z3, CSR_integrand_x3, CSR_integrand_z4, CSR_integrand_x4
-            else:
-                return dE_dct1 + dE_dct2 + dE_dct3 + dE_dct4, x_kick1 + x_kick2 + x_kick3 + x_kick4
-
-        else:
-            sp1 = np.linspace(s1, s2, self.integration_params.zbins)
-            sp2 = np.linspace(s2, s3, self.integration_params.zbins)
-            sp3 = np.linspace(s3, s4, self.integration_params.zbins)
-            xp_w = np.linspace(x1_w, x2_w, 2*self.integration_params.xbins)
-            xp_n = np.linspace(x1_n, x2_n, self.integration_params.xbins)
-
-            [xp_mesh1, sp_mesh1] = np.meshgrid(xp_w, sp1, indexing='ij')
-            [xp_mesh2, sp_mesh2] = np.meshgrid(xp_n, sp2, indexing='ij')
-            [xp_mesh3, sp_mesh3] = np.meshgrid(xp_n, sp3, indexing='ij')
-
-            CSR_integrand_z1, CSR_integrand_x1 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh1, sp=sp_mesh1, ignore_vx = ignore_vx)
-            dE_dct1 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z1, x=xp_w, axis=0), x=sp1)
-            x_kick1 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x1, x=xp_w, axis=0), x=sp1)
-
-            CSR_integrand_z2, CSR_integrand_x2 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh2, sp=sp_mesh2, ignore_vx = ignore_vx)
-            dE_dct2 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z2, x=xp_n, axis=0), x=sp2)
-            x_kick2 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x2, x=xp_n, axis=0), x=sp2)
-
-            CSR_integrand_z3, CSR_integrand_x3 = self.get_CSR_integrand(s=s, t=t, x=x, xp=xp_mesh3, sp=sp_mesh3, ignore_vx = ignore_vx)
-            dE_dct3 = -self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_z3, x=xp_n, axis=0), x=sp3)
-            x_kick3 = self.CSR_scaling * np.trapz(y=np.trapz(y=CSR_integrand_x3, x=xp_n, axis=0), x=sp3)
-            
-            if debug:
-                return xp_w, xp_n,  sp1, sp2, sp3, CSR_integrand_z1, CSR_integrand_x1,CSR_integrand_z2, CSR_integrand_x2,CSR_integrand_z3, CSR_integrand_x3
-            else:
-                return dE_dct1 + dE_dct2 + dE_dct3, x_kick1 + x_kick2 + x_kick3
+    def _extra_region_nodes(self, s, x, t, s1):
+        """
+        s' nodes of the regions below the regular far edge s1, in integration order:
+          prev_bend_reach     inside a bend, the previous bend's exit tail, from its entrance
+          reach_straight      inside a bend, the straight section before this bend's entrance
+          drift_causal_reach  in the drift after a bend, the earlier sources from the causal edge
+        """
+        out = []
+        pb = self._prev_bend_reach_start()
+        if pb is not None and pb < s1:
+            out.append(self._prev_region_nodes(s, pb, s1))
+        lo_pre = self._straight_region_lo(s)
+        if lo_pre is not None:
+            lo_cur = min(s1, pb) if pb is not None else s1
+            lo_cur = min(lo_cur, float(self.bend_start_rec))      # never the arc itself
+            if lo_pre < lo_cur - 1e-12:
+                out.append(self._straight_region_nodes(s, lo_pre, lo_cur))
+        sp_drift = self._drift_causal_nodes(s, x, t, s1)
+        if sp_drift is not None:
+            out.append(sp_drift)
+        return out
           
           
     def _comoving_fields(self, xval, zval, tval):
@@ -2675,7 +2236,7 @@ class CSR2D:
         kernel; see interp3D.interpolate3D_comoving_fields.
         """
         tr = self.DF_tracker
-        return (interpolate3D_comoving_fields_par if self._use_threads(xval) else interpolate3D_comoving_fields)(
+        return interpolate3D_comoving_fields(
             xval, zval, tval,
             tr.data_density_interp, tr.data_density_u_interp,
             tr.data_density_w_interp, tr.data_vx_interp, tr.data_vx_u_interp,
@@ -2694,7 +2255,7 @@ class CSR2D:
         interp3D.interpolate3D_comoving_ibp. want_fields False returns only A (the rest 0).
         """
         tr = self.DF_tracker
-        return (interpolate3D_comoving_ibp_par if self._use_threads(xval) else interpolate3D_comoving_ibp)(
+        return interpolate3D_comoving_ibp(
             xval, zval, tval,
             tr.data_density_interp, tr.data_density_u_interp,
             tr.data_density_w_interp, tr.data_vx_interp, tr.data_vx_u_interp,
@@ -2808,7 +2369,7 @@ class CSR2D:
         """
         ip = self.integration_params
         n = ip.ibp_check
-        if n <= 0 or not self.use_comoving:
+        if n <= 0:
             return
         nz = self.CSR_params.zbins
         ix = self.CSR_params.xbins // 2
@@ -2867,286 +2428,74 @@ class CSR2D:
                 f'interpolate between. Set CSR_computation.compute_CSR = 1, or pass '
                 f'debug=True to run(), so that snapshots are recorded.')
 
-    def get_CSR_integrand(self,s ,x, t, sp, xp, ignore_vx = False, taper = None, extras = None):
+    def get_CSR_integrand(self, s, x, t, sp, xp, taper=None, extras=None):
         """
-        taper: (R1, R2, keep_inner) — multiply the integrands by a radial partition
-        function of |r - r'|. With keep_inner False the weight rises 0 -> 1 across
-        [R1, R2], removing the neighbourhood of the r' -> r singularity; with True
-        it is the complement. The two pieces sum to the untapered integral exactly.
+        Longitudinal and transverse integrands at the source points (xp, sp) for the observer
+        (s, x) at time t (thesis Eqs 4.4 and 4.8; the arithmetic is integrand_kernel).
 
-        extras: a dict to fill with what the integrated-by-parts form needs (CSR_integration.ibp;
-        bspline_comoving only). The fields then come from interpolate3D_comoving_ibp, which is
-        bit-identical for them, so the returned integrands do not change.
+        taper: (R1, R2, keep_inner) -- multiply by a radial partition of |r - r'|: with keep_inner
+        False the weight rises 0 -> 1 across [R1, R2] (removing the pole's neighbourhood), with True
+        it is the complement; the two pieces sum to the untapered integral exactly.
+        extras: a dict to fill with what the integrated-by-parts form needs (CSR_integration.ibp);
+        the fields then come from interpolate3D_comoving_ibp, bit-identical for the five fields.
         """
-
         self._assert_history()
+        ip = self.integration_params
         sp_flat = sp.ravel()
         xp_flat = xp.ravel()
 
-        if self.use_comoving:
-            vx = self._comoving_fields(np.array([x]), np.array([s - t]),
-                                       np.array([t]))[3][0]
-            if self._quantile_frame():
-                vx = self._observer_vx(x, s - t, vx)
-        elif self.use_smooth_deposit:
-            vx = interpolate3D_transformed(
-                xval=np.array([x]), zval=np.array([s - t]), tval=np.array([t]),
-                data=self.DF_tracker.data_vx_interp,
-                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
-                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
-                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)[0]
-        else:
-            vx = interpolate3D(xval=np.array([t]), yval=np.array([x]), zval=np.array([s-t]),
-                                 data=self.DF_tracker.data_vx_interp,
-                                 min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                                 min_z=self.DF_tracker.min_z,
-                                 delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                 delta_z=self.DF_tracker.delta_z)[0]
+        vx = self._comoving_fields(np.array([x]), np.array([s - t]), np.array([t]))[3][0]
+        if self._quantile_frame():
+            vx = self._observer_vx(x, s - t, vx)
 
         (X0_s, Y0_s, n_vec_s_x, n_vec_s_y,
          tau_vec_s_x, tau_vec_s_y) = (v[0] for v in self._lattice_vectors(np.array([s])))
         (X0_sp, Y0_sp, n_vec_sp_x, n_vec_sp_y,
          tau_vec_sp_x, tau_vec_sp_y) = self._lattice_vectors(sp_flat)
-
         r_minus_rp_x = X0_s - X0_sp + x * n_vec_s_x - xp_flat * n_vec_sp_x
         r_minus_rp_y = Y0_s - Y0_sp + x * n_vec_s_y - xp_flat * n_vec_sp_y
         r_minus_rp = np.sqrt(r_minus_rp_x**2 + r_minus_rp_y**2)
 
-
-        # curvature of the element each s' falls in (0 past the lattice end). One searchsorted
-        # instead of the per-element mask loop: identical values, 3.8 -> 0.5 ms on 80k points
-        # with 65 elements (BC20), i.e. ~15% of a wake point.
+        # curvature of the element each s' falls in (0 past the lattice end, and on the synthetic
+        # straight pre-history before s' = 0 even when the lattice starts with a dipole)
         dist = np.asarray(self.lattice.distance)
         rho_el = np.asarray(self.lattice.rho)
         k_el = np.searchsorted(dist, sp_flat, side='right')
         rho_sp = np.where(k_el < dist.size, rho_el[np.minimum(k_el, dist.size - 1)], 0.0)
         if sp_flat.min() < 0.0:
-            # synthetic pre-history (Integration_params.prehistory): straight, so no curvature
-            # before the lattice start even when it begins with a dipole
             rho_sp = np.where(sp_flat < 0.0, 0.0, rho_sp)
 
         t_ret = t - r_minus_rp
-
-        if self.use_comoving:
-            # One pass returns all five fields: they share the frame construction
-            # and the stencil indices, so five separate calls would redo that work.
-            # The chain rule for d rho/dz is applied inside, with the time-blended
-            # p', which the pre-baked per-snapshot version could not do.
-            z_ret = sp_flat - t_ret
-            if extras is None or not (self.integration_params.ibp and self.use_comoving):
-                # the x' refinement (near_adapt_x / far_adapt_x) asks for extras only to read the
-                # retarded density, which the plain pass returns; the ibp pass computes A and B on
-                # top (22.3 vs 17.4 ms per 80k points, bit-identical first five fields)
-                (density_ret, density_x_ret, density_z_ret,
-                 vx_ret, vx_x_ret) = self._comoving_fields(xp_flat, z_ret, t_ret)
-                A_ibp = B_ibp = None
-            else:
-                (density_ret, density_x_ret, density_z_ret,
-                 vx_ret, vx_x_ret, A_ibp, B_ibp) = self._comoving_fields_ibp(xp_flat, z_ret, t_ret)
-
-        elif self.use_smooth_deposit:
-            # Use transformed interpolation — query in physical (x, z) frame,
-            # transform to xi internally using per-timestep polynomials
-            z_ret = sp_flat - t_ret
-
-            density_ret = interpolate3D_transformed(
-                xval=xp_flat, zval=z_ret, tval=t_ret,
-                data=self.DF_tracker.data_density_interp,
-                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
-                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
-                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
-
-            density_x_ret = interpolate3D_transformed(
-                xval=xp_flat, zval=z_ret, tval=t_ret,
-                data=self.DF_tracker.data_density_x_interp,
-                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
-                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
-                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
-
-            density_z_stored = interpolate3D_transformed(
-                xval=xp_flat, zval=z_ret, tval=t_ret,
-                data=self.DF_tracker.data_density_z_interp,
-                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
-                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
-                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
-
-            # Chain rule already applied in deposit_smooth.py (density_z_stored is lab-frame)
-            density_z_ret = density_z_stored
-
-            vx_ret = interpolate3D_transformed(
-                xval=xp_flat, zval=z_ret, tval=t_ret,
-                data=self.DF_tracker.data_vx_interp,
-                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
-                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
-                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
-
-            vx_x_ret = interpolate3D_transformed(
-                xval=xp_flat, zval=z_ret, tval=t_ret,
-                data=self.DF_tracker.data_vx_x_interp,
-                poly_coeffs=self.DF_tracker.poly_coeffs_interp,
-                min_xi_arr=self.DF_tracker.min_xi_arr, min_z_arr=self.DF_tracker.min_z_arr, min_t=self.DF_tracker.min_x,
-                delta_xi_arr=self.DF_tracker.delta_xi_arr, delta_z_arr=self.DF_tracker.delta_z_arr, delta_t=self.DF_tracker.delta_x)
-
+        z_ret = sp_flat - t_ret
+        if extras is None or not ip.ibp:
+            # the five fields share the frame construction and stencil, so one pass returns all
+            (density_ret, density_x_ret, density_z_ret,
+             vx_ret, vx_x_ret) = self._comoving_fields(xp_flat, z_ret, t_ret)
+            A_ibp = B_ibp = None
         else:
-            density_ret = interpolate3D(xval = t_ret, yval = xp_flat, zval = sp_flat - t_ret,
-                                      data = self.DF_tracker.data_density_interp,
-                                      min_x = self.DF_tracker.min_x, min_y = self.DF_tracker.min_y,  min_z = self.DF_tracker.min_z,
-                                      delta_x = self.DF_tracker.delta_x, delta_y = self.DF_tracker.delta_y, delta_z = self.DF_tracker.delta_z)
+            (density_ret, density_x_ret, density_z_ret,
+             vx_ret, vx_x_ret, A_ibp, B_ibp) = self._comoving_fields_ibp(xp_flat, z_ret, t_ret)
 
-            density_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                      data=self.DF_tracker.data_density_x_interp,
-                                      min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y, min_z=self.DF_tracker.min_z,
-                                      delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                      delta_z=self.DF_tracker.delta_z)
-
-            density_z_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                        data=self.DF_tracker.data_density_z_interp,
-                                        min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                                        min_z=self.DF_tracker.min_z,
-                                        delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                        delta_z=self.DF_tracker.delta_z)
-
-            vx_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                        data=self.DF_tracker.data_vx_interp,
-                                        min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                                        min_z=self.DF_tracker.min_z,
-                                        delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                        delta_z=self.DF_tracker.delta_z)
-
-            vx_x_ret = interpolate3D(xval=t_ret, yval=xp_flat, zval=sp_flat - t_ret,
-                                 data=self.DF_tracker.data_vx_x_interp,
-                                 min_x=self.DF_tracker.min_x, min_y=self.DF_tracker.min_y,
-                                 min_z=self.DF_tracker.min_z,
-                                 delta_x=self.DF_tracker.delta_x, delta_y=self.DF_tracker.delta_y,
-                                 delta_z=self.DF_tracker.delta_z)
-
-        ## Todo: More accurate vx, maybe add vs
-        if ignore_vx:
-            vx = 0
-            vx_x_ret = 0
-            vx_ret = 0
-        if getattr(self.integration_params, 'integrand_kernel', 'numpy') == 'numba':
-            n = xp_flat.size
-            CSR_integrand_z = np.empty(n); CSR_integrand_x = np.empty(n); vn = np.empty(n)
-            as_arr = lambda v: np.broadcast_to(np.asarray(v, dtype=float), (n,)) if np.ndim(v) == 0 else np.ascontiguousarray(v, dtype=float)
-            R1, R2, keep_inner = taper if taper is not None else (0.0, 1.0, False)
-            (csr_integrand_kernel_par if self._use_threads(xp_flat) else csr_integrand_kernel)(np.ascontiguousarray(xp_flat, dtype=float), as_arr(rho_sp), as_arr(r_minus_rp_x), as_arr(r_minus_rp_y),
-                                 as_arr(r_minus_rp), as_arr(n_vec_sp_x), as_arr(n_vec_sp_y), as_arr(tau_vec_sp_x), as_arr(tau_vec_sp_y),
-                                 as_arr(density_ret), as_arr(density_x_ret), as_arr(density_z_ret), as_arr(vx_ret), as_arr(vx_x_ret),
-                                 float(vx), float(n_vec_s_x), float(n_vec_s_y), float(tau_vec_s_x), float(tau_vec_s_y),
-                                 getattr(self.integration_params, 'transverse_terms', 'all') == 'W1', taper is not None,
-                                 float(R1), float(R2), bool(keep_inner), CSR_integrand_z, CSR_integrand_x, vn)
-            if extras is not None:
-                extras.update(rx=r_minus_rp_x, ry=r_minus_rp_y, nx=n_vec_sp_x, ny=n_vec_sp_y,
-                              xp=xp_flat, sp=sp_flat, kappa=rho_sp, vn=vn,
-                              rho=density_ret, rho_x=density_x_ret, A=A_ibp, B=B_ibp)
-            CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
-            CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
-            return CSR_integrand_z, CSR_integrand_x
-
-        vs = 1
-        vs_ret = 1
-        vs_s_ret = 0
-        vx_t = 0
-        vs_t = 0
-        #vx = 0
-        #vx_x_ret = 0
-        #vx_ret = 0
-
-        if ignore_vx:
-            vx = 0
-            vx_x_ret = 0
-            vx_ret = 0
-
-        scale_term =  1 + xp_flat*rho_sp
-
-
-        velocity_x = vs * tau_vec_s_x + vx * n_vec_s_x
-        velocity_y = vs * tau_vec_s_y + vx * n_vec_s_y
-
-        velocity_ret_x = vs_ret * tau_vec_sp_x + vx_ret * n_vec_sp_x
-        velocity_ret_y = vs_ret * tau_vec_sp_y + vx_ret * n_vec_sp_y
-
-        #velocity_partial_t_x = vs_t * tau_vec_sp_x + vx_t * n_vec_sp_x
-        #velocity_partial_t_y = vs_t * tau_vec_sp_y + vx_t * n_vec_sp_y
-
-        nabla_density_ret_x = density_x_ret  * n_vec_sp_x + density_z_ret / scale_term * tau_vec_sp_x
-        nabla_density_ret_y = density_x_ret * n_vec_sp_y + density_z_ret / scale_term * tau_vec_sp_y
-
-        div_velocity = vs_s_ret + vx_x_ret  #???
-
-        # Todo: Consider using general form
-        ## general form
-        part1 = velocity_x * velocity_ret_x + velocity_y * velocity_ret_y
-        CSR_numerator1 = scale_term * ((velocity_x - part1 * velocity_ret_x) * nabla_density_ret_x  + \
-                          (velocity_y - part1 * velocity_ret_y)*nabla_density_ret_y)
-        CSR_numerator2 = -scale_term * part1 * density_ret * div_velocity
-        #CSR_numerator3 = scale_term * density_ret * (velocity_partial_t_x * velocity_x + velocity_partial_t_y * velocity_y)
-
-        #CSR_denominator = r_minus_rp
-
-        #self.CSR_integrand = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
-        CSR_integrand_z = CSR_numerator1 /r_minus_rp + (CSR_numerator2) / r_minus_rp
-
-
-
-        #CSR_numerator1 = scale_term * (((n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y) +
-        #                                (vx - vx_ret) * (tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y)) * density_x_ret -
-        #                               vx_ret * (n_vec_sp_x * tau_vec_s_x + n_vec_sp_y * tau_vec_s_y)/scale_term * density_z_ret)
-
-        #CSR_numerator2 = -((tau_vec_sp_x * tau_vec_s_x + tau_vec_sp_y * tau_vec_s_y) +
-        #                   (vx - vx_ret) * (n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y)) * density_ret * vx_x_ret
-
-        #CSR_numerator3 = scale_term * density_ret * (velocity_partial_t_x * velocity_x + velocity_partial_t_y * velocity_y)
-
-        #CSR_denominator = r_minus_rp
-
-        #CSR_integrand_z = CSR_numerator1/CSR_denominator + (CSR_numerator2 + CSR_numerator3)/CSR_denominator
-
-        n_minus_np_x = n_vec_s_x - n_vec_sp_x
-        n_minus_np_y = n_vec_s_y - n_vec_sp_y
-
-        #part: (r-r')(n - n')
-        part1 = r_minus_rp_x * n_minus_np_x + r_minus_rp_y * n_minus_np_y
-
-        #part2: n tau'
-        part2 = n_vec_s_x * tau_vec_sp_x + n_vec_s_y * tau_vec_sp_y
-
-        # part3: partial density/partial t_ret
-        partial_density = - (velocity_ret_x * nabla_density_ret_x + velocity_ret_y * nabla_density_ret_y) - \
-                          density_ret * div_velocity
-
-        W1 = scale_term * part1 / (r_minus_rp * r_minus_rp * r_minus_rp) * density_ret
-        W2 = scale_term * part1 / (r_minus_rp * r_minus_rp) * partial_density
-        W3 = -scale_term * part2 / r_minus_rp * partial_density
-
-        if getattr(self.integration_params, 'transverse_terms', 'all') == 'W1':
-            CSR_integrand_x = W1
-        else:
-            CSR_integrand_x = W1 + W2 + W3
-
+        n = xp_flat.size
+        CSR_integrand_z = np.empty(n)
+        CSR_integrand_x = np.empty(n)
+        vn = np.empty(n)
+        as_arr = lambda v: (np.broadcast_to(np.asarray(v, dtype=float), (n,)) if np.ndim(v) == 0
+                            else np.ascontiguousarray(v, dtype=float))
+        R1, R2, keep_inner = taper if taper is not None else (0.0, 1.0, False)
+        csr_integrand_kernel(np.ascontiguousarray(xp_flat, dtype=float), as_arr(rho_sp), as_arr(r_minus_rp_x),
+                             as_arr(r_minus_rp_y), as_arr(r_minus_rp), as_arr(n_vec_sp_x), as_arr(n_vec_sp_y),
+                             as_arr(tau_vec_sp_x), as_arr(tau_vec_sp_y),
+                             as_arr(density_ret), as_arr(density_x_ret), as_arr(density_z_ret),
+                             as_arr(vx_ret), as_arr(vx_x_ret),
+                             float(vx), float(n_vec_s_x), float(n_vec_s_y), float(tau_vec_s_x), float(tau_vec_s_y),
+                             ip.transverse_terms == 'W1', taper is not None,
+                             float(R1), float(R2), bool(keep_inner), CSR_integrand_z, CSR_integrand_x, vn)
         if extras is not None:
             extras.update(rx=r_minus_rp_x, ry=r_minus_rp_y, nx=n_vec_sp_x, ny=n_vec_sp_y,
-                          xp=xp_flat, sp=sp_flat, kappa=rho_sp,
-                          vn=velocity_x * n_vec_sp_x + velocity_y * n_vec_sp_y,
+                          xp=xp_flat, sp=sp_flat, kappa=rho_sp, vn=vn,
                           rho=density_ret, rho_x=density_x_ret, A=A_ibp, B=B_ibp)
-
-        if taper is not None:
-            R1, R2, keep_inner = taper
-            u = np.clip((r_minus_rp - R1) / (R2 - R1), 0.0, 1.0)
-            # C2 smootherstep, so the tapered integrand has no curvature jump
-            w = u * u * u * (u * (6.0 * u - 15.0) + 10.0)
-            if keep_inner:
-                w = 1.0 - w
-            CSR_integrand_z = CSR_integrand_z * w
-            CSR_integrand_x = CSR_integrand_x * w
-
-        CSR_integrand_x = CSR_integrand_x.reshape(xp.shape)
-        CSR_integrand_z = CSR_integrand_z.reshape(xp.shape)
-
-
-
-        return CSR_integrand_z, CSR_integrand_x
+        return CSR_integrand_z.reshape(xp.shape), CSR_integrand_x.reshape(xp.shape)
 
     def dump_beam(self, label):
         if self.parallel and self.rank != 0:
