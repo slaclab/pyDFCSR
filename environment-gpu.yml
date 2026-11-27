@@ -1,0 +1,34 @@
+# GPU (CUDA, Linux) variant of environment-mpi.yml for the torch backend (branch gpu_diff):
+# CSR_computation.backend: torch, device: cuda, and the differentiable run
+# (pyDFCSR_2D/torch_backend/diff.py). Same pins as environment-mpi.yml for the numpy/numba side,
+# so the numba reference reproduces; pytorch comes CUDA-enabled from conda-forge
+# (pytorch-gpu). Everything runs in float64: the integrand's +- d rho/dx cancellation needs it,
+# so use a GPU with full-rate float64 (A100/H100; not consumer cards, not Apple MPS).
+#
+#   conda env create -f environment-gpu.yml
+#   conda activate pydfcsr-gpu
+#   python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name())"
+#   python pyDFCSR_2D/test/gpu_diff/gpu_benchmark.py          (see its docstring; slurm: gpu_benchmark.slurm)
+#
+name: pydfcsr-gpu
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - mpich
+  - mpi4py
+  - distgen=2.2.1
+  - h5py
+  - matplotlib
+  - numba=0.63.1
+  - llvmlite=0.46.0
+  - numpy <2
+  - scipy=1.17.0
+  - libopenblas=0.3.30
+  - pytorch-gpu
+  - pyyaml
+  - pytest
+  - pip
+  - pip:
+      - .
+      - git+https://github.com/bmad-sim/Bmad-X/
