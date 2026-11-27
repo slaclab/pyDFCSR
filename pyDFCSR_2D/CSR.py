@@ -79,6 +79,10 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         else:
             self.parallel = False
 
+    def __getstate__(self):
+        # the torch evaluator holds device tensors and a back reference; it is rebuilt on demand
+        return {k: v for k, v in self.__dict__.items() if k != '_torch_wake'}
+
     def __setstate__(self, state):
         self.__dict__.update(self.BEND_STATE)
         self._last_region_nodes = [0, 0]
@@ -170,6 +174,8 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
                              'assumes a straight beam axis')
         self.integration_params = Integration_params(input.get('CSR_integration'))
         ip = self.integration_params
+        if ip.ibp and input.get('CSR_computation', {}).get('backend', 'numba') == 'torch':
+            raise NotImplementedError('CSR_integration.ibp is not implemented in the torch backend')
         if ip.ibp and ip.near_adapt and ip.near_adapt_x:
             self._note('ibp_refined', '  [CSR2D] note: CSR_integration.ibp acts only on columns without x\' '
                        'refinement, and near_adapt_x refines every column of its regions (far_adapt_x: all '
@@ -915,17 +921,28 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         vb = c[0] + c[1] * xt + c[2] * wq + c[3] * wq ** 2 + c[4] * wq ** 3
         return T * vx_src + (1.0 - T) * vb
     
+    def _torch_wakes(self, ks):
+        """(dE/dct, x kick) at the mesh points ks with the torch backend (torch_backend.evaluate)."""
+        if getattr(self, '_torch_wake', None) is None:
+            from .torch_backend.evaluate import TorchWake
+            self._torch_wake = TorchWake(self, device=self.CSR_params.device, chunk=self.CSR_params.torch_chunk)
+        z = np.asarray(self.CSR_zmesh)[ks]
+        return self._torch_wake.compute(self.beam.position + z, np.asarray(self.CSR_xmesh)[ks])
+
     def calculate_2D_CSR(self):
 
         N = self.CSR_params.xbins*self.CSR_params.zbins
         self.dE_dct = np.zeros((N,))
         self.x_kick = np.zeros((N,))
 
-        for i in range(N):
-            s = self.beam.position + self.CSR_zmesh[i]
-            x = self.CSR_xmesh[i]
+        if self.CSR_params.backend == 'torch':
+            self.dE_dct[:], self.x_kick[:] = self._torch_wakes(np.arange(N))
+        else:
+            for i in range(N):
+                s = self.beam.position + self.CSR_zmesh[i]
+                x = self.CSR_xmesh[i]
 
-            self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x)
+                self.dE_dct[i], self.x_kick[i] = self.get_CSR_wake(s,x)
 
         self.dE_dct = self.dE_dct.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
         self.x_kick = self.x_kick.reshape((self.CSR_params.xbins, self.CSR_params.zbins))
@@ -949,10 +966,14 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
 
         dE_local = np.zeros((work_size,))
         xk_local = np.zeros((work_size,))
-        for k in range(rank, work_size, size):
-            s = self.beam.position + self.CSR_zmesh[k]
-            x = self.CSR_xmesh[k]
-            dE_local[k], xk_local[k] = self.get_CSR_wake(s, x)
+        if self.CSR_params.backend == 'torch':
+            ks = np.arange(rank, work_size, size)
+            dE_local[ks], xk_local[ks] = self._torch_wakes(ks)
+        else:
+            for k in range(rank, work_size, size):
+                s = self.beam.position + self.CSR_zmesh[k]
+                x = self.CSR_xmesh[k]
+                dE_local[k], xk_local[k] = self.get_CSR_wake(s, x)
 
         self.dE_dct = np.zeros((work_size,))
         self.x_kick = np.zeros((work_size,))

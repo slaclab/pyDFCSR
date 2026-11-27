@@ -155,6 +155,9 @@ CSR_DEFAULTS = {
     'write_wakes': (True, _identity),
     'write_name': ('', _identity),
     'workdir': ('.', full_path),
+    'backend': ('numba', str),                     # wake evaluation: 'numba' or 'torch' (torch_backend)
+    'device': ('cpu', str),                        # torch device, e.g. 'cuda'
+    'torch_chunk': (1 << 21, int),                 # integrand nodes per torch batch
 }
 
 
@@ -176,6 +179,8 @@ class CSR_params(_Params):
             raise ValueError(f'CSR_computation.mesh_uniform_frac must be in [0, 1], got {self.mesh_uniform_frac}')
         if not self.mesh_max_ratio > 1.0:
             raise ValueError(f'CSR_computation.mesh_max_ratio must be > 1, got {self.mesh_max_ratio}')
+        if self.backend not in ('numba', 'torch'):
+            raise ValueError(f"CSR_computation.backend must be 'numba' or 'torch', got {self.backend!r}")
         for k in ('mesh_x_quantile', 'mesh_z_quantile'):
             q = getattr(self, k)
             if q is not None and not 0.0 < q < 0.5:

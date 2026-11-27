@@ -20,6 +20,7 @@ TEST_MODULES = {
     'test_tangent_bands.py',
     'test_tracking_edges.py',
     'test_frame_blend.py',
+    'test_torch_backend.py',      # torch backend against numba (skipped without torch)
     'test_integrand_kernel.py',   # the numba kernel against the numpy arithmetic it replaced
 }
 

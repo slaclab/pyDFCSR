@@ -19,28 +19,19 @@ class WakeMixin:
         region, plus the polar patch around the 1/|r - r'| pole (methods §5.1). debug=True
         returns the regions' node meshes and integrands instead.
         """
-        t = self.beam.position
+        lay = self.wake_layout(s, x)
+        t = lay['t']
         ip = self.integration_params
         self._ibp_ship_acc = 0.0
         self._ibp_gross_acc = 0.0
         self._ibp_zone_acc = 0.0
-        bnds = self._layout_bounds(s, x)
-        (s1, s3), (_, s4) = bnds
-        self._region_node_counts(bnds)      # sets _last_region_nodes for diagnostics
-        sps = [self._far_region_nodes(s, x, t, s1, s3),
-               self._near_region_nodes(s, s3, s4, x=x, t=t)]
-        # only the near region straddles s' = s, so only it owns the pole and gets the patch
-        radii = self._near_patch_radii(s, s3, s4)
-        tapers = [None, None if radii is None else (*radii, False)]
-        # band_jacobian_min widens the far region's oblique columns only (methods §5.3)
-        parts = [self._integrate_xi_region(s, x, t, spk, tp, scale_bands=(k == 0),
-                                           adapt_x=(k == 1) or (k == 0 and ip.far_adapt_x))
-                 for k, (spk, tp) in enumerate(zip(sps, tapers))]
-        for sp_extra in self._extra_region_nodes(s, x, t, s1):
-            parts.append(self._integrate_xi_region(s, x, t, sp_extra, None, scale_bands=True,
-                                                   adapt_x=ip.far_adapt_x))
+        parts = [self._integrate_xi_region(s, x, t, reg['sp'], reg['taper'], adapt_x=reg['adapt_x'],
+                                           bands=reg['bands'])
+                 for reg in lay['regions']]
+        radii = lay['patch']
         if radii is not None:
             parts.append(self._integrate_near_patch(s, x, t, *radii))
+        sps = [reg['sp'] for reg in lay['regions'][:2]]
 
         if debug:
             return {'mode': 'xi_bands',
@@ -56,7 +47,35 @@ class WakeMixin:
             self._last_wake_shipped = self._ibp_ship_acc + (parts[-1][0] if radii is not None else 0.0)
         return sum(p[0] for p in parts), sum(p[1] for p in parts)
 
-    def _integrate_xi_region(self, s, x, t, sp, taper=None, scale_bands=True, adapt_x=False):
+    def wake_layout(self, s, x):
+        """
+        The quadrature layout of get_CSR_wake at the observer (s, x), without any integrand
+        evaluation: per s' region its nodes, the two disjoint x' bands per column, the radial taper
+        and whether the x' refinement applies; and the polar patch radii (None: no patch). The
+        torch backend evaluates the same layout (torch_backend.evaluate).
+        """
+        t = self.beam.position
+        ip = self.integration_params
+        bnds = self._layout_bounds(s, x)
+        (s1, s3), (_, s4) = bnds
+        self._region_node_counts(bnds)      # sets _last_region_nodes for diagnostics
+        sps = [self._far_region_nodes(s, x, t, s1, s3),
+               self._near_region_nodes(s, s3, s4, x=x, t=t)]
+        # only the near region straddles s' = s, so only it owns the pole and gets the patch
+        radii = self._near_patch_radii(s, s3, s4)
+        tapers = [None, None if radii is None else (*radii, False)]
+        # band_jacobian_min widens the far region's oblique columns only (methods §5.3)
+        regions = [dict(sp=spk, taper=tp, scale_bands=(k == 0),
+                        adapt_x=(k == 1) or (k == 0 and ip.far_adapt_x))
+                   for k, (spk, tp) in enumerate(zip(sps, tapers))]
+        for sp_extra in self._extra_region_nodes(s, x, t, s1):
+            regions.append(dict(sp=sp_extra, taper=None, scale_bands=True, adapt_x=ip.far_adapt_x))
+        for reg in regions:
+            reg['bands'] = self._disjoint_bands(self._retarded_xi_bands(s, x, t, reg['sp'],
+                                                                        scale_bands=reg['scale_bands']))
+        return dict(t=t, regions=regions, patch=radii)
+
+    def _integrate_xi_region(self, s, x, t, sp, taper=None, scale_bands=True, adapt_x=False, bands=None):
         """
         Integrate one s' region with the transverse nodes riding the density ribbon.
 
@@ -65,7 +84,8 @@ class WakeMixin:
         trapz(y, dx=h) = h * trapz(y, dx=1), so the unit-spacing result is simply
         scaled by each column's dx.
         """
-        bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp, scale_bands=scale_bands))
+        if bands is None:
+            bands = self._disjoint_bands(self._retarded_xi_bands(s, x, t, sp, scale_bands=scale_bands))
         nx = self.integration_params.xbins
         frac = np.linspace(0.0, 1.0, nx)
         ibp = self.integration_params.ibp
