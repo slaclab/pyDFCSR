@@ -1,6 +1,6 @@
 # pyDFCSR 2D: how the code works
 
-*Methods document for the 2D density-function CSR code in `pyDFCSR_2D/`, written against the code on branch `near_adapt` (commit ea4f41f, 2026-11-23) and the development logs `progress.md`, `progress_facet_bc20.md`, `progress_cancellation.md`, `progress_comoving_interp.md` and `integration_region.md`. Every default quoted below was read from `params.py` or `deposit_smooth.py`; every benchmark number carries the section of the log it comes from. Where something could not be verified it is marked as such.*
+*Methods document for the 2D density-function CSR code in `pyDFCSR_2D/`, written against the code on branch `near_adapt` (commit ea4f41f, 2026-11-23; integration sections updated to 803f0a4, 2026-11-26) and the development logs `progress.md`, `progress_facet_bc20.md`, `progress_cancellation.md`, `progress_comoving_interp.md` and `integration_region.md`. Every default quoted below was read from `params.py` or `deposit_smooth.py`; every benchmark number carries the section of the log it comes from. Where something could not be verified it is marked as such.*
 
 **Contents**
 
@@ -156,7 +156,7 @@ Two caps act on the z width in the quantile and peak frames:
 Snapshots are kept in a preallocated ring (5 fields × capacity × xbins × zbins, 1.2 MB each at 100 × 300) with the per-snapshot frame scalars in deques. Three rules decide what is kept:
 
 * **Formation length.** L_f = (24 R² σ_z)^{1/3} inside a bend, refreshed every step from the current σ_z (`_refresh_formation_length`; pinning it to the entrance value left the wake 12.9% wrong at shear 20, progress_comoving_interp.md §6h). Snapshots older than `n_formation_length` (1) × L_f behind the beam are dropped.
-* **Retention floor.** Dropping on the instantaneous L_f is safe only while σ_z decreases; at a longitudinal waist L_f collapses and recovers, and the snapshots the later steps need are gone. `build_retention_plan` precomputes, from the linear optics, how far back every later kick will reach and keeps the suffix minimum; `drift_reach` and `prev_bend_reach` add the start of the current and previous bend (`_retention_floor`). `_check_retention` compares what was asked against what survived at every step.
+* **Retention floor.** Dropping on the instantaneous L_f is safe only while σ_z decreases; at a longitudinal waist L_f collapses and recovers, and the snapshots the later steps need are gone. `build_retention_plan` precomputes, from the linear optics, how far back every later kick will reach and keeps the suffix minimum; `drift_reach` and `prev_bend_reach` add the start of the current and previous bend (`_retention_floor`). `_check_retention` compares what was asked against what survived at every step. `drift_causal_reach` adds, in the drift after a bend, the previous bend's entrance minus n_fl·L_f, so the causal drift region (§5.2) has its sources; `reach_straight` adds the straight section before the current bend; the synthetic `prehistory` needs no snapshots (the first one is reused for s′ < 0).
 * **Drift thinning** (`drift_snap_thin` = 0.01): in a drift after a bend, the second-newest snapshot is dropped if linear interpolation in t between its neighbours reproduces its density, v_x and frame within 1%.
 
 ### 3.6 Interpolation at the retarded point
