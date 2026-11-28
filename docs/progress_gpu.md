@@ -556,3 +556,26 @@ and the final monitor, grading and inverse CDF. That is 10,180 generator resumpt
 A BC20-type `near_adapt` kick on this GPU is now about 0.9 s of layout plus ~0.5 s of compiled
 evaluation, against ~5 s of layout alone before §9. Test: the layout test of §9 now also runs the
 batched near-adapt. Full suite: 225 passed.
+
+## 12. The full BC20 run on the GPU (2026-11-28)
+
+Indranil's L1-17.6284 beam with the recommended recipe (`run_indranil.py b176_v2`):
+- 1e6 particles, 1771 steps, 315 kicks;
+- a 12×160 charge mesh, `frame: auto` (it chose quantile, as on the Mac);
+- `near_adapt` + x′ refinement, 100 x′ nodes, prehistory 45 m.
+
+It ran with `backend: torch`, `device: cuda`, `torch_compile`, `torch_bands`
+(`test/gpu_diff/run_bc20_gpu.py`, output in `benchmark_results/bc20_indranil/runs_gpu/`).
+
+| | RTX 5000 Ada, 1 process | Mac, numba, 6 MPI ranks (`b176_err_fl1`) |
+|---|---|---|
+| run time | **44.2 min** (315 kicks: 1843 s, 5.8 s each; 1456 other steps: 804 s, 0.55 s each) | 2.6 h |
+| total energy loss vs CSR off | **−23.838 MeV** | −23.834 MeV |
+
+The CSR-off reference (`b176_off`, 4.6 min on the CPU) was rerun here. The two runs agree to
+1.7e-4, the level of the GPU's run-to-run reproducibility (§10) and of the x′-refinement ties. 1D
+gives −28.58 MeV.
+
+The ~0.55 s per non-kick step is the 1e6-particle deposit and tracking, still numba and numpy on
+the CPU in the plain torch-backend run. It is now 30% of the run, and moving it to the GPU (the
+torch deposit of `CSR2DDiff` already exists) is the next speed-up.
