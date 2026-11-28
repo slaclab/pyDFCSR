@@ -178,3 +178,67 @@ def test_segment_gradient_equals_checkpointed():
             out.append([float(ang.grad), float(bt.params['chirp'].grad), float(bt.params['z_scale'].grad)])
     for a, b in zip(*out):
         assert abs(a - b) <= 1e-10 * abs(a), out
+
+
+def _config_1d(tmp):
+    f = G.config(tmp, None, None, None)
+    cfg = yaml.safe_load(open(f))
+    cfg['CSR_1D'] = dict(kick_interp='linear', nbins=200, record=True)
+    yaml.safe_dump(cfg, open(f, 'w'))
+    return f
+
+
+def test_csr1d_diff_wakes_match_csr1d():
+    """CSR1DDiff with the exact histogram deposit: every kick's wake as CSR1D's to round-off, except
+    where a particle at a bin edge switches bins (a histogram's discontinuity amplifies round-off;
+    that is the kick that moves by ~1e-3, so at least 7 of the 8 kicks must agree to 1e-11)."""
+    from pyDFCSR_2D.csr1d import CSR1D
+    from pyDFCSR_2D.torch_backend.csr1d_diff import CSR1DDiff
+    with tempfile.TemporaryDirectory() as tmp:
+        f = _config_1d(tmp)
+        with contextlib.redirect_stdout(io.StringIO()):
+            a = CSR1D(input_file=f)
+            a.run()
+            b = CSR1DDiff(input_file=f, deposit='histogram')
+            Ws = []
+            orig = b.apply_wake_1d
+            b.apply_wake_1d = lambda S, W, L: (orig(S, W, L), Ws.append(b.wake_W.copy()))
+            b.run()
+    rel = [np.abs(k['W'] - w).max() / np.abs(k['W']).max() for k, w in zip(a.kicks, Ws)]
+    assert len(rel) == len(a.kicks) and sum(r < 1e-11 for r in rel) >= len(rel) - 1, rel
+
+
+def test_csr1d_diff_gradients():
+    """CSR1DDiff (cic deposit): d loss/d (bend angle, chirp) against central differences with the
+    structure replayed, and the segmented gradient equal to the plain backward."""
+    from pyDFCSR_2D.torch_backend.beam_param import BeamTransform
+    from pyDFCSR_2D.torch_backend.csr1d_diff import CSR1DDiff
+    loss = lambda tp: tp.pz.mean() * 1e6 + (tp.pz - tp.pz.mean()).std() * 1e4
+    base = torch.as_tensor(G.beam_coords().T[:, :5000].copy())
+    T = lambda x: torch.tensor(x, dtype=torch.float64)
+    with tempfile.TemporaryDirectory() as tmp:
+        f = _config_1d(tmp)
+        bt = BeamTransform(base)
+
+        def run(p, ang, structure=None, segment=None, coords=None):
+            with contextlib.redirect_stdout(io.StringIO()):
+                d = CSR1DDiff(input_file=f, coords=bt.beam(p) if coords is None else coords,
+                              params={('B1', 'angle'): ang}, structure=structure, checkpoint=True, segment=segment)
+                d.run()
+            return d
+        ang = torch.tensor(0.05, dtype=torch.float64, requires_grad=True)
+        d = run(None, ang)
+        loss(d.tp).backward()
+        ad = float(ang.grad) * 0.05 + float(bt.params['chirp'].grad) * 1.0     # direction (0.05, 1.0)
+        h = 1e-5
+        fd = (float(loss(run({'chirp': T(h)}, T(0.05 * (1 + h)), d.record).tp))
+              - float(loss(run({'chirp': T(-h)}, T(0.05 * (1 - h)), d.record).tp))) / (2 * h)
+        assert abs(fd - ad) <= 1e-5 * abs(fd), (ad, fd)
+        g_plain = (float(ang.grad), float(bt.params['chirp'].grad))
+        bt = BeamTransform(base)
+        ang = torch.tensor(0.05, dtype=torch.float64, requires_grad=True)
+        c = bt.beam()
+        d = run(None, ang, segment=2, coords=c)
+        d.segment_gradient(loss, coords=c)
+    for a, b in zip(g_plain, (float(ang.grad), float(bt.params['chirp'].grad))):
+        assert abs(a - b) <= 1e-12 * abs(a)

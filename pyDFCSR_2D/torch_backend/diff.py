@@ -91,7 +91,7 @@ class CSR2DDiff(CSR2D):
         self._keep = (set(t for r in structure['kicks'] for t in r['times'])
                       if structure is not None else set())
         self._coords0 = coords
-        self.params = dict(params or {})
+        self.lattice_params = dict(params or {})
         self._thist = {}
         self._ele = None
         super().__init__(input_file=input_file, parallel=False)
@@ -127,7 +127,7 @@ class CSR2DDiff(CSR2D):
 
     def _torch_element(self, element, ele=None, params=None):
         name, entrance, exit_ = self._ele if ele is None else ele
-        params = self.params if params is None else params
+        params = self.lattice_params if params is None else params
         cfg = self.lattice.lattice_config[name]
         f = element._asdict()
         for (ename, key), val in params.items():
@@ -156,7 +156,7 @@ class CSR2DDiff(CSR2D):
                 self._bounds[len(self.tape)] = tuple(a.detach() for a in self._coords(self.tp))
             self._n_track += 1
             self.tape.append(('track', element, self._ele))
-        self.tp = self.op_track(self.tp, element, self._ele, self.params)
+        self.tp = self.op_track(self.tp, element, self._ele, self.lattice_params)
         self._sync()
         self.beam.position += step_size
         if update_step:
@@ -194,7 +194,7 @@ class CSR2DDiff(CSR2D):
         loss_fn(tp) -> scalar tensor of the final beam (a bmadx Particle of tensors).
         coords: the (6, N) tensor the run started from, if it carries a graph to generator
         parameters (torch_backend.beam_param); the start beam's adjoint is passed into it.
-        Accumulates .grad of the leaves behind self.params (a parameter may be derived from a leaf)
+        Accumulates .grad of the leaves behind self.lattice_params (a parameter may be derived from a leaf)
         and behind coords. Returns the loss as a float.
         """
         if not self.segment:
@@ -206,7 +206,7 @@ class CSR2DDiff(CSR2D):
             L = loss_fn(Particle(*leaves, *aux))
             adj = [g if g is not None else torch.zeros_like(a)
                    for g, a in zip(torch.autograd.grad(L, leaves, allow_unused=True), leaves)]
-        P = [p for p in dict.fromkeys(self.params.values()) if torch.is_tensor(p) and p.requires_grad]
+        P = [p for p in dict.fromkeys(self.lattice_params.values()) if torch.is_tensor(p) and p.requires_grad]
         gP = [torch.zeros_like(p) for p in P]
         adj_snap = {}
         starts = sorted(self._bounds)
@@ -227,11 +227,11 @@ class CSR2DDiff(CSR2D):
                     inputs[t] = self._snap_tensors(local[t])
                 for op in ops:
                     if op[0] == 'track':
-                        tp = self.op_track(tp, op[1], op[2], self.params)
+                        tp = self.op_track(tp, op[1], op[2], self.lattice_params)
                     elif op[0] == 'snap':
                         local[op[1]] = self.op_snap(tp, op[2])
                     else:
-                        tp, _ = self.op_kick(tp, local, self.structure[op[1]], op[2], self.params)
+                        tp, _ = self.op_kick(tp, local, self.structure[op[1]], op[2], self.lattice_params)
                 outs, gouts = [], []
                 for a, g in zip(self._coords(tp), adj):
                     if a.requires_grad:
@@ -358,7 +358,7 @@ class CSR2DDiff(CSR2D):
                 L_kick = self.beam.position - self._s_last_kick
         if self.segment:
             self.tape.append(('kick', len(self.structure), L_kick))
-        self.tp, (dE, xk) = self.op_kick(self.tp, self._thist, rec_new, L_kick, self.params)
+        self.tp, (dE, xk) = self.op_kick(self.tp, self._thist, rec_new, L_kick, self.lattice_params)
         rec_new['layout'], rec_new['refine'] = self._tw.last_layout, self._tw.last_refine
         self.structure.append(rec_new)
         self.dE_dct = dE.detach().cpu().numpy()

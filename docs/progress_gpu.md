@@ -579,3 +579,71 @@ gives −28.58 MeV.
 The ~0.55 s per non-kick step is the 1e6-particle deposit and tracking, still numba and numpy on
 the CPU in the plain torch-backend run. It is now 30% of the run, and moving it to the GPU (the
 torch deposit of `CSR2DDiff` already exists) is the next speed-up.
+
+## 13. The 1D model differentiable (2026-11-28)
+
+`torch_backend/csr1d_diff.CSR1DDiff` is `csr1d.CSR1D` with a torch shadow of the beam, as
+`CSR2DDiff` is for 2D. The numpy CSR1D decides the structure on the detached beam: the schedule, the
+bin grid of each kick (its exact edges are recorded), the geometry case and the kick lengths. The
+torch side recomputes the values:
+
+- **line density:** a deposit on the kick's bins, the Savitzky–Golay filter as a fixed convolution
+  (scipy's coefficients, zero padding as `mode='constant'`), the clip at 0 and the renormalisation,
+  and λ′ as np.gradient;
+- **wakes:** cases A/B and C/D of `csr1d.py` in torch.
+  - The product-integration weights of the u^(−1/3) integral are exact for piecewise-linear λ′, and
+    so differentiable in U = Rφ³/24; the cell count is structure.
+  - Case D's Gauss–Legendre weights use ψ(u) from a detached bisection plus one Newton step at the
+    root. That step leaves the value unchanged and gives the implicit-function derivative in R, x_R
+    and u.
+  - The shifted λ terms are linear interpolations.
+- **geometry:** with a bend-angle parameter, R = L/|θ|, φ (the same fraction of the bend), φm and x_R
+  (the same distance past its exit).
+- **kick:** pz += L_kick·W(z)/E0 by linear interpolation of W.
+
+The tracking, element and segment machinery is `CSR2DDiff`'s, borrowed as `CSR1D` borrows `CSR2D`'s
+methods. The lattice tensors are now `lattice_params` in both drivers, because `CSR1D.params` is its
+`CSR_1D` block.
+
+**Two deliberate differences from CSR1D:**
+- **Deposit `cic`** (default, linear weights on the bins). CSR1D's histogram has zero derivative with
+  respect to the particle positions, so a chirp or a bunch-length change could not reach the wake
+  through it. `deposit='histogram'` reproduces CSR1D for checks.
+- **Linear kick interpolation** (`CSR_1D.kick_interp: linear`). A differentiable not-a-knot spline
+  would need a banded solve per kick.
+
+**Checks** (golden lattice, 20k particles):
+- **Wakes vs CSR1D**, histogram deposit, linear kicks: 7 of 8 kicks agree to ≤ 5e-13. At kick 4 a
+  particle at a bin edge falls into the other bin (torch and numpy tracking differ at 1e-16), and
+  the wake moves 1.6e-3. That is the histogram's discontinuity, and why it cannot carry gradients.
+  Rebuilding the edges from the bin centres had moved four particles at edges (5e-4 in pz); the
+  kick record therefore keeps the exact edges.
+- **Gradients vs central differences**, structure replayed:
+
+  | derivative | rel |
+  |---|---|
+  | bend angle | 1.6e-7 |
+  | chirp | 9.3e-8 |
+  | z_scale | 2.1e-5 |
+  | one profile knot | 1.5e-5 |
+
+  The cic deposit is piecewise linear in z, so the finite differences converge only linearly.
+- **Segmented gradient** = plain backward to 1e-16.
+- **Cost:** the golden gradient run takes 1.1 s.
+
+**The chicane in 1D** (`test/gpu_diff/chicane_gradients_1d.py`; the coarse 20k chicane of §5, θ on all
+four bends; forward 4 s, backward 2 s on the CPU):
+
+| | 1D (bins: extent 300) | 1D (peak, 20/FWHM) | 2D (§5) |
+|---|---|---|---|
+| ⟨ΔE⟩ | −1745 keV | −1740 | −2777 |
+| d⟨ΔE⟩/dθ | −7.862e5 keV/rad | −7.825e5 | −3.542e6 |
+| d⟨ΔE⟩/dh | 516.6 keV·m | 514.3 | 2444.8 |
+
+The 1D gradients agree with central differences (θ 5e-5 and chirp 1.5e-5 at h = 1e-6). So the 4.5×
+gap is between the models, not a numerical one, and the bin resolution does not change it. On this
+chicane 2D loses 4× more energy than 1D in B3–D3, where the compressed bunch is strongly tilted
+(§9 of DFCSR_2D_methods), and θ and the chirp set exactly that tilt. Open: a per-element breakdown
+of the gradient would show where the two models' sensitivities part.
+
+Tests: `test_torch_diff.py::test_csr1d_diff_wakes_match_csr1d`, `::test_csr1d_diff_gradients`.
