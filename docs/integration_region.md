@@ -196,10 +196,10 @@ Deciding from the observation-point tilt discarded 28–31% of the wake (Step 6)
 ## 5a. Dropped columns: the light cone misses the beam centre line but still passes through the beam (`tangent_bands`)
 
 Found 2026-11-03 while diagnosing the chicane's D3 wake. Option `CSR_integration.tangent_bands`,
-default `True` since 2026-11-04. Figure: [tangent_bands_explained.png](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
+default `True` since 2026-11-04. Figure: [tangent_bands_explained.png](../pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
 (script `test/plot_tangent_bands.py`).
 
-![tangent bands](pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
+![tangent bands](../pyDFCSR_2D/test/benchmark_results/d3_diagnostic/tangent_bands_explained.png)
 
 ### What the band locator assumes
 

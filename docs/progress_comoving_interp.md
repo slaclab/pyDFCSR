@@ -22,7 +22,7 @@ the fix for a different defect. The noise fix is the integration-quadrature alig
 | §6j/6k/6l — longitudinal extents verified; resolution scale identified as `σ_ξ`; per-region allocation (`near_cell`, `far_zbins`) | ✅ **implemented**; shear-50 error 4.3% → 0.48% |
 | §6m — log-graded near-region nodes (`near_grade`) | 🟡 **implemented**; 12× fewer nodes where `1/u` holds, **but fails near a bend entrance** |
 | **`\|τ\| ≫ 1` degeneracy at full compression** (called `\|τ\| → ∞` in §6m/§6n — a misnomer, see §11s) — breaks the localization (§6m) *and* the frame blend (§6n) | ❌ **open, and the main correctness gap** |
-| ⚠️ **Far-drift wake (> ~1.9 R·φ past a bend exit) fails, and `drift_cutoff = 1.0` discards real physics** (2026-10-29): in the chicane's D3 the 2D wake becomes bipolar and *grows* toward B4, while in 1D the same region carries **37% of the energy loss and 58% of the emittance growth**. The `params.py` estimate of "~0.5% discarded" is wrong for this case. See the HIGH-PRIORITY TODO at the top of `../progress.md` | ❌ **open, high priority** |
+| ⚠️ **Far-drift wake (> ~1.9 R·φ past a bend exit) fails, and `drift_cutoff = 1.0` discards real physics** (2026-10-29): in the chicane's D3 the 2D wake becomes bipolar and *grows* toward B4, while in 1D the same region carries **37% of the energy loss and 58% of the emittance growth**. The `params.py` estimate of "~0.5% discarded" is wrong for this case. See the HIGH-PRIORITY TODO at the top of `progress.md` | ❌ **open, high priority** |
 | Step 7 — remaining secondary fixes (`lattice.py` key order, `bilinear_single` OOB on the *old* paths, a pre-existing test failure) | ❌ not started |
 | Step 8 — validate and document | ❌ not started |
 
@@ -508,11 +508,11 @@ contrast.
   20.00 |    0.9080    1.0724    1.1435 |    0.8844    1.0381    1.0313 |       2.06
 ```
 
-![Error vs G](pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
+![Error vs G](../pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
 
-![Ghost cut at G=10](pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G10.png)
+![Ghost cut at G=10](../pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G10.png)
 
-![Ghost cut at G=2](pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G2.png)
+![Ghost cut at G=2](../pyDFCSR_2D/test/benchmark_results/ghosting/ghost_cut_G2.png)
 
 **Findings.**
 
@@ -619,7 +619,7 @@ Scaling of roughness with G (ghosting predicts ~G^2, i.e. 4x per halving):
     G 13.246 ->  6.258 (2.12x) : roughness 2.44714 -> 2.19550 (1.11x)  => effective power  0.14
 ```
 
-![Roughness vs G](pyDFCSR_2D/test/benchmark_results/G_scaling/roughness_vs_G.png)
+![Roughness vs G](../pyDFCSR_2D/test/benchmark_results/G_scaling/roughness_vs_G.png)
 
 **Findings.**
 
@@ -706,9 +706,9 @@ R4 (near, band b)       10000   100.00      0.06      5.0711e+11
     grid  200^2 : rel. diff dE =  7.41733   x_kick =  2.79230
 ```
 
-![Integrand map](pyDFCSR_2D/test/benchmark_results/integrand_anatomy/integrand_map.png)
+![Integrand map](../pyDFCSR_2D/test/benchmark_results/integrand_anatomy/integrand_map.png)
 
-![Quadrature convergence](pyDFCSR_2D/test/benchmark_results/integrand_anatomy/quadrature_convergence.png)
+![Quadrature convergence](../pyDFCSR_2D/test/benchmark_results/integrand_anatomy/quadrature_convergence.png)
 
 **Findings.**
 
@@ -808,9 +808,9 @@ bands walk monotonically toward the new answer as they are refined (gap 35.6 →
 grids 100 → 800), while `xi_bands` self-converges cleanly (0.275 → 0.104 → 0.033). Both point the same
 way: the old bands were the undersampled ones.
 
-![xi_bands A/B](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_ab.png)
+![xi_bands A/B](../pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_ab.png)
 
-![Old vs new across tilt](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv.png)
+![Old vs new across tilt](../pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv.png)
 
 **Result 3 — but the high-tilt answer is NOT domain-converged. A second defect was masked.**
 
@@ -953,7 +953,7 @@ worst-case point before acting.
   `_integrate_near_patch`
 - `pyDFCSR_2D/test/test_xi_bands_converge.py` (new)
 
-![Convergence, one axis at a time](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence.png)
+![Convergence, one axis at a time](../pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence.png)
 
 **Reproduce.**
 ```bash
@@ -1259,7 +1259,7 @@ Design points worth recording:
   20.00 |    0.9080    1.0724    1.1435 |    0.8844    1.0381    1.0313 |  0.000589  0.001019  0.001019
 ```
 
-![Error vs G, all three methods](pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
+![Error vs G, all three methods](../pyDFCSR_2D/test/benchmark_results/ghosting/error_vs_G.png)
 
 *(this is the Step 1 figure regenerated; the green `bspline_comoving` curve is new)*
 
@@ -1373,9 +1373,9 @@ And Eq 4.24 **cannot describe `bspline_fft` at all** — the radicand goes negat
 formula: it is a statement that the lab-frame blend **has no well-defined localization geometry**,
 because it superposes two beam axes. A scheme with no single axis has no Eq 4.24.
 
-![Branches, co-moving](pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_comoving.png)
+![Branches, co-moving](../pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_comoving.png)
 
-![Branches, lab-frame blend](pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_fft.png)
+![Branches, lab-frame blend](../pyDFCSR_2D/test/benchmark_results/localization/branches_bspline_fft.png)
 
 The figures are the clearest artefact this investigation has produced. In the co-moving panels the
 integrand sits on **one** horizontal ridge (narrow branch) and **one** diagonal ridge (chirp branch),
@@ -1466,7 +1466,7 @@ position: exactly `0.000e+00`, with `z_ret` sitting 2.0–19.2 σ_z outside the 
 Both fixed; re-run gives 141/0. **This sweep should be kept as a regression test for Step 6**, since it
 is what exercises the `l ≤ 0` and `|τ| ≈ 1` guards.
 
-![Branch prediction vs measured, swept over shear](pyDFCSR_2D/test/benchmark_results/localization/branch_shear_sweep.png)
+![Branch prediction vs measured, swept over shear](../pyDFCSR_2D/test/benchmark_results/localization/branch_shear_sweep.png)
 
 Each panel is predicted (Eq 4.24) vs measured branch centre for one shear, with the `y = x` line;
 green circles are `inside`, red × would be misses. There are no red markers in any panel.
@@ -1797,11 +1797,11 @@ cause and wrong to file it under "got worse".
    resolution. **This was not A/B'd, so it is not attributed.** It is the first thing to look at next,
    and it suggests `near_patch = 5.0` may no longer be the right default.
 
-![Two-branch band location](pyDFCSR_2D/test/benchmark_results/xi_bands/two_branch_bands.png)
+![Two-branch band location](../pyDFCSR_2D/test/benchmark_results/xi_bands/two_branch_bands.png)
 
-![Convergence axes, co-moving](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence_bspline_comoving.png)
+![Convergence axes, co-moving](../pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_convergence_bspline_comoving.png)
 
-![Falsification vs the old bands, co-moving](pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv_bspline_comoving.png)
+![Falsification vs the old bands, co-moving](../pyDFCSR_2D/test/benchmark_results/xi_bands/xi_bands_equiv_bspline_comoving.png)
 
 **Files touched.**
 - `pyDFCSR_2D/CSR.py` — new `_comoving_frame_at`, `_eq424`, `_retarded_xi_bands`, `_disjoint_bands`;
@@ -1885,7 +1885,7 @@ window `x - 14 sigma_x` to `x + 6 sigma_x` (anchoring the window to the predicte
 a first version did, makes the figure structurally unable to reveal support the prediction
 missed).
 
-![Integrand support in lab coordinates](pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_lab_geometry.png)
+![Integrand support in lab coordinates](../pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_lab_geometry.png)
 
 This is the clearest confirmation of the localization geometry produced so far. A narrow band
 sits flat at `x' = x` parallel to the `s'` axis, and a chirp band leaves the observation point
@@ -1906,7 +1906,7 @@ band is a thin line at `x' = x`. Both are as thesis 4.4.2 predicts.
 `v = 0` is the branch and `|v| <= 1` is the band the quadrature covers. This straightens each
 ridge so the colormap is resolvable, and answers "is the support inside the band?".
 
-![Integrand in band-relative coordinates](pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_band_relative.png)
+![Integrand in band-relative coordinates](../pyDFCSR_2D/test/benchmark_results/wake_maps/integrand_band_relative.png)
 
 **Caution on reading View 2:** it *co-moves with each branch*, so a correctly tracked chirp
 band is drawn **flat**, and its characteristic diagonal is subtracted away by construction. A
@@ -1933,9 +1933,9 @@ individual band is off-centre, the other band covers the remainder.
 
 **The wakes.**
 
-![Wakes on the tilt-removed mesh](pyDFCSR_2D/test/benchmark_results/wake_maps/wake_transformed_vs_shear.png)
+![Wakes on the tilt-removed mesh](../pyDFCSR_2D/test/benchmark_results/wake_maps/wake_transformed_vs_shear.png)
 
-![Wakes in the physical x-z plane](pyDFCSR_2D/test/benchmark_results/wake_maps/wake_xz_vs_shear.png)
+![Wakes in the physical x-z plane](../pyDFCSR_2D/test/benchmark_results/wake_maps/wake_xz_vs_shear.png)
 
 - Shear 0 and 2 give the textbook structure: `dE/dct` negative through the core turning
   positive at the head, essentially a function of `z`; the transverse kick is a smooth centred
@@ -2353,9 +2353,9 @@ established. Settling `s4` and `d` there requires repeating the sweep at `zbins 
 This also means **`CSR_integration: zbins` should scale with tilt rather than being a fixed default** — a
 finding worth more than the extent question that prompted it.
 
-![Longitudinal extent invariance, shear 50](pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear50.png)
+![Longitudinal extent invariance, shear 50](../pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear50.png)
 
-![Longitudinal extent invariance, shear 20](pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear20.png)
+![Longitudinal extent invariance, shear 20](../pyDFCSR_2D/test/benchmark_results/long_extent/longitudinal_extent_shear20.png)
 
 **Files.** `pyDFCSR_2D/test/test_longitudinal_extent.py` (new).
 
@@ -2393,7 +2393,7 @@ error is already **2e-4 at the coarsest setting tested** (`zbins = 200`) and nev
 1.3× the two branches have merged, there is no extended chirp band, and the near region is short — a
 qualitatively different geometry. Its true requirement is coarser than anything probed here.
 
-![Longitudinal resolution collapse test](pyDFCSR_2D/test/benchmark_results/long_res/longitudinal_resolution.png)
+![Longitudinal resolution collapse test](../pyDFCSR_2D/test/benchmark_results/long_res/longitudinal_resolution.png)
 
 **Part 2 — per-region allocation replaces the magic number.** Give the near region a cell of `c·σ_ξ` and the
 two far regions a flat 200 nodes each (justified by §6j: the far edge `s1` is *exactly* invariant, so
@@ -2926,7 +2926,7 @@ nodes for those columns land in vacuum.
 For reference, the true beam is within **3° of vertical everywhere** in this region — every one of those
 intermediate orientations is an artefact of the coordinate, not a state the beam passes through.
 
-![Chirp band across a full-compression point](pyDFCSR_2D/test/benchmark_results/flip/flip_integrand.png)
+![Chirp band across a full-compression point](../pyDFCSR_2D/test/benchmark_results/flip/flip_integrand.png)
 
 Top panel: `|integrand_z|` over the near region in lab `(x', s')`, with the located branch centres and the
 interpolated `|tau| = 1` / `tau = 0` locations marked. Middle: where the chirp band is *placed* — the two
@@ -3115,7 +3115,7 @@ coarsest) and the cross-mode gaps do shrink, so the modes share a limit and ther
 the limit is not reached. **§6q's chart defect was real and is now fixed; it was not the whole cause of the
 entrance noise.** §6n's conclusion stands: the waist is a sampling problem, and Phase 5 is still required.
 
-![frame_blend: wake accuracy vs step size](pyDFCSR_2D/test/benchmark_results/flip/frame_blend_wake.png)
+![frame_blend: wake accuracy vs step size](../pyDFCSR_2D/test/benchmark_results/flip/frame_blend_wake.png)
 
 ##### Regressions
 
@@ -3248,9 +3248,9 @@ distinction was only settled by measuring the region geometry rather than reason
 region is 98.9 mm while 30 `sigma_z` is 1.5 mm, so the old window showed under 2% of the domain and could
 not show the chirp band's excursion at all.
 
-![Longitudinal integrand, shear 20, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear20.png)
+![Longitudinal integrand, shear 20, both modes](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear20.png)
 
-![Longitudinal integrand, shear 50, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear50.png)
+![Longitudinal integrand, shear 50, both modes](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/integrand_longitudinal_shear50.png)
 
 Cyan/green are the located band edges, white ticks on the lower axis are the graded `s'` nodes (visibly dense
 near `s' = s`, sparse at the far end), the white `+` is the observation point. The thesis 4.4.2 picture
@@ -3262,9 +3262,9 @@ is the structure predicted from the shear reversal: `tan 2a` changes sign across
 the chirp band sits on **opposite sides of `x'`** for `s'` before and after it, giving two lobes that meet
 where the branches degenerate.
 
-![Longitudinal wake, shear 20, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear20.png)
+![Longitudinal wake, shear 20, both modes](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear20.png)
 
-![Longitudinal wake, shear 50, both modes](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear50.png)
+![Longitudinal wake, shear 50, both modes](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear50.png)
 
 Transverse counterparts: `integrand_transverse_shear{20,50}.png`, `wake_transverse_shear{20,50}.png`.
 
@@ -3443,7 +3443,7 @@ the middle of the dipole rather than at the entrance, decoupling it from the ben
 
 ##### Shear 0 is a textbook validation
 
-![Longitudinal wake, shear 0](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear0.png)
+![Longitudinal wake, shear 0](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_longitudinal_shear0.png)
 
 The classic 1D steady-state CSR wake: dipolar in `z`, essentially **independent of `x`** (vertical stripes,
 correct for an untilted beam with `sigma_x << R`), amplitude decaying smoothly 3.14 -> 2.17 MeV/m as the bunch
@@ -3451,9 +3451,9 @@ lengthens 50 -> 62 um. Nothing needing explanation.
 
 ##### Transverse wakes
 
-![Transverse wake, shear 20](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear20.png)
+![Transverse wake, shear 20](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear20.png)
 
-![Transverse wake, shear 50](pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear50.png)
+![Transverse wake, shear 50](../pyDFCSR_2D/test/benchmark_results/wake_evol_maps/wake_transverse_shear50.png)
 
 Smooth and largely single-signed, decaying with `s` as the bunch lengthens. The transverse wake is
 systematically **less** sensitive to the frame blend than the longitudinal one — `x_kick` differences are 3–5x
@@ -3537,7 +3537,7 @@ shear 20, 0.60 m  (control; 6r converged here, ratio 0.4)
       default -> finest:  rel L2 0.00422,  roughness 0.00426 -> 0.00427
 ```
 
-![Waist quadrature refinement](pyDFCSR_2D/test/benchmark_results/waist_quad/waist_quadrature.png)
+![Waist quadrature refinement](../pyDFCSR_2D/test/benchmark_results/waist_quad/waist_quadrature.png)
 
 Left column: the seven wake cuts lie on top of one another at every point. Right column: the quadrature
 error falls smoothly. Both together are the refutation — the grid converges and the noise stays.
@@ -3718,7 +3718,7 @@ successive differences:  0.808  ->  0.427  ->  0.0151  ->  0.0072
 §6r's finest step, 0.00625 m, lies **exactly in the knee** between the 0.0125 and 0.003
 rungs. One more rung and it would have seen the collapse.
 
-![Waist resolved by step refinement](pyDFCSR_2D/test/benchmark_results/waist_step/waist_step_refine.png)
+![Waist resolved by step refinement](../pyDFCSR_2D/test/benchmark_results/waist_step/waist_step_refine.png)
 
 Left: the two coarse cuts oscillate wildly; the three fine ones lie on a single smooth
 curve. Middle: successive differences, with §6r's finest step marked at the knee. Right:
@@ -3783,7 +3783,7 @@ amplitude error completely, which is the specific thing being shown.
 
 ##### The waist point
 
-![x-z wake at the waist](pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p1.png)
+![x-z wake at the waist](../pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p1.png)
 
 ```
 0.10 m into the dipole (waist at 0.05 m, width 2.394 mm)
@@ -3805,7 +3805,7 @@ Both fine panels are visually identical, so the structure that survives is the p
 
 ##### The control point
 
-![x-z wake at the control point](pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p6.png)
+![x-z wake at the control point](../pyDFCSR_2D/test/benchmark_results/waist_xz/wake_xz_0p6.png)
 
 ```
 0.60 m into the dipole (far from the waist)
@@ -5684,7 +5684,7 @@ held at 128², `force_nodes` pinning both observation points so no rung is offse
   point is deep in the steady-state regime where the wake is smooth in `s`, and `tau` is changing
   slowly (`h_tau` 0.0117 m at `tau_frac=4`, an order of magnitude looser than at the waist).
 
-![tau_frac calibration](pyDFCSR_2D/test/benchmark_results/tau_frac/tau_frac_calibrate.png)
+![tau_frac calibration](../pyDFCSR_2D/test/benchmark_results/tau_frac/tau_frac_calibrate.png)
 
 Top row: the wake cuts at both points, all rungs on top of the reference. Bottom left/middle:
 error against `tau_frac` -- flat and non-monotone at 20x, converged at 109x. Bottom right: the
@@ -5867,7 +5867,7 @@ chosen because the margin is cheap and emittance is what CSR studies care about.
 kicks over the whole lattice the sawtooth is large enough that the endpoint depends on where the
 last kick happened to land. Another reason not to run very coarse.
 
-![kappa calibration](pyDFCSR_2D/test/benchmark_results/kappa/kappa_calibrate.png)
+![kappa calibration](../pyDFCSR_2D/test/benchmark_results/kappa/kappa_calibrate.png)
 
 Top row: `sigma_E`, emittance and bunch length along the lattice, all `kappa` against the reference,
 dipole shaded -- the staircases are the sawtooth. Bottom left/middle: error against `kappa`, at the
@@ -6256,7 +6256,7 @@ different `s` would be meaningless.
 
 ##### The beam size and the schedule
 
-![beam size and the adaptive step schedule](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_schedule.png)
+![beam size and the adaptive step schedule](../pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_schedule.png)
 
 One row per shear: `sigma_z`, `sigma_xi` and `sigma_x` from linear optics, a rug of **every** snapshot
 node (black) and kick (red), and `h_eff` on the right axis. Dotted verticals are the six wake-map
@@ -6266,9 +6266,9 @@ asserted. The node positions are read from the schedule the runs actually used, 
 
 ##### The wake maps
 
-![longitudinal x-z wake vs shear](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_longitudinal.png)
+![longitudinal x-z wake vs shear](../pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_longitudinal.png)
 
-![transverse x-z wake vs shear](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_transverse.png)
+![transverse x-z wake vs shear](../pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_transverse.png)
 
 Rows are position, columns are shear, plotted against the tilt-removed `x - tau z` (the frame the
 deposition works in).
@@ -6282,7 +6282,7 @@ that never change sign -- the transverse kick is **0 % negative** at shear 0 at 
 `dE` at shear 20 just inside the entrance is **100 % negative**. The cost is that amplitudes cannot
 be compared by eye, so that comparison is in its own figure:
 
-![wake amplitude along the lattice](pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_amplitude.png)
+![wake amplitude along the lattice](../pyDFCSR_2D/test/benchmark_results/shear_xz/shear_xz_amplitude.png)
 
 ##### The physics: the shear ordering inverts along the bend
 
@@ -6396,13 +6396,13 @@ The `nan` count is not decoration: §11m's bug corrupted precisely the final nod
 `apply_CSR = 1` and a B-spline deposition, which is exactly this configuration. Before that fix this
 run would have ended with `mean_energy` and `sigma_energy` both `nan` and ~50 % of particles poisoned.
 
-![chicane compression, energy spread and schedule](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_auto.png)
+![chicane compression, energy spread and schedule](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_auto.png)
 
 ##### x-z wakes at eight representative positions
 
-![chicane longitudinal x-z wakes](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_longitudinal.png)
+![chicane longitudinal x-z wakes](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_longitudinal.png)
 
-![chicane transverse x-z wakes](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_transverse.png)
+![chicane transverse x-z wakes](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_transverse.png)
 
 Captured by wrapping the wake calculation, so these are **exactly the wakes applied to the beam**,
 not a reconstruction. Per-panel colour scales with the range annotated, diverging only where a panel
@@ -6415,9 +6415,9 @@ the usual factor.
 
 ##### The transient inside each dipole: none of them reaches steady state
 
-![transient wake through each chicane dipole](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transients.png)
+![transient wake through each chicane dipole](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transients.png)
 
-![wake growth and smoothness through each magnet](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transient_growth.png)
+![wake growth and smoothness through each magnet](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transient_growth.png)
 
 Replotted from the captured maps, so this costs nothing beyond the run already done. Top row of the
 first figure is absolute `dE/ds` along `z` with one curve per kick, coloured dark-to-bright from
@@ -6465,9 +6465,9 @@ feature of the *post-compression drift*, not of the bends.
 
 ##### The exit transient, checked against Eq. 10 for the first time
 
-![exit decay, all four bends, against Eq. 10](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_decay.png)
+![exit decay, all four bends, against Eq. 10](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_decay.png)
 
-![exit transient for all four bends](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transients_all.png)
+![exit transient for all four bends](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transients_all.png)
 
 §11h took the exit scale from Stupakov & Emma Eq. 10 -- `W ~ 1/(phi_m + 2x)` with `x` the downstream
 distance in units of `R`, so the amplitude halves at `d = R phi_m/2 = L_exit` -- and replaced the
@@ -6565,7 +6565,7 @@ peak is still migrating outward in `z` as the wake builds.
 
 ##### Smoothness: the metric needed a floor, and then the answer was mesh resolution
 
-![wake roughness at every kick](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)
+![wake roughness at every kick](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)
 
 Roughness is the second-difference norm along `z`, normalised by amplitude so it measures *shape*
 rather than magnitude, and evaluated at **all 105 kicks** -- a rough wake at an unplotted position is
@@ -6890,9 +6890,9 @@ is the first independent validation of `waist.py`'s optics against tracking on a
 `auto` chose **40 nodes / 14 kicks in 33 s**. Zero nan, energy loss -0.0037 keV, `sigma_z` constant to
 1.2e-15 (no dipoles, so no compression), emittance preserved, `beta_x` 19.58 .. 21.75 m.
 
-![FODO statistics and the auto schedule](pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_statistics.png)
+![FODO statistics and the auto schedule](../pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_statistics.png)
 
-![FODO x-z wakes, one column per element](pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_wakes_xz.png)
+![FODO x-z wakes, one column per element](../pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_wakes_xz.png)
 
 ##### The physics: the entire signal is W2, and it changes sign at the waist
 
@@ -7045,7 +7045,7 @@ Extended to (2, 8, 16, 32, 64), where `h_xi_min` falls 0.4987 -> 0.0156 and `h_e
 `max|dE_2 - dE_64| = 5.99e-10 MeV/m` against a peak of 6.65e-3, i.e. **agreement to 7 significant
 figures over a 32x refinement** that doubled the snapshot count.
 
-![m_steps_xi convergence and cost](pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_m_steps_xi.png)
+![m_steps_xi convergence and cost](../pyDFCSR_2D/test/benchmark_results/fodo_auto/fodo_m_steps_xi.png)
 
 ##### Verdict: leave `m_steps_xi = 2.0`, but note what this does and does not show
 
@@ -7314,7 +7314,7 @@ clip is +20% -- NOT a saving. The scan is only 7% of that; the rest is that clip
 in the live region, so more nodes land where the integrand is expensive. The 43% wake difference between
 clipped and unclipped is the unclipped version being wrong (2.18e-01 against 2.06e-05).
 
-![far-region variants in the bend and past the exit](pyDFCSR_2D/test/benchmark_results/merge_far_regions/merge_far_regions.png)
+![far-region variants in the bend and past the exit](../pyDFCSR_2D/test/benchmark_results/merge_far_regions/merge_far_regions.png)
 
 ##### Regression checks
 
@@ -7369,21 +7369,21 @@ A `drift_cutoff = 0` run of the same code gives **-1.6475 MeV against the pre-§
 the far-region rebuild is **neutral end-to-end** -- a 0.05 % move, which is what a quadrature change
 should do. That is the result worth having from §11u.
 
-![entrance transient through each chicane dipole](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transients.png)
+![entrance transient through each chicane dipole](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transients.png)
 
-![exit transient for all four bends](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transients_all.png)
+![exit transient for all four bends](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_transients_all.png)
 
-![wake growth and roughness through each magnet](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transient_growth.png)
+![wake growth and roughness through each magnet](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_transient_growth.png)
 
-![exit decay against Eq. 10](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_decay.png)
+![exit decay against Eq. 10](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_exit_decay.png)
 
-![longitudinal x-z wakes along the lattice](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_longitudinal.png)
+![longitudinal x-z wakes along the lattice](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_longitudinal.png)
 
-![transverse x-z wakes along the lattice](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_transverse.png)
+![transverse x-z wakes along the lattice](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wakes_transverse.png)
 
-![wake roughness at every kick](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)
+![wake roughness at every kick](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_wake_roughness.png)
 
-![beam statistics and the auto schedule](pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_auto.png)
+![beam statistics and the auto schedule](../pyDFCSR_2D/test/benchmark_results/chicane_auto/chicane_auto.png)
 
 The §11q picture is unchanged -- the entrance transient is longer than the magnet in every dipole, so
 none reaches steady state -- and all four exits resolve:

@@ -88,7 +88,7 @@ G0 is pure geometry and smooth. ∂ρ/∂x is positive on one side of the beam a
 the other. On the (x′, s′) integration nodes this gives two long parallel stripes of opposite
 sign, one per side of the beam. These are the "two large bands":
 
-![integrand map](pyDFCSR_2D/test/benchmark_results/cancellation_effects/G_integrand_map.png)
+![integrand map](../pyDFCSR_2D/test/benchmark_results/cancellation_effects/G_integrand_map.png)
 
 - Left panel: the shipped integrand, ±8e6 MeV/m per m².
 - Third panel: the same integral after integration by parts (§2), on a scale 22× finer.
@@ -234,7 +234,7 @@ How to read the table:
 
 **Scaling** (`B_scaling.txt`):
 
-![scaling](pyDFCSR_2D/test/benchmark_results/cancellation_effects/B_scaling.png)
+![scaling](../pyDFCSR_2D/test/benchmark_results/cancellation_effects/B_scaling.png)
 
 | σx0 µm (σz0 = 50; initial, uncorrelated) | 10 | 25 | 50 | 100 | 200 |
 |---|---|---|---|---|---|
@@ -260,7 +260,7 @@ How to read the tables:
 
 **All cases against the slice width** (`H_collapse.txt`, centre node):
 
-![collapse](pyDFCSR_2D/test/benchmark_results/cancellation_effects/H_collapse.png)
+![collapse](../pyDFCSR_2D/test/benchmark_results/cancellation_effects/H_collapse.png)
 
 - Free fit: C ∝ σξ^−1.08 σz^+0.63 (the law: −1, +2/3).
 - With one constant, C = 188·σz^(2/3)/σξ (µm, R = 1 m), every case lies within 0.81–1.21 of the
@@ -302,7 +302,7 @@ So **reformulating the integral cannot reduce shot noise.** Only better density 
 
 ### 4b. Quadrature: the shipped form needs ~96–128 x′ nodes per band (`C_quadrature.txt`)
 
-![quadrature](pyDFCSR_2D/test/benchmark_results/cancellation_effects/C_quadrature.png)
+![quadrature](../pyDFCSR_2D/test/benchmark_results/cancellation_effects/C_quadrature.png)
 
 Relative L2 error of the dE cut against a 400-node reference:
 

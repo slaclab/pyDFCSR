@@ -1,0 +1,70 @@
+# Item 4 (shared-memory history ring) hunks removed from deposit_smooth.py / CSR.py on 2026-11-23 before the pause;
+# the 6-rank golden test hung (ranks waiting in MPI, cause not found). Full diff incl. item 3: see git history / this file.
+
+    def set_shared_history(self, node_comm, capacity):
+        """
+        step_control.shared_history: the ring of the five field arrays lives in ONE MPI shared-memory
+        window per node (MPI-3 Win.Allocate_shared), written by the node's rank 0 and read by all;
+        the other ranks skip the write in _ring_push / thin_previous and keep the indices in
+        lockstep. The deposition itself is still computed on every rank (its result is identical),
+        so this saves (ranks - 1) copies of the history -- 2 GB each for BC20 at 100 x 300 -- not
+        time. The window is allocated once at `capacity` slices (CSR2D passes its worst-case
+        retained-snapshot count); it cannot grow, so a run that needs more raises. Live slices of
+        an existing private ring are copied in. Bit-identical: the same arrays, in a different
+        allocation.
+        """
+        from mpi4py import MPI
+        nx, nz = self.xbins, self.zbins
+        cap = int(capacity)
+        n_live = 0 if self._ring is None else self._ring_head - self._ring_tail
+        if cap < n_live:
+            raise ValueError(f'shared history capacity {cap} < {n_live} live slices')
+        rank = node_comm.Get_rank()
+        nbytes = self.NFIELD * cap * nx * nz * 8 if rank == 0 else 0
+        win = MPI.Win.Allocate_shared(nbytes, 8, comm=node_comm)
+        buf, itemsize = win.Shared_query(0)
+        ring = np.ndarray(buffer=buf, dtype=np.float64, shape=(self.NFIELD, cap, nx, nz))
+        if rank == 0 and n_live:
+            ring[:, :n_live] = self._ring[:, self._ring_tail:self._ring_head]
+        node_comm.Barrier()
+        self._ring = ring
+        self._ring_tail, self._ring_head = 0, n_live
+        self._shared = (win, node_comm, rank == 0)
+
+    def _ring_write(self, idx, fields):
+        """one slice into the ring; under a shared history only the node leader writes"""
+        sh = getattr(self, '_shared', None)
+        if sh is None or sh[2]:
+            for k in range(self.NFIELD):
+                self._ring[k, idx] = fields[k]
+        if sh is not None:
+            sh[1].Barrier()
+
+        sh = getattr(self, '_shared', None)
+        if sh is not None:
+            if self._ring_head == cap:
+                if n == cap:
+                    raise MemoryError(f'shared history ring full ({cap} slices live); raise '
+                                      f'step_control.shared_history_capacity or run without shared_history')
+                if sh[2]:
+                    self._ring[:, :n] = self._ring[:, self._ring_tail:self._ring_head]
+                sh[1].Barrier()
+                self._ring_tail, self._ring_head = 0, n
+            self._ring_write(self._ring_head, fields)
+            self._ring_head += 1
+            return
+        sh = getattr(self, '_shared', None)
+        if sh is None or sh[2]:
+            self._ring[:, h - 2] = self._ring[:, h - 1]
+        if sh is not None:
+            sh[1].Barrier()
+        self._ring_head -= 1
+        sc_cfg = getattr(self, '_step_control_cfg', {})
+        if self.parallel and sc_cfg.get('shared_history', False) and self.use_comoving:
+            # one shared-memory copy of the history per node (deposit_smooth.set_shared_history)
+            node = MPI.COMM_WORLD.Split_type(MPI.COMM_TYPE_SHARED)
+            cap = int(sc_cfg.get('shared_history_capacity', 0)) or int(1.25 * n_hold) + 16
+            self.DF_tracker.set_shared_history(node, cap)
+            if self.rank == 0:
+                print(f'  [shared_history] one {cap}-slice ring ({cap * per:.2f} GB) per node, '
+                      f'{node.Get_size()} ranks on this node')
