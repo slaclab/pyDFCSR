@@ -367,3 +367,49 @@ numba.
 **Fix.** A compiled backward pass reuses ("donates") its buffers, so it allows only one backward per
 forward. The demo takes two gradients from one forward (`retain_graph=True`), which failed. With
 `torch_compile` the evaluator now sets `torch._functorch.config.donated_buffer = False`.
+
+## 8. Parameterised initial beams (2026-11-27)
+
+**Why.** A gradient with respect to single particles is not useful:
+- 6N unknowns;
+- each particle moves the collective field by O(1/N);
+- the derivative is only piecewise smooth, because the kick lookup is bilinear and the structure is
+  held fixed.
+
+The useful gradient is with respect to parameters p of the beam's **distribution**: current profile,
+chirp, emittance. `torch_backend/beam_param.py` keeps the randomness fixed (a given beam, or draws
+made once) and builds the particles as a differentiable function x_i = g(ξ_i; p). The loss is then a
+smooth, deterministic function of p, and dL/dp = Σ_i ∂L/∂x_i ∂x_i/∂p averages over all particles.
+The per-particle gradient remains only the inner link of the chain rule.
+
+| class | what it is | parameters |
+|---|---|---|
+| `BeamTransform` (a) | a fixed beam (file, distgen, upstream code) with physical knobs; identity at the defaults | `z_shift`, `z_scale`, `profile_knots` (a monotonic map φ of z: φ(w) = −W + 2W·C(w)/C(W), C = ∫exp(q), q piecewise linear in 9 knots on ±4σ_z, so horns move, grow or shrink while every correlation of the beam is kept), `espread_scale` (about the beam's linear pz(z)), `chirp`, `chirp2` |
+| `BeamFromParams` (b) | a beam from physical parameters on seeded fixed draws | Twiss and geometric emittance in x and y; profile `gaussian` (σ_z) or `spline` (log-current knots, sampled by inverse CDF, starting from the Gaussian); `chirp`, `chirp2`, `sigma_pz`, `pz_mean` |
+| `NeuralBeam` (c) | particles = mean + scale·(ξ + MLP(ξ)), with fixed 6D normal draws ξ | the MLP weights (last layer zero-initialised: the start is the uncorrelated Gaussian of the given rms sizes) |
+
+Usage:
+```python
+t = BeamTransform(input_coords)                  # (6, N) of the fixed beam
+d = CSR2DDiff(input_file=cfg, coords=t.beam(), checkpoint=True); d.run()
+loss(d.tp).backward()                            # -> t.params['chirp'].grad, ['profile_knots'].grad ...
+```
+`t.beam(p={...})` overrides knobs, for finite differences or line searches. The structure
+(schedule, windows, mesh, layout) is decided from the beam the run sees. When an optimisation moves
+the beam far, rerun without `structure=` to rebuild it.
+
+**Tests** (`test/test_beam_param.py`):
+- **identity:** `BeamTransform` returns the input beam to round-off;
+- **knobs:** `z_scale` and `chirp` act exactly, and the profile map is monotonic (it keeps the
+  particles' order);
+- **statistics:** `BeamFromParams` reproduces ε, β, α, σ_z and the chirp to ≤ 2% on 2e5 particles;
+- **`gradcheck`** of all three generators;
+- **end to end:** the gradient of the golden run's CSR loss with respect to a direction in (chirp,
+  z_scale, one profile knot), through `CSR2DDiff`, agrees with central differences to 1e-4
+  (structure replayed).
+
+Full suite: 223 passed.
+
+**Fix:** a local `import torch._functorch.config` inside `TorchWake.__init__` made `torch` a local
+name for the whole function, so the uncompiled path raised UnboundLocalError. It now imports
+`from torch._functorch import config`.
