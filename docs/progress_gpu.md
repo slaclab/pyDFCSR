@@ -413,3 +413,40 @@ Full suite: 223 passed.
 **Fix:** a local `import torch._functorch.config` inside `TorchWake.__init__` made `torch` a local
 name for the whole function, so the uncompiled path raised UnboundLocalError. It now imports
 `from torch._functorch import config`.
+
+## 9. P2c: the band solve on the GPU (2026-11-28)
+
+**Why.** With the compiled evaluation the CPU-side layout was most of a wake mesh's time: 3.09 of
+3.59 s on a 1920-point mesh. Two thirds of the layout is the band solve: the fixed point through the
+retarded frame, Eq. 4.24 and the band widths. It is elementwise arithmetic over all columns of all
+observers, batched since P2a into a few calls per mesh, so it suits the GPU.
+
+**How.** `torch_backend/bands_t.BandSolver` ports `_retarded_xi_bands` line by line, with
+`_comoving_frame_at` (and its one-snapshot history case), `_eq424` and `_curv_shift_at`. It uses
+the lattice file's geometry, like the numpy layout. `LayoutMixin._drive_many` calls it when
+`sim._band_solver` is set. `TorchWake` sets that only inside its own layout pass, when
+`CSR_computation.torch_bands: true`, so the numba path is untouched. The rest of the layout (node
+construction, the scans' density lookups) stays numpy.
+
+**Same layouts.** Node counts are identical at every point; nodes and band edges agree to round-off:
+
+| state | points | node counts identical | max rel diff | numpy layout | GPU bands |
+|---|---|---|---|---|---|
+| chicane B2, 8×24 | 192 | 192/192 | 5.9e-12 | 0.23 s | 0.08 s |
+| chicane B2, 12×160 | 1920 | 1920/1920 | 1.4e-11 | 2.57 s | **0.29 s** (8.8×) |
+| golden, quantile frame + `near_adapt` + x′ refinement, 12×160 | 1920 | 1920/1920 | 1.6e-13 | 5.07 s | 1.58 s (3.2×) |
+
+With `near_adapt`, what remains is Python that runs once per point: the near-adapt node construction
+(1.2 s of 1.58) and the per-request bookkeeping of the batched driver. Vectorising the near-adapt
+construction over points would be the next step there.
+
+**Whole wake mesh** (chicane B2, 12×160 = 1920 points, 100 x′ nodes):
+
+| | time | vs one numba core | vs numba |
+|---|---|---|---|
+| numba, 1 core | 23.4 s | 1× | |
+| GPU, compiled, numpy bands | 3.59 s (layout 3.09, eval 0.50) | 7× | 7.8e-10 |
+| GPU, compiled, GPU bands | **1.05 s** (layout 0.56, eval 0.49) | **22×** | 2.1e-9 |
+
+Test: `test_torch_backend.py::test_torch_band_solver_reproduces_the_layout` (CPU device, quantile
+frame with `near_adapt` + x′ refinement: same node counts, nodes and edges to 1e-10).

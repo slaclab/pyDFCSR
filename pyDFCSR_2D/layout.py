@@ -83,8 +83,12 @@ class LayoutMixin:
                 sp = np.concatenate([np.atleast_1d(np.asarray(r.sp, dtype=float)) for r in reqs])
                 so = np.concatenate([np.full(n, float(r.s)) for r, n in zip(reqs, sizes)])
                 xo = np.concatenate([np.full(n, float(r.x)) for r, n in zip(reqs, sizes)])
-                bands = self._retarded_xi_bands(so, xo, t, sp, n_iter=n_iter, scale_bands=scale)
-                diag = self._branch_diag['branches']
+                solver = getattr(self, '_band_solver', None)     # e.g. torch_backend.bands_t on the GPU
+                if solver is None:
+                    bands = self._retarded_xi_bands(so, xo, t, sp, n_iter=n_iter, scale_bands=scale)
+                    diag = self._branch_diag['branches']
+                else:
+                    bands, diag = solver(so, xo, t, sp, n_iter=n_iter, scale_bands=scale)
                 a = 0
                 for i, r, n in zip(ids, reqs, sizes):
                     b = a + n

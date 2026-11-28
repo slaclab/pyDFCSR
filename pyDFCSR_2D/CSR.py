@@ -940,7 +940,7 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         if getattr(self, '_torch_wake', None) is None:
             from .torch_backend.evaluate import TorchWake
             self._torch_wake = TorchWake(self, device=self.CSR_params.device, chunk=self.CSR_params.torch_chunk,
-                                         compile=self.CSR_params.torch_compile)
+                                         compile=self.CSR_params.torch_compile, bands=self.CSR_params.torch_bands)
         z = np.asarray(self.CSR_zmesh)[ks]
         return self._torch_wake.compute(self.beam.position + z, np.asarray(self.CSR_xmesh)[ks])
 

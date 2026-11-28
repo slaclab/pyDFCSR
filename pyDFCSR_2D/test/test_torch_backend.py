@@ -94,3 +94,39 @@ def test_cuda_wakes_match_numba(compile):
         for k in ('dE', 'xk'):
             ref = a[f'{k}_{i}']
             assert np.abs(b[f'{k}_{i}'] - ref).max() <= 1e-8 * np.abs(ref).max(), (k, i)
+
+
+def test_torch_band_solver_reproduces_the_layout():
+    """torch_backend.bands_t in the batched layout (quantile frame, near_adapt + x' refinement):
+    the same node counts at every point, nodes and band edges to round-off (CPU device here)."""
+    import contextlib
+    import io
+    import tempfile
+    import make_golden_2d
+    from pyDFCSR_2D import CSR2D
+    from pyDFCSR_2D.torch_backend.bands_t import BandSolver
+    with tempfile.TemporaryDirectory() as tmp:
+        f = make_golden_2d.config(tmp, dict(frame='quantile', zbins=128, smoothing_sigma_z=1.5),
+                                  dict(mesh_mode='charge'), dict(near_adapt=True, near_adapt_x=True))
+        with contextlib.redirect_stdout(io.StringIO()):
+            sim = CSR2D(input_file=f)
+            sim.run(stop_time=0.33)
+    sim.get_CSR_mesh()
+    n = sim.CSR_params.xbins * sim.CSR_params.zbins
+    s = sim.beam.position + np.asarray(sim.CSR_zmesh)[:n]
+    x = np.asarray(sim.CSR_xmesh)[:n]
+    a = sim.wake_layouts(s, x)
+    sim._band_solver = BandSolver(sim, 'cpu').solve
+    try:
+        b = sim.wake_layouts(s, x)
+    finally:
+        sim._band_solver = None
+    for la, lb in zip(a, b):
+        assert len(la['regions']) == len(lb['regions'])
+        for ra, rb in zip(la['regions'], lb['regions']):
+            assert ra['sp'].shape == rb['sp'].shape
+            scale = max(np.abs(ra['sp']).max(), 1e-300)
+            assert np.abs(ra['sp'] - rb['sp']).max() <= 1e-10 * scale
+            for (alo, ahi), (blo, bhi) in zip(ra['bands'], rb['bands']):
+                scale = max(np.abs(alo).max(), np.abs(ahi).max(), 1e-300)     # dead bands have zero width
+                assert np.abs(alo - blo).max() <= 1e-10 * scale and np.abs(ahi - bhi).max() <= 1e-10 * scale

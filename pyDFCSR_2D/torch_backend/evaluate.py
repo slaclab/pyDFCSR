@@ -55,7 +55,7 @@ def _select(group, we, budget):
 
 class TorchWake:
 
-    def __init__(self, sim, device='cpu', chunk=1 << 21, checkpoint=False, compile=False):
+    def __init__(self, sim, device='cpu', chunk=1 << 21, checkpoint=False, compile=False, bands=False):
         """
         checkpoint: when gradients are recorded, recompute each chunk's integrand in the backward
         pass instead of keeping its graph (torch.utils.checkpoint). A chunk keeps only its column
@@ -64,9 +64,12 @@ class TorchWake:
         Unfused, every elementwise op writes a chunk-sized array (~300 per node); on an RTX 5000 Ada
         that bound the evaluation at ~23M nodes/s, and fusing gave 10x (progress_gpu.md §6). The
         first calls compile (~25 s); it needs a C compiler and the CUDA headers (triton).
+        bands: solve the layout's batched band requests on the device (torch_backend.bands_t)
+        instead of in numpy; the layout agrees to round-off (progress_gpu.md §9).
         """
         self.sim = sim
         self.checkpoint = bool(checkpoint)
+        self.bands = bool(bands)
         if compile:
             # donated buffers make the compiled backward single-use, which breaks several gradients
             # from one forward (backward(retain_graph=True), as chicane_gradients does)
@@ -90,7 +93,13 @@ class TorchWake:
         cols = {k: [] for k in ('pt', 'grp', 'lo', 'w', 'sp', 'ws', 'wc', 'R1', 'R2', 'ki', 'adapt')}
         patch, vxs = [], []
         g = 0
-        lays = sim.wake_layouts(s_arr, x_arr)
+        if self.bands:
+            from .bands_t import BandSolver
+            sim._band_solver = BandSolver(sim, self.device).solve
+        try:
+            lays = sim.wake_layouts(s_arr, x_arr)
+        finally:
+            sim._band_solver = None
         for i, (s, x, lay) in enumerate(zip(s_arr, x_arr, lays)):
             if want_vx:
                 vx = sim._comoving_fields(np.array([x]), np.array([s - t]), np.array([t]))[3][0]
