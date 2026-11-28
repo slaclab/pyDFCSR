@@ -939,7 +939,8 @@ class CSR2D(WakeMixin, LayoutMixin, BandsMixin, IBPMixin):
         """(dE/dct, x kick) at the mesh points ks with the torch backend (torch_backend.evaluate)."""
         if getattr(self, '_torch_wake', None) is None:
             from .torch_backend.evaluate import TorchWake
-            self._torch_wake = TorchWake(self, device=self.CSR_params.device, chunk=self.CSR_params.torch_chunk)
+            self._torch_wake = TorchWake(self, device=self.CSR_params.device, chunk=self.CSR_params.torch_chunk,
+                                         compile=self.CSR_params.torch_compile)
         z = np.asarray(self.CSR_zmesh)[ks]
         return self._torch_wake.compute(self.beam.position + z, np.asarray(self.CSR_xmesh)[ks])
 

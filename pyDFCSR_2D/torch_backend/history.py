@@ -170,14 +170,13 @@ class Orbit:
         xd = (q - x0).unsqueeze(-1)
         v = self.table[i0] * (1 - xd) + self.table[i1] * xd
         v = torch.where(valid.unsqueeze(-1), v, torch.zeros_like(v))
+        # computed unconditionally (no data-dependent branch, so torch.compile sees one graph)
         before = s <= self.min_s - self.delta_s
-        if bool(before.any()):
-            t0 = self.table[0]
-            ds = (s - self.min_s).unsqueeze(-1)
-            ext = torch.stack([t0[0] + ds[:, 0] * t0[4], t0[1] + ds[:, 0] * t0[5],
-                               t0[2].expand_as(ds[:, 0]), t0[3].expand_as(ds[:, 0]),
-                               t0[4].expand_as(ds[:, 0]), t0[5].expand_as(ds[:, 0])], dim=-1)
-            v = torch.where(before.unsqueeze(-1), ext, v)
+        t0 = self.table[0]
+        ds = s - self.min_s
+        ext = torch.stack([t0[0] + ds * t0[4], t0[1] + ds * t0[5], t0[2].expand_as(ds),
+                           t0[3].expand_as(ds), t0[4].expand_as(ds), t0[5].expand_as(ds)], dim=-1)
+        v = torch.where(before.unsqueeze(-1), ext, v)
         return v.unbind(-1)
 
     def curvature(self, sp):

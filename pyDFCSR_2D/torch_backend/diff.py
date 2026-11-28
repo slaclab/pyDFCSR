@@ -204,7 +204,7 @@ class CSR2DDiff(CSR2D):
         H = self._history(times)
         if getattr(self, '_tw', None) is None:
             self._tw = TorchWake(self, device=self.device, chunk=self.CSR_params.torch_chunk,
-                                 checkpoint=self.checkpoint)
+                                 checkpoint=self.checkpoint, compile=self.CSR_params.torch_compile)
             if any(k == 'angle' for _, k in self.params):
                 # the CSR geometry follows the bend angles too
                 self._tw.orbit = Orbit.from_lattice_params(self.lattice, self.params, self.device)

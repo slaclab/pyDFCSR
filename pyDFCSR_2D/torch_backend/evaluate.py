@@ -55,14 +55,19 @@ def _select(group, we, budget):
 
 class TorchWake:
 
-    def __init__(self, sim, device='cpu', chunk=1 << 21, checkpoint=False):
+    def __init__(self, sim, device='cpu', chunk=1 << 21, checkpoint=False, compile=False):
         """
         checkpoint: when gradients are recorded, recompute each chunk's integrand in the backward
         pass instead of keeping its graph (torch.utils.checkpoint). A chunk keeps only its column
         range, so a kick's memory is the column tables, not ~50 doubles per integrand node.
+        compile: torch.compile the integrand (history interpolation + kernel) into fused kernels.
+        Unfused, every elementwise op writes a chunk-sized array (~300 per node); on an RTX 5000 Ada
+        that bound the evaluation at ~23M nodes/s, and fusing gave 10x (progress_gpu.md §6). The
+        first calls compile (~25 s); it needs a C compiler and the CUDA headers (triton).
         """
         self.sim = sim
         self.checkpoint = bool(checkpoint)
+        self._integrand = torch.compile(integrand, dynamic=True) if compile else integrand
         self.device = torch.device(device)
         self.chunk = int(chunk)
         self.orbit = Orbit.from_lattice(sim.lattice, self.device)
@@ -134,7 +139,7 @@ class TorchWake:
         """
         ip = self.sim.integration_params
         obs = obs_pt[pt].unbind(-1)
-        return integrand(H, self.orbit, obs, xp, sp, t, taper, ip.transverse_terms == 'W1')
+        return self._integrand(H, self.orbit, obs, xp, sp, t, taper, ip.transverse_terms == 'W1')
 
     def _columns(self, H, obs_pt, C, idx, offs, h):
         """sum_k f(lo + offs_k * h) over the nodes of the columns idx, for W and F."""

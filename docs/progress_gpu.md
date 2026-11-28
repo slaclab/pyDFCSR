@@ -276,3 +276,52 @@ is now a tensor.
 
 **GPU:** `environment-gpu.yml`, `test/gpu_diff/gpu_benchmark.py` and `gpu_benchmark.slurm` are
 ready for an S3DF A100 node. Not run yet.
+
+## 6. First GPU runs: RTX 5000 Ada workstation (2026-11-27)
+
+**Setup.**
+- Machine: Ubuntu 24.04, NVIDIA RTX 5000 Ada (32 GB), 32 CPU cores.
+- Environment: Miniforge in `~/miniforge3`, env `pydfcsr-gpu` from `environment-gpu.yml` (torch 2.14.1, CUDA 13.4), repo installed editable (`pip install -e .`).
+- This card's float64 is 1/64-rate: measured 0.90 TFLOP/s against 25.6 for float32 (4096² matmul).
+
+**Tests on x86 Linux.**
+- The golden fixture was made on the ARM Mac. Here it agrees to 4e-12 relative, not bit for bit: macOS libm and numba's arm64 code differ in the last bits. `test_defaults_bit_identical` is now exact on Darwin/arm64 and checks 1e-10 elsewhere.
+- The whole-run torch-vs-numba test with the x′ refinement reached 4.3e-7 here: round-off decides the threshold ties, bounded by `x_adapt_tol`. Its tolerance is now 1e-5 for the refinement case and still 1e-8 without it.
+- All other tests pass, and the new CUDA tests (plain and compiled) agree with numba to 1e-8.
+
+**Why the plain GPU evaluation was only 4× one CPU core.** Scaling the chicane wake mesh from 6M to
+113M integrand nodes left the GPU evaluation at a constant 4.3× serial numba, about 23M nodes/s. So it
+is not launch overhead, and not float64 arithmetic either: about 800 operations per node is only
+~20 GFLOP/s. Each of the ~300 elementwise torch operations per node writes a chunk-sized array, and
+the 160-tap B-spline gather reads scattered addresses: the evaluation is bound by memory traffic.
+
+`CSR_computation.torch_compile: true` fuses the integrand (history interpolation and kernel) with
+`torch.compile`, and this gave 10×. Notes:
+- a data-dependent branch in `Orbit.vectors` (`if before.any()`) broke the graph; it is now an
+  unconditional `torch.where`;
+- triton needs a C compiler and the CUDA headers (`c-compiler`, `cuda-driver-dev`,
+  `cuda-cudart-dev`, now in `environment-gpu.yml`; `export CC=$CONDA_PREFIX/bin/gcc`);
+- the first calls in a process compile (25–110 s, cached on disk afterwards).
+
+**Benchmark** (`test/gpu_diff/gpu_benchmark.py`; chicane wake mesh in B2, 20k particles, 192 points,
+106k columns; golden differentiable run, 20k particles, 8 kicks, checkpointed):
+
+| | numba (1 core) | torch CPU (16 threads) | CUDA | CUDA compiled |
+|---|---|---|---|---|
+| wake mesh, total | 1.8 s | 8.05 s | 0.60 s | **0.28 s** |
+| … of which evaluation | ~1.6 s | 7.8 s | 0.4 s | 0.04 s (40× one core) |
+| … of which layout (numpy, CPU) | | 0.2 s | 0.2 s | 0.2 s |
+| agreement with numba | | 9.6e-11 | 5.5e-10 | 7.2e-10 |
+| differentiable golden: forward / backward | — | 6.5 / 20.4 s | 2.1 / 16.6 s | **1.8 / 2.8 s** |
+| gradient vs CPU | | | 9e-11 | 9e-11 (dL/dangle), 6e-10 (coordinates) |
+
+Larger meshes, plain CUDA (12×40 points with 100 x′ nodes: 26M nodes; 16×64 with 200: 113M): 4.3×
+one numba core in the evaluation at every size. Compiled, on the 12×40 mesh: evaluation 1.30 → 0.13 s.
+
+**Where it stands.**
+- Gradients: a differentiable run on this GPU is 7× faster than torch on the CPU in the backward
+  pass, 2.8 s against 20.4 s on the golden case. That is the case the GPU is for.
+- Forward-only wakes: the compiled evaluation (40× one core) is no longer the cost; the numpy layout
+  on the CPU is (0.2 of 0.28 s). numba with ~16 MPI ranks on this 32-core machine (~0.11 s,
+  extrapolated linearly) is still faster than one GPU process. Next: the band solve, which is most of
+  the layout, in torch on the device (P2c), or the layout split over CPU processes feeding the GPU.

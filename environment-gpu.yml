@@ -3,11 +3,13 @@
 # (pyDFCSR_2D/torch_backend/diff.py). Same pins as environment-mpi.yml for the numpy/numba side,
 # so the numba reference reproduces; pytorch comes CUDA-enabled from conda-forge
 # (pytorch-gpu). Everything runs in float64: the integrand's +- d rho/dx cancellation needs it,
-# so use a GPU with full-rate float64 (A100/H100; not consumer cards, not Apple MPS).
+# so a GPU with full-rate float64 (A100/H100) is best; an RTX 5000 Ada (1/64-rate float64, 0.9
+# TFLOP/s measured) works too, since the evaluation is memory-bound (progress_gpu.md §6). Not Apple MPS.
 #
 #   conda env create -f environment-gpu.yml
 #   conda activate pydfcsr-gpu
 #   python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name())"
+#   export CC=$CONDA_PREFIX/bin/gcc                           (for torch_compile)
 #   python pyDFCSR_2D/test/gpu_diff/gpu_benchmark.py          (see its docstring; slurm: gpu_benchmark.slurm)
 #
 name: pydfcsr-gpu
@@ -26,6 +28,9 @@ dependencies:
   - scipy=1.17.0
   - libopenblas=0.3.30
   - pytorch-gpu
+  - c-compiler          # torch.compile (CSR_computation.torch_compile): triton builds its kernels
+  - cuda-driver-dev     # ... and needs cuda.h
+  - cuda-cudart-dev
   - pyyaml
   - pytest
   - pip

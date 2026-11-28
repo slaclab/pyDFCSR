@@ -158,6 +158,7 @@ CSR_DEFAULTS = {
     'backend': ('numba', str),                     # wake evaluation: 'numba' or 'torch' (torch_backend)
     'device': ('cpu', str),                        # torch device, e.g. 'cuda'
     'torch_chunk': (1 << 21, int),                 # integrand nodes per torch batch
+    'torch_compile': (False, bool),                # torch.compile the integrand (fused kernels; needs a C compiler + CUDA headers)
 }
 
 

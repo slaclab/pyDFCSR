@@ -9,7 +9,9 @@ batch file gpu_benchmark.slurm next to this script).
      gradient's agreement between the two devices
 
     python gpu_benchmark.py [N] [chunk] [s]      N particles (20000), torch_chunk (2^21), kick at s (6.0 m)
-Prints a summary; appends it to benchmark_results/gpu_diff/gpu_benchmark.txt.
+Prints a summary; appends it to benchmark_results/gpu_diff/gpu_benchmark.txt. The compiled
+variants (torch.compile) need CC set to a C compiler and the CUDA headers (conda-forge c-compiler,
+cuda-driver-dev, cuda-cudart-dev; environment-gpu.yml).
 """
 import contextlib
 import io
@@ -58,19 +60,23 @@ def wake_mesh(n, chunk, stop_s=6.0):
         ref = np.array(sim._numba_wakes(ks))
         t_nb = time.time() - t0
         log(f'[mesh] chicane N = {n} at s = {sim.beam.position:.3f} m, {N} mesh points: numba (serial) {t_nb:.1f} s')
-        devs = ['cpu'] + (['cuda'] if torch.cuda.is_available() else [])
+        devs = ['cpu'] + (['cuda', 'cuda+compile'] if torch.cuda.is_available() else [])
         for dev in devs:
-            tw = TorchWake(sim, device=dev, chunk=chunk)
+            comp = dev.endswith('+compile')
+            dev = dev.split('+')[0]
+            tw = TorchWake(sim, device=dev, chunk=chunk, compile=comp)
             s = sim.beam.position + np.asarray(sim.CSR_zmesh)[ks]
             x = np.asarray(sim.CSR_xmesh)[ks]
             tw.compute(s[:4], x[:4])                         # warm-up
+            if comp:
+                tw.compute(s, x)                             # compiles the remaining shapes
             sync(dev)
             t0 = time.time()
             dE, xk = tw.compute(s, x)
             sync(dev)
             t = time.time() - t0
             err = max(np.abs(dE - ref[0]).max() / np.abs(ref[0]).max(), np.abs(xk - ref[1]).max() / np.abs(ref[1]).max())
-            log(f'  torch {dev:5s}: {t:.1f} s (layout {tw.stats["t_layout"]:.1f} s, evaluation {tw.stats["t_eval"]:.1f} s, '
+            log(f'  torch {dev + (" compiled" if comp else ""):14s}: {t:.2f} s (layout {tw.stats["t_layout"]:.1f} s, evaluation {tw.stats["t_eval"]:.1f} s, '
                 f'{tw.stats["columns"]} columns), max rel diff to numba {err:.1e}, speed-up vs numba {t_nb / t:.1f}x '
                 f'(evaluation only {(t_nb - tw.stats["t_layout"]) / max(tw.stats["t_eval"], 1e-9):.1f}x)')
 
@@ -81,10 +87,18 @@ def golden_grad(chunk):
     from pyDFCSR_2D.torch_backend.diff import CSR2DDiff
     c0 = torch.as_tensor(G.beam_coords().T.copy())
     res = {}
-    devs = ['cpu'] + (['cuda'] if torch.cuda.is_available() else [])
+    devs = ['cpu'] + (['cuda', 'cuda+compile'] if torch.cuda.is_available() else [])
     for dev in devs:
+        comp = dev.endswith('+compile')
+        dev = dev.split('+')[0]
         with tempfile.TemporaryDirectory() as tmp:
-            f = G.config(tmp, None, {'torch_chunk': chunk}, None)
+            f = G.config(tmp, None, {'torch_chunk': chunk, 'torch_compile': comp}, None)
+            if comp:                                         # one run to compile every shape
+                with contextlib.redirect_stdout(io.StringIO()):
+                    CSR2DDiff(input_file=f, coords=c0.clone().to(dev).requires_grad_(True),
+                              params={('B1', 'angle'): torch.tensor(0.05, dtype=torch.float64, device=dev,
+                                                                    requires_grad=True)},
+                              device=dev, checkpoint=True).run()
             c = c0.clone().to(dev).requires_grad_(True)
             ang = torch.tensor(0.05, dtype=torch.float64, device=dev, requires_grad=True)
             sync(dev)
@@ -98,13 +112,14 @@ def golden_grad(chunk):
             L.backward()
             sync(dev)
             t2 = time.time()
-            res[dev] = (float(ang.grad), c.grad.detach().cpu())
+            key = dev + ('+compile' if comp else '')
+            res[key] = (float(ang.grad), c.grad.detach().cpu())
             mem = (f', peak GPU memory {torch.cuda.max_memory_allocated() / 2**30:.2f} GB'
                    if dev.startswith('cuda') else '')
-            log(f'[grad] golden on {dev}: forward {t1 - t0:.1f} s, backward {t2 - t1:.1f} s{mem}, dL/dangle {res[dev][0]:.10e}')
-    if 'cuda' in res:
-        a, b = res['cpu'], res['cuda']
-        log(f'  cpu vs cuda: dL/dangle rel {abs(a[0] - b[0]) / abs(a[0]):.1e}, '
+            log(f'[grad] golden on {key}: forward {t1 - t0:.1f} s, backward {t2 - t1:.1f} s{mem}, dL/dangle {res[key][0]:.10e}')
+    for k in [k for k in res if k != 'cpu']:
+        a, b = res['cpu'], res[k]
+        log(f'  cpu vs {k}: dL/dangle rel {abs(a[0] - b[0]) / abs(a[0]):.1e}, '
             f'coordinate gradient rel {float((a[1] - b[1]).abs().max() / a[1].abs().max()):.1e}')
 
 

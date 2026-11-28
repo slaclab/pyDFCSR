@@ -40,7 +40,12 @@ def test_defaults_bit_identical(golden, extra_dep, extra_csr):
     import make_golden_2d
     out = make_golden_2d.run_case(extra_dep, extra_csr, extra_integ={'seam_ratio': 0.0, 'reach_straight': 0.0})
     assert int(out['nkicks']) == int(golden['nkicks'])
-    bad = [k for k in golden.files if not np.array_equal(golden[k], out[k])]
+    # the fixture was made on an ARM Mac (macOS libm, numba codegen for arm64); there it must be
+    # bit-identical, elsewhere the last bits differ (x86 Linux: 4e-12 relative), so compare to round-off
+    import platform
+    exact = platform.system() == 'Darwin' and platform.machine() == 'arm64'
+    rel = lambda k: np.abs(golden[k] - out[k]).max() / max(np.abs(golden[k]).max(), 1e-300)
+    bad = [k for k in golden.files if not (np.array_equal(golden[k], out[k]) if exact else rel(k) <= 1e-10)]
     assert not bad, f'differs from the golden fixture: {bad}'
 
 

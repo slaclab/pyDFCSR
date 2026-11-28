@@ -27,11 +27,14 @@ def test_torch_wakes_match_numba(integ):
     +- d rho/dx cancellation amplifies the round-off of the later kicks."""
     a, b = _run(integ, 'numba'), _run(integ, 'torch')
     assert int(a['nkicks']) == int(b['nkicks'])
+    # with the x' refinement, columns at the selection threshold are decided by round-off (a tie,
+    # bounded by x_adapt_tol = 1e-3 of the region's sum); measured 4e-7 on x86 Linux, < 1e-8 on ARM
+    tol = 1e-5 if integ.get('near_adapt_x') else 1e-8
     for i in range(int(a['nkicks'])):
         for k in ('dE', 'xk'):
             ref = a[f'{k}_{i}']
-            assert np.abs(b[f'{k}_{i}'] - ref).max() <= 1e-8 * np.abs(ref).max(), (k, i)
-    assert np.allclose(a['beam'], b['beam'], rtol=0, atol=1e-10)
+            assert np.abs(b[f'{k}_{i}'] - ref).max() <= tol * np.abs(ref).max(), (k, i)
+    assert np.allclose(a['beam'], b['beam'], rtol=0, atol=1e-10 if tol == 1e-8 else 1e-8)
 
 
 def test_interp_and_integrand_kernels():
@@ -75,3 +78,19 @@ def test_interp_and_integrand_kernels():
     # ~1e-8 of the integrand; a wrong formula would be O(1)
     assert np.abs(tz.numpy() - gz).max() <= 1e-6 * np.abs(gz).max()
     assert np.abs(tx.numpy() - gx).max() <= 1e-6 * np.abs(gx).max()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='no CUDA device')
+@pytest.mark.parametrize('compile', [False, True])
+def test_cuda_wakes_match_numba(compile):
+    """The golden run on the GPU (plain and torch.compile'd integrand) against numba."""
+    import shutil
+    if compile and not (os.environ.get('CC') or shutil.which('gcc') or shutil.which('cc')):
+        pytest.skip('torch.compile needs a C compiler (set CC)')
+    import make_golden_2d
+    a = make_golden_2d.run_case({}, {'backend': 'numba'})
+    b = make_golden_2d.run_case({}, {'backend': 'torch', 'device': 'cuda', 'torch_compile': compile})
+    for i in range(int(a['nkicks'])):
+        for k in ('dE', 'xk'):
+            ref = a[f'{k}_{i}']
+            assert np.abs(b[f'{k}_{i}'] - ref).max() <= 1e-8 * np.abs(ref).max(), (k, i)
