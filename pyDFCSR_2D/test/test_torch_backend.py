@@ -97,8 +97,9 @@ def test_cuda_wakes_match_numba(compile):
 
 
 def test_torch_band_solver_reproduces_the_layout():
-    """torch_backend.bands_t in the batched layout (quantile frame, near_adapt + x' refinement):
-    the same node counts at every point, nodes and band edges to round-off (CPU device here)."""
+    """torch_backend.bands_t and the batched near-adapt construction (near_adapt_t) in the batched
+    layout (quantile frame, near_adapt + x' refinement): the same node counts at every point, nodes
+    and band edges to round-off (CPU device here)."""
     import contextlib
     import io
     import tempfile
@@ -116,11 +117,14 @@ def test_torch_band_solver_reproduces_the_layout():
     s = sim.beam.position + np.asarray(sim.CSR_zmesh)[:n]
     x = np.asarray(sim.CSR_xmesh)[:n]
     a = sim.wake_layouts(s, x)
+    from pyDFCSR_2D.torch_backend.near_adapt_t import near_adapt_batch
     sim._band_solver = BandSolver(sim, 'cpu').solve
+    sim._near_adapt_batch = lambda reqs: near_adapt_batch(sim, reqs)     # all points' near-adapt at once
     try:
         b = sim.wake_layouts(s, x)
     finally:
         sim._band_solver = None
+        sim._near_adapt_batch = None
     for la, lb in zip(a, b):
         assert len(la['regions']) == len(lb['regions'])
         for ra, rb in zip(la['regions'], lb['regions']):

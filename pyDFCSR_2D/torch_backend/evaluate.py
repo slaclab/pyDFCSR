@@ -95,11 +95,14 @@ class TorchWake:
         g = 0
         if self.bands:
             from .bands_t import BandSolver
+            from .near_adapt_t import near_adapt_batch
             sim._band_solver = BandSolver(sim, self.device).solve
+            sim._near_adapt_batch = lambda reqs: near_adapt_batch(sim, reqs)
         try:
             lays = sim.wake_layouts(s_arr, x_arr)
         finally:
             sim._band_solver = None
+            sim._near_adapt_batch = None
         for i, (s, x, lay) in enumerate(zip(s_arr, x_arr, lays)):
             if want_vx:
                 vx = sim._comoving_fields(np.array([x]), np.array([s - t]), np.array([t]))[3][0]

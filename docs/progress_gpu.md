@@ -516,3 +516,43 @@ Not verified; `torch.use_deterministic_algorithms(True)` would test it.
 
 BC20 projection (1771 steps, k ≈ 42): ~42 stored beams (2 GB) plus one 42-step segment, so roughly
 10–14 GB. It fits the 32 GB card.
+
+## 11. The near-adapt node construction batched over mesh points (2026-11-28)
+
+**Why.** With the band solve on the GPU (§9), a 1920-point `near_adapt` layout still took 1.44 s.
+1.1 s of that was `_g_near_adapt_nodes`, which runs per point: the bisection rounds of the column
+scan (each a few dozen small numpy calls on a few hundred values), one density lookup per request,
+and the final monitor, grading and inverse CDF. That is 10,180 generator resumptions per layout.
+
+**How.**
+- **A new request type.** With the batched construction available, a point's near region yields one
+  `NearAdaptRequest` (layout.py) instead of running its own rounds. `_drive` answers it with the
+  per-point generator, so the numba path is unchanged. `_drive_many` answers all points' requests
+  at once with `sim._near_adapt_batch`, set by the torch evaluator together with the GPU band solver
+  (`torch_bands`).
+- **`torch_backend/near_adapt_t.near_adapt_batch`** runs each bisection round for all points together.
+  The intervals live on flat arrays with a segment id per point. Each round needs one band solve
+  (GPU) and one density lookup. The merge sorts by (segment, s′) and drops duplicates, keeping the
+  old point as `np.unique` does.
+- **The final steps** go through one numba kernel over all segments: np.gradient's formula, the
+  grading recursion, the cumulative integral and the inverse CDF.
+- **Also on the numba path:** the interval splitting inside the per-point rounds is now one
+  vectorised expression instead of a Python loop over intervals. It is bit-identical (same
+  operation order) and the per-point numpy layout went 5.34 → 5.11 s.
+
+**Results** (golden case, quantile frame + `near_adapt` + x′ refinement, 12×160 = 1920 points):
+
+| layout | time | node counts identical | max rel diff |
+|---|---|---|---|
+| numpy (the numba path) | 5.11 s | (reference) | |
+| GPU bands, per-point near-adapt | 1.48 s | 1920/1920 | 1.6e-13 |
+| GPU bands, batched near-adapt | **0.87 s** | 1920/1920 | 1.6e-13 |
+
+- The numba path's layouts are bit-identical to before (`array_equal` on all 1920), and MPI equals
+  serial.
+- What remains is spread thinly over the per-point generator steps (far and base near nodes, extra
+  regions) and the GPU→CPU copies of the band results, with no single hot spot left.
+
+A BC20-type `near_adapt` kick on this GPU is now about 0.9 s of layout plus ~0.5 s of compiled
+evaluation, against ~5 s of layout alone before §9. Test: the layout test of §9 now also runs the
+batched near-adapt. Full suite: 225 passed.

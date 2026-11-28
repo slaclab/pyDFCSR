@@ -16,6 +16,10 @@ from numba import njit
 # LayoutMixin._drive answers them one by one (the plain methods, unchanged results), and
 # _drive_many answers the pending requests of many observers in one solve (the batched layout).
 BandRequest = namedtuple('BandRequest', 's x t sp n_iter scale_bands')
+# The near-adapt node construction of one observer as a whole: _drive answers it with the per-point
+# generator, _drive_many with sim._near_adapt_batch for all observers at once when that is set
+# (torch_backend.near_adapt_t, CSR_computation.torch_bands); see _g_near_region_nodes.
+NearAdaptRequest = namedtuple('NearAdaptRequest', 's x t a b base')
 
 
 @njit(cache=True)
@@ -49,12 +53,17 @@ class LayoutMixin:
                                         scale_bands=req.scale_bands)
         return bands, self._branch_diag['branches']
 
+    def _answer(self, req):
+        if isinstance(req, NearAdaptRequest):
+            return self._drive(self._g_near_adapt_nodes(*req))
+        return self._solve_request(req)
+
     def _drive(self, gen):
         """Run one layout generator, answering each band request with its own solve."""
         try:
             req = next(gen)
             while True:
-                req = gen.send(self._solve_request(req))
+                req = gen.send(self._answer(req))
         except StopIteration as stop:
             return stop.value
 
@@ -74,9 +83,18 @@ class LayoutMixin:
                 out[i] = stop.value
         while pending:
             groups = {}
+            near = [i for i, req in pending.items() if isinstance(req, NearAdaptRequest)]
             for i, req in pending.items():
-                groups.setdefault((req.n_iter, req.scale_bands, req.t), []).append(i)
+                if not isinstance(req, NearAdaptRequest):
+                    groups.setdefault((req.n_iter, req.scale_bands, req.t), []).append(i)
             nxt = {}
+            if near:
+                nodes = self._near_adapt_batch([pending[i] for i in near])
+                for i, nd in zip(near, nodes):
+                    try:
+                        nxt[i] = gens[i].send(nd)
+                    except StopIteration as stop:
+                        out[i] = stop.value
             for (n_iter, scale, t), ids in groups.items():
                 reqs = [pending[i] for i in ids]
                 sizes = [np.size(r.sp) for r in reqs]
@@ -296,7 +314,7 @@ class LayoutMixin:
         if not ip.near_cell or not g or floor <= 0.0:
             base = np.linspace(a, b, self._region_node_counts(((a, b),))[-1])
             if ip.near_adapt and x is not None:
-                return (yield from self._g_near_adapt_nodes(s, x, t, a, b, base))
+                return (yield from self._near_adapt(s, x, t, a, b, base))
             return base
 
         ustar = floor / g                      # where relative spacing takes over
@@ -316,8 +334,14 @@ class LayoutMixin:
         self._last_region_nodes[-1] = len(sp)
         sp = np.unique(sp)
         if ip.near_adapt and x is not None:
-            return (yield from self._g_near_adapt_nodes(s, x, t, a, b, sp))
+            return (yield from self._near_adapt(s, x, t, a, b, sp))
         return sp
+
+    def _near_adapt(self, s, x, t, a, b, base):
+        """The near-adapt nodes: one request for the batched construction if set, else per point."""
+        if getattr(self, '_near_adapt_batch', None) is not None:
+            return (yield NearAdaptRequest(s, x, t, a, b, base))
+        return (yield from self._g_near_adapt_nodes(s, x, t, a, b, base))
 
     def _column_scan(self, s, x, t, sp):
         return self._drive(self._g_column_scan(s, x, t, sp))
@@ -390,8 +414,11 @@ class LayoutMixin:
             if (k - 1).sum() > room:
                 k = np.maximum(1, np.floor(k * room / max((k - 1).sum(), 1))).astype(int)
             a0, a1 = sp[:-1][need], sp[1:][need]
-            new = np.concatenate([a0[i] + (a1[i] - a0[i]) * np.arange(1, k[i]) / k[i]
-                                  for i in range(need.sum())]) if need.any() else np.zeros(0)
+            # the k - 1 interior points of each split interval, all intervals at once; the same
+            # arithmetic order as a0 + (a1 - a0) * arange(1, k) / k per interval (bit-identical)
+            idx = np.repeat(np.arange(k.size), k - 1)
+            j = np.arange(idx.size) - np.repeat(np.cumsum(k - 1) - (k - 1), k - 1) + 1
+            new = a0[idx] + (a1[idx] - a0[idx]) * j / k[idx]
             if new.size == 0:
                 break
             zm, rm = yield from self._g_column_scan(s, x, t, new)
