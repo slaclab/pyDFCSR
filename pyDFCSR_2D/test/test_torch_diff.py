@@ -150,3 +150,31 @@ def test_checkpoint_gives_the_same_gradient():
             out.append((float(ang.grad), c.grad.clone()))
     assert abs(out[0][0] - out[1][0]) <= 1e-12 * abs(out[0][0])
     assert torch.allclose(out[0][1], out[1][1], rtol=1e-12, atol=1e-12 * float(out[0][1].abs().max()))
+
+
+def test_segment_gradient_equals_checkpointed():
+    """CSR2DDiff(segment=k) + segment_gradient: the same gradient as the per-step checkpointed backward
+    (bend angle and BeamTransform knobs, gradients through the generator), to round-off."""
+    from pyDFCSR_2D.torch_backend.beam_param import BeamTransform
+    from pyDFCSR_2D.torch_backend.diff import CSR2DDiff
+    loss = lambda tp: tp.pz.mean() * 1e6 + tp.px.std() * 1e3
+    base = torch.as_tensor(G.beam_coords().T[:, :3000].copy())
+    out = []
+    with tempfile.TemporaryDirectory() as tmp:
+        f = G.config(tmp, None, {'torch_chunk': 1 << 19}, None)
+        for seg in (None, 2):
+            bt = BeamTransform(base)
+            ang = torch.tensor(0.05, dtype=torch.float64, requires_grad=True)
+            c = bt.beam()
+            with contextlib.redirect_stdout(io.StringIO()):
+                # a derived parameter (as for a chicane's -theta): the gradient must reach the leaf
+                d = CSR2DDiff(input_file=f, coords=c, params={('B1', 'angle'): 2.0 * ang - 0.05},
+                              checkpoint=True, segment=seg)
+                d.run(stop_time=0.15)
+            if seg is None:
+                loss(d.tp).backward()
+            else:
+                d.segment_gradient(loss, coords=c)
+            out.append([float(ang.grad), float(bt.params['chirp'].grad), float(bt.params['z_scale'].grad)])
+    for a, b in zip(*out):
+        assert abs(a - b) <= 1e-10 * abs(a), out

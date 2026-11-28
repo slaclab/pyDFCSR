@@ -450,3 +450,69 @@ construction over points would be the next step there.
 
 Test: `test_torch_backend.py::test_torch_band_solver_reproduces_the_layout` (CPU device, quantile
 frame with `near_adapt` + x′ refinement: same node counts, nodes and edges to 1e-10).
+
+## 10. Segment checkpointing (2026-11-28)
+
+**Why.** Reverse mode needs every step's beam in the backward pass, because the tracking maps, the
+deposit and the kick lookup are nonlinear in it. Checkpointing every step kept 6N doubles per step:
+about 85 GB for BC20 (1771 steps, 1e6 particles), 23 GB for the chicane (489 steps). That holds
+whether the inputs are particles or beam parameters.
+
+**How.**
+- **Pure operations on a tape.** The torch side of each step is now a pure operation that reads no
+  mutable run state: `op_track(beam, element, ele, params)`, `op_snap(beam, window structure)` and
+  `op_kick(beam, snapshots, kick record, L_kick, params)`. The wake evaluator takes the observation
+  time as an argument for the same reason.
+- **Forward pass** (`CSR2DDiff(segment=k)`): runs without a graph. It records these operations on a
+  tape and keeps only the beam every k tracking steps plus every snapshot (fields and frame).
+- **Reverse sweep** (`segment_gradient(loss_fn, coords=)`): from the end, each segment is recomputed
+  with gradients from its stored start beam. Three adjoints are carried backwards: the beam's, the
+  snapshots' (a kick reads snapshots made in earlier segments, so their gradients from later
+  segments are added up and passed on), and the parameters'. These finally go through the
+  parameters' own graphs (a bend's −θ, a `BeamTransform`) by `autograd.backward`.
+- With `checkpoint=True` the segment's own steps, wake chunks and (new) deposits are checkpointed
+  as well. Without the deposit checkpoint each snapshot's fits kept dozens of particle-sized
+  intermediates.
+
+**Same gradient.** On the golden case, gradients with respect to the bend angle and the
+`BeamTransform` knobs (chirp, z_scale, 9 profile knots) agree with the per-step checkpointed backward
+pass to 5e-13 for k = 3 and k = 1000, and the loss to 1.6e-13. A test now covers this, including a
+derived parameter (2θ − θ₀) whose gradient must reach the leaf. The first 1e6 run lost its θ
+gradient on exactly that: the sweep assigned gradients to the derived ±θ tensors directly instead
+of passing them through `backward`.
+
+**1e6 particles on the chicane** (`test/gpu_diff/chicane_segment.py`; RTX 5000 Ada, compiled, GPU
+bands; k = 22, 24 stored beams, 105 kicks):
+
+| | peak GPU memory | forward (no graph) | segmented gradient |
+|---|---|---|---|
+| deposit not checkpointed | 17.6 GB | 314 s | 184 s |
+| deposit checkpointed | **9.8 GB** | 315 s | 192 s |
+| checkpoint every step (estimate) | > 23 GB for the beams alone | | |
+
+| quantity | 1e6 particles | 20k particles |
+|---|---|---|
+| ⟨ΔE⟩ | −2814.6 keV | −2777 |
+| d⟨ΔE⟩/dθ | −3.5262e6 keV/rad | −3.542e6 |
+| d⟨ΔE⟩/d chirp | 2433.5 keV·m | 2444.8 |
+| d⟨ΔE⟩/d z_scale | 9.034e4 keV | |
+
+d⟨ΔE⟩/d(profile knot) at w = −4 … +4:
+
+| w | −4 | −3 | −2 | −1 | 0 | +1 | +2 | +3 | +4 |
+|---|---|---|---|---|---|---|---|---|---|
+| keV per unit | −4.9e3 | −9.8e3 | −7.2e3 | +9.2e3 | +3.4e4 | +8.4e3 | −1.0e4 | −1.3e4 | −6.3e3 |
+
+Physically: stretching the core (positive knot near w = 0) lowers the peak current and reduces the
+loss; stretching the tails compresses the core relative to them, which increases it. The gradient
+pass is faster than the forward pass because the forward pass also runs the numpy structure (the
+1e6-particle numba deposit and the layout on the CPU).
+
+**Open: GPU runs are not bit-reproducible.** Two forward runs of the identical 1e6 beam (identical
+Hammersley-sampled distgen output, checked) gave ⟨ΔE⟩ −2815.86 and −2814.64 keV (4e-4); the
+gradients differ by 3e-5. The likely cause is CUDA's `index_add` (atomic adds in varying order),
+with the round-off flipping structural thresholds (drift thinning, node counts) over the 105 kicks.
+Not verified; `torch.use_deterministic_algorithms(True)` would test it.
+
+BC20 projection (1771 steps, k ≈ 42): ~42 stored beams (2 GB) plus one 42-step segment, so roughly
+10–14 GB. It fits the 32 GB card.

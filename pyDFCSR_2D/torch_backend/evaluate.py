@@ -157,7 +157,7 @@ class TorchWake:
 
     def _columns(self, H, obs_pt, C, idx, offs, h):
         """sum_k f(lo + offs_k * h) over the nodes of the columns idx, for W and F."""
-        t = float(self.sim.beam.position)
+        t = self._t_now
         n_off = offs.numel()
         per = max(1, self.chunk // n_off)
         Sz, Sx = [], []
@@ -175,16 +175,18 @@ class TorchWake:
             Sx.append(x)
         return torch.cat(Sz), torch.cat(Sx)
 
-    def compute(self, s_arr, x_arr, H=None, vx_obs=None, as_tensor=False, layout=None, refine=None):
+    def compute(self, s_arr, x_arr, H=None, vx_obs=None, as_tensor=False, layout=None, refine=None, t=None):
         """
         (dE/dct, x kick) at the observers (s_arr, x_arr). H: the history as tensors (default: the
         tracker's, as constants); vx_obs: the observers' vx as a tensor (default: from the numba
         interpolant). as_tensor: return tensors (with their graph) instead of numpy arrays.
         layout, refine: a previous call's self.last_layout / self.last_refine (the refinement's
         active columns per round) to reuse (frozen structure); the new ones are kept there.
+        t: the observation time (default the beam's position; a replayed run passes its own).
         """
         sim = self.sim
         ip = sim.integration_params
+        self._t_now = float(sim.beam.position if t is None else t)
         t0 = time.time()
         if H is None:
             H = History.from_tracker(sim.DF_tracker, self.device)
@@ -227,7 +229,7 @@ class TorchWake:
 
     def _weighted_columns(self, H, obs_pt, C, idx, frac, trap, width):
         """sum_k trap_k f(lo + frac_k * width) per column (the base pass)."""
-        t = float(self.sim.beam.position)
+        t = self._t_now
         n_off = frac.numel()
         per = max(1, self.chunk // n_off)
         Sz, Sx = [], []
@@ -291,7 +293,7 @@ class TorchWake:
         if not patch:
             return z, zx
         ip = self.sim.integration_params
-        t = float(self.sim.beam.position)
+        t = self._t_now
         nr, nphi = ip.near_patch_nr, ip.near_patch_nphi
         arr = np.array(patch)
         pid = arr[:, 0].astype(np.int64)
