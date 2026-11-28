@@ -13,6 +13,7 @@ A coarse setup so that it runs on the Mac CPU (N particles, 100 x 150 deposition
     python chicane_gradients.py time            # numba CSR2D forward only (cost, reference)
     python chicane_gradients.py grad [N]        # forward + backward (saves the structure record), then the FD checks
     python chicane_gradients.py fd [N] [h ...]  # only the FD checks, from the saved record and gradients
+Options (anywhere on the line): --device cuda, --compile (CSR_computation.torch_compile; needs CC).
 Writes benchmark_results/gpu_diff/chicane_gradients.txt (appends) and .npz.
 """
 import contextlib
@@ -31,6 +32,8 @@ sys.path.insert(0, os.path.join(HERE, '..', '..', '..'))
 import chicane_2d_vs_1d as C  # noqa: E402
 
 OUT = os.path.join(HERE, '..', 'benchmark_results', 'gpu_diff')
+DEVICE = sys.argv[sys.argv.index('--device') + 1] if '--device' in sys.argv else 'cpu'
+COMPILE = '--compile' in sys.argv
 THETA0 = 0.0483
 BENDS = {'B1': (+1, 'E2'), 'B2': (-1, 'E1'), 'B3': (-1, 'E2'), 'B4': (+1, 'E1')}
 
@@ -46,7 +49,7 @@ def config(tmp, n):
     cfg['CSR_integration'] = {'n_formation_length': 1, 'xbins': 60, 'zbins': 100, 'far_zbins': 100,
                               'drift_cutoff': 0.0}
     cfg['CSR_computation'] = dict(cfg['CSR_computation'], xbins=8, zbins=24, workdir=tmp, write_wakes=False,
-                                  torch_chunk=1 << 19)
+                                  torch_chunk=1 << 19, torch_compile=COMPILE)
     f = os.path.join(tmp, 'cfg.yaml')
     yaml.safe_dump(cfg, open(f, 'w'))
     return f
@@ -94,13 +97,14 @@ def main(mode, n=20000):
                 params[(b, 'angle')] = sgn * theta
                 params[(b, edge)] = sgn * theta
             with contextlib.redirect_stdout(io.StringIO()):
-                d = CSR2DDiff(input_file=f, coords=c, params=params, structure=structure, checkpoint=True)
+                d = CSR2DDiff(input_file=f, coords=c, params=params, structure=structure, checkpoint=True,
+                              device=DEVICE)
                 d.run()
             return d
         with contextlib.redirect_stdout(io.StringIO()):
             ref = CSR2D(input_file=f)
         p0 = ref.beam.particle
-        c0 = torch.as_tensor(np.stack([p0.x, p0.px, p0.y, p0.py, p0.z, p0.pz]))
+        c0 = torch.as_tensor(np.stack([p0.x, p0.px, p0.y, p0.py, p0.z, p0.pz])).to(DEVICE)
         E0 = ref.beam.init_energy
         eps0 = float(emittance(c0[0], c0[1], c0[5]))
         import pickle
@@ -109,7 +113,7 @@ def main(mode, n=20000):
             record, g = pickle.load(open(rec_file, 'rb'))
             return fd_checks(run, record, g, c0, E0, eps0, [float(v) for v in sys.argv[3:]] or [1e-4])
         c = c0.clone().requires_grad_(True)
-        th = torch.tensor(THETA0, dtype=torch.float64, requires_grad=True)
+        th = torch.tensor(THETA0, dtype=torch.float64, device=DEVICE, requires_grad=True)
         t0 = time.time()
         d = run(th, c)
         t1 = time.time()
@@ -121,19 +125,19 @@ def main(mode, n=20000):
             gt, gc = torch.autograd.grad(L, (th, c), retain_graph=(name == 'dE'))
             g[name] = (float(gt), float((gc[5] * c0[4]).sum()))
         t2 = time.time()
-        log(f'[grad] N = {n}: forward {t1 - t0:.0f} s, both backward passes {t2 - t1:.0f} s, {len(d.structure)} kicks')
+        log(f'[grad] device {DEVICE}{" compiled" if COMPILE else ""}, N = {n}: forward {t1 - t0:.0f} s, both backward passes {t2 - t1:.0f} s, {len(d.structure)} kicks')
         log(f'  <dE> = {float(dE):.4f} keV   d<dE>/dtheta = {g["dE"][0]:.5e} keV/rad   d<dE>/dh = {g["dE"][1]:.5e} keV m')
         log(f'  deps = {float(deps):.5f} nm   deps/dtheta = {g["deps"][0]:.5e} nm/rad   deps/dh = {g["deps"][1]:.5e} nm m')
         pickle.dump((d.record, g), open(rec_file, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
         np.savez(os.path.join(OUT, 'chicane_gradients.npz'), dE=float(dE), deps=float(deps),
                  g_dE=g['dE'], g_deps=g['deps'])
-        fd_checks(run, d.record, g, c0, E0, eps0, [1e-4])
+        fd_checks(run, d.record, g, c0, E0, eps0, [1e-5])
 
 
 def fd_checks(run, record, g, c0, E0, eps0, hs):
     """Central differences in theta and in the chirp with the structure replayed, at relative steps hs."""
     import torch
-    T = lambda v: torch.tensor(v, dtype=torch.float64)
+    T = lambda v: torch.tensor(v, dtype=torch.float64, device=DEVICE)
 
     def measure(theta, c):
         dd = run(T(theta), c, record)
@@ -159,4 +163,6 @@ def fd_checks(run, record, g, c0, E0, eps0, hs):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 20000)
+    args = [a for a in sys.argv[1:] if not a.startswith('--') and a != DEVICE]
+    sys.argv = [sys.argv[0]] + args          # fd mode reads its steps from sys.argv[3:]
+    main(args[0], int(args[1]) if len(args) > 1 else 20000)

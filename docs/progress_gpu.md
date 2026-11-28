@@ -325,3 +325,45 @@ one numba core in the evaluation at every size. Compiled, on the 12×40 mesh: ev
   on the CPU is (0.2 of 0.28 s). numba with ~16 MPI ranks on this 32-core machine (~0.11 s,
   extrapolated linearly) is still faster than one GPU process. Next: the band solve, which is most of
   the layout, in torch on the device (P2c), or the layout split over CPU processes feeding the GPU.
+
+## 7. The chicane gradient demo on the GPU (2026-11-27)
+
+`chicane_gradients.py grad 20000 --device cuda --compile` on the RTX 5000 Ada (the coarse chicane of
+§5: 20k particles, 489 steps, 105 kicks):
+
+| | Mac CPU (torch, 6 threads) | RTX 5000 Ada, compiled |
+|---|---|---|
+| forward, differentiable | 481 s | **99 s** |
+| both backward passes (⟨ΔE⟩ and Δε) | 2858 s | **227 s** (including the first-run compiling) |
+| 4 finite-difference forward runs | ~40 min (2 in parallel) | ~7 min |
+| whole job | ~2 h | 12.2 min |
+
+For comparison, the serial numba forward run (no gradients) takes 236 s on this machine and 174 s on
+the Mac. So one differentiable GPU forward run is 2.4× faster than a plain numba run on one core
+here, and it gives the gradients.
+
+**Results** agree with the Mac's.
+
+| quantity | GPU | Mac (§5) |
+|---|---|---|
+| ⟨ΔE⟩ | −2777.05 keV | −2777.67 keV |
+| d⟨ΔE⟩/dθ | −3.54216e6 keV/rad | −3.54234e6 |
+| d⟨ΔE⟩/dh | 2.44476e3 keV·m | 2.44479e3 |
+| dΔε/dθ | 46.037 nm/rad | 46.030 |
+| dΔε/dh | −3.0348e-2 nm·m | −3.0336e-2 |
+
+The beam itself differs slightly between the machines: distgen draws the same 20k particles to
+different last bits on ARM and x86, and the initial ⟨pz⟩·E0 here is −0.026 keV.
+
+Finite differences at the same steps as on the Mac give the same agreement: d⟨ΔE⟩/dθ 1.9e-5,
+dΔε/dθ 1.3e-3, d⟨ΔE⟩/dh 9.2e-3, dΔε/dh 5.3e-2.
+
+**GPU against numba over the whole chicane.** numba gives ⟨ΔE⟩ = −2776.91 keV here, 5e-5 below the
+GPU's −2777.05 keV. Each kick's wake agrees to ~1e-9 (§6). Over 105 kicks the two runs see
+round-off-different beams, and the history's drift thinning (tolerance 1%) and retention are
+thresholds that can flip on round-off. Not verified; on the Mac the CPU torch run was 1e-5 from
+numba.
+
+**Fix.** A compiled backward pass reuses ("donates") its buffers, so it allows only one backward per
+forward. The demo takes two gradients from one forward (`retain_graph=True`), which failed. With
+`torch_compile` the evaluator now sets `torch._functorch.config.donated_buffer = False`.

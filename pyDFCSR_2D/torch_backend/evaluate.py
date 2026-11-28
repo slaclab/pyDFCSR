@@ -67,6 +67,11 @@ class TorchWake:
         """
         self.sim = sim
         self.checkpoint = bool(checkpoint)
+        if compile:
+            # donated buffers make the compiled backward single-use, which breaks several gradients
+            # from one forward (backward(retain_graph=True), as chicane_gradients does)
+            import torch._functorch.config
+            torch._functorch.config.donated_buffer = False
         self._integrand = torch.compile(integrand, dynamic=True) if compile else integrand
         self.device = torch.device(device)
         self.chunk = int(chunk)
